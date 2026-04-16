@@ -247,8 +247,8 @@ export default function Session() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-extrabold text-lg text-foreground tracking-tight whitespace-nowrap">Mesa Compartida</h1>
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">Mesa Compartida</h1>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
               {getCurrencyFlag(currency)} Sincronizado en vivo
             </p>
           </div>

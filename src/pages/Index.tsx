@@ -177,12 +177,12 @@ export default function Index() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 card-shadow">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Receipt className="w-5 h-5 text-primary-foreground" />
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+            <Receipt className="w-6 h-6 text-primary-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap">La Cuota</h1>
-            <p className="text-[10px] text-muted-foreground">Divide cuentas {getCurrencyFlag(currency)}</p>
+            <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">La Cuota</h1>
+            <p className="text-xs text-muted-foreground font-medium">Divide cuentas {getCurrencyFlag(currency)}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
             <CurrencySelector currency={currency} onChange={setCurrency} />
@@ -191,14 +191,14 @@ export default function Index() {
               disabled={sharing || products.length === 0}
               variant="outline"
               size="sm"
-              className="rounded-xl border-primary/20 bg-primary/5 text-primary gap-1.5 h-8 px-2.5 text-[10px] font-bold transition-all active:scale-95 whitespace-nowrap"
+              className="rounded-2xl border-primary/20 bg-primary/5 text-primary gap-1.5 h-9 px-3 text-xs font-bold transition-all active:scale-95 whitespace-nowrap shadow-sm"
             >
               {sharing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Share2 className="w-3.5 h-3.5" />
+                <Share2 className="w-4 h-4" />
               )}
-              {sharing ? 'Creando...' : 'Compartir'}
+              {sharing ? 'Creando...' : 'Une a tus amigos'}
             </Button>
           </div>
         </div>
