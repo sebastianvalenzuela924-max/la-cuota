@@ -10,7 +10,7 @@ import TipSection from '@/components/divisor/TipSection';
 import BankSection from '@/components/divisor/BankSection';
 import SummarySection from '@/components/divisor/SummarySection';
 import CurrencySelector from '@/components/divisor/CurrencySelector';
-import { supabase } from '@/integrations/supabase/client';
+import { sharingSupabase } from '@/integrations/supabase/sharing-client';
 import { Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -106,7 +106,7 @@ export default function Index() {
     setSharing(true);
     try {
       // 1. Create Session
-      const { data: session, error: sError } = await supabase
+      const { data: session, error: sError } = await sharingSupabase
         .from('bill_sessions')
         .insert([{
           currency,
@@ -123,7 +123,7 @@ export default function Index() {
 
       // 2. Create Products
       if (products.length > 0) {
-        const { error: pError } = await supabase
+        const { error: pError } = await sharingSupabase
           .from('bill_products')
           .insert(products.map(p => ({ ...p, session_id: sid })));
         if (pError) throw pError;
@@ -131,7 +131,7 @@ export default function Index() {
 
       // 3. Create People
       if (people.length > 0) {
-        const { error: peError } = await supabase
+        const { error: peError } = await sharingSupabase
           .from('bill_people')
           .insert(people.map(p => ({ ...p, session_id: sid })));
         if (peError) throw peError;
@@ -146,7 +146,7 @@ export default function Index() {
       });
 
       if (assignmentInserts.length > 0) {
-        const { error: aError } = await supabase
+        const { error: aError } = await sharingSupabase
           .from('bill_assignments')
           .insert(assignmentInserts);
         if (aError) throw aError;

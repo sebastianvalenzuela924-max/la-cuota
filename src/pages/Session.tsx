@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Receipt, Share2, ArrowLeft, Copy, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { sharingSupabase } from '@/integrations/supabase/sharing-client';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue } from '@/lib/bill-utils';
 import ProductSection from '@/components/divisor/ProductSection';
@@ -36,7 +36,7 @@ export default function Session() {
       setLoading(true);
       try {
         // 1. Fetch Session
-        const { data: session, error: sError } = await supabase
+        const { data: session, error: sError } = await sharingSupabase
           .from('bill_sessions')
           .select('*')
           .eq('id', sessionId)
@@ -49,7 +49,7 @@ export default function Session() {
         setBankData(session.bank_data);
 
         // 2. Fetch Products
-        const { data: pData, error: pError } = await supabase
+        const { data: pData, error: pError } = await sharingSupabase
           .from('bill_products')
           .select('*')
           .eq('session_id', sessionId);
@@ -57,7 +57,7 @@ export default function Session() {
         setProducts(pData || []);
 
         // 3. Fetch People
-        const { data: peData, error: peError } = await supabase
+        const { data: peData, error: peError } = await sharingSupabase
           .from('bill_people')
           .select('*')
           .eq('session_id', sessionId);
@@ -65,7 +65,7 @@ export default function Session() {
         setPeople(peData || []);
 
         // 4. Fetch Assignments
-        const { data: aData, error: aError } = await supabase
+        const { data: aData, error: aError } = await sharingSupabase
           .from('bill_assignments')
           .select('product_id, person_id');
         if (aError) throw aError;
@@ -89,7 +89,7 @@ export default function Session() {
     loadData();
 
     // Setup Realtime Subscriptions
-    const channel = supabase
+    const channel = sharingSupabase
       .channel(`session-${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_sessions', filter: `id=eq.${sessionId}` }, (payload) => {
         const data = payload.new as any;
@@ -99,18 +99,18 @@ export default function Session() {
         if (data.bank_data) setBankData(data.bank_data);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_products', filter: `session_id=eq.${sessionId}` }, async () => {
-        const { data } = await supabase.from('bill_products').select('*').eq('session_id', sessionId);
+        const { data } = await sharingSupabase.from('bill_products').select('*').eq('session_id', sessionId);
         setProducts(data || []);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_people', filter: `session_id=eq.${sessionId}` }, async () => {
-        const { data } = await supabase.from('bill_people').select('*').eq('session_id', sessionId);
+        const { data } = await sharingSupabase.from('bill_people').select('*').eq('session_id', sessionId);
         setPeople(data || []);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_assignments' }, async () => {
-        const { data: pIds } = await supabase.from('bill_products').select('id').eq('session_id', sessionId);
+        const { data: pIds } = await sharingSupabase.from('bill_products').select('id').eq('session_id', sessionId);
         if (!pIds) return;
         const ids = pIds.map(p => p.id);
-        const { data } = await supabase.from('bill_assignments').select('*').in('product_id', ids);
+        const { data } = await sharingSupabase.from('bill_assignments').select('*').in('product_id', ids);
         
         const agg: Record<string, string[]> = {};
         data?.forEach(a => {
@@ -122,7 +122,7 @@ export default function Session() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      sharingSupabase.removeChannel(channel);
     };
   }, [sessionId, navigate]);
 
@@ -142,27 +142,27 @@ export default function Session() {
 
   // Mutations
   const addProduct = async (p: Product) => {
-    const { error } = await supabase.from('bill_products').insert([{ ...p, session_id: sessionId }]);
+    const { error } = await sharingSupabase.from('bill_products').insert([{ ...p, session_id: sessionId }]);
     if (error) toast.error('Error al añadir producto');
   };
 
   const removeProduct = async (id: string) => {
-    const { error } = await supabase.from('bill_products').delete().eq('id', id);
+    const { error } = await sharingSupabase.from('bill_products').delete().eq('id', id);
     if (error) toast.error('Error al eliminar producto');
   };
 
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    const { error } = await supabase.from('bill_products').update(data).eq('id', id);
+    const { error } = await sharingSupabase.from('bill_products').update(data).eq('id', id);
     if (error) toast.error('Error al actualizar producto');
   };
 
   const addPerson = async (p: Person) => {
-    const { error } = await supabase.from('bill_people').insert([{ ...p, session_id: sessionId }]);
+    const { error } = await sharingSupabase.from('bill_people').insert([{ ...p, session_id: sessionId }]);
     if (error) toast.error('Error al añadir persona');
   };
 
   const removePerson = async (id: string) => {
-    const { error } = await supabase.from('bill_people').delete().eq('id', id);
+    const { error } = await sharingSupabase.from('bill_people').delete().eq('id', id);
     if (error) toast.error('Error al eliminar persona');
   };
 
@@ -171,15 +171,15 @@ export default function Session() {
     const exists = current.includes(personId);
 
     if (exists) {
-      await supabase.from('bill_assignments').delete().match({ product_id: productId, person_id: personId });
+      await sharingSupabase.from('bill_assignments').delete().match({ product_id: productId, person_id: personId });
     } else {
-      await supabase.from('bill_assignments').insert([{ product_id: productId, person_id: personId }]);
+      await sharingSupabase.from('bill_assignments').insert([{ product_id: productId, person_id: personId }]);
     }
   };
 
   const assignAllToProduct = async (productId: string) => {
     const inserts = people.map(p => ({ product_id: productId, person_id: p.id }));
-    await supabase.from('bill_assignments').insert(inserts);
+    await sharingSupabase.from('bill_assignments').insert(inserts);
   };
 
   const divideAllAmongAll = async () => {
@@ -189,11 +189,11 @@ export default function Session() {
         inserts.push({ product_id: p.id, person_id: person.id });
       });
     });
-    await supabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id' });
+    await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id' });
   };
 
   const updateSession = async (updates: any) => {
-    await supabase.from('bill_sessions').update(updates).eq('id', sessionId);
+    await sharingSupabase.from('bill_sessions').update(updates).eq('id', sessionId);
   };
 
   const sessionUrl = window.location.href;
