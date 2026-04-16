@@ -133,7 +133,12 @@ export default function Index() {
       if (people.length > 0) {
         const { error: peError } = await sharingSupabase
           .from('bill_people')
-          .insert(people.map(p => ({ ...p, session_id: sid })));
+          .insert(people.map(p => ({ 
+            id: p.id,
+            name: p.name,
+            color_index: p.colorIndex,
+            session_id: sid 
+          })));
         if (peError) throw peError;
       }
 

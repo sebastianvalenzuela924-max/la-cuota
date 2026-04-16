@@ -62,7 +62,12 @@ export default function Session() {
           .select('*')
           .eq('session_id', sessionId);
         if (peError) throw peError;
-        setPeople(peData || []);
+        setPeople((peData || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          colorIndex: p.color_index,
+          session_id: p.session_id
+        })));
 
         // 4. Fetch Assignments
         const { data: aData, error: aError } = await sharingSupabase
@@ -105,7 +110,12 @@ export default function Session() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_people', filter: `session_id=eq.${sessionId}` }, async () => {
         const { data } = await sharingSupabase.from('bill_people').select('*').eq('session_id', sessionId);
-        setPeople(data || []);
+        setPeople((data || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          colorIndex: p.color_index,
+          session_id: p.session_id
+        })));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_assignments', filter: `session_id=eq.${sessionId}` }, async () => {
         const { data } = await sharingSupabase.from('bill_assignments').select('*').eq('session_id', sessionId);
@@ -155,7 +165,12 @@ export default function Session() {
   };
 
   const addPerson = async (p: Person) => {
-    const { error } = await sharingSupabase.from('bill_people').insert([{ ...p, session_id: sessionId }]);
+    const { error } = await sharingSupabase.from('bill_people').insert([{ 
+      id: p.id,
+      name: p.name,
+      color_index: p.colorIndex,
+      session_id: sessionId 
+    }]);
     if (error) toast.error('Error al añadir persona');
   };
 
