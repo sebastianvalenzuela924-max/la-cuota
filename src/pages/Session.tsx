@@ -275,8 +275,31 @@ export default function Session() {
                   <p className="text-[11px] text-muted-foreground text-center font-medium">Escanea este código para instalar o abrir la app 🇨🇱</p>
                 </div>
 
-                <div className="w-full p-3 bg-accent/50 rounded-2xl border border-border text-center overflow-hidden">
-                  <p className="text-[10px] font-mono text-muted-foreground truncate">https://la-cuota.vercel.app/</p>
+                <div className="w-full flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden">
+                  <p className="text-[10px] font-mono text-muted-foreground truncate flex-1">https://la-cuota.vercel.app/</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://la-cuota.vercel.app/");
+                        toast.success('Link de la app copiado');
+                      }}
+                      className="h-8 w-8 rounded-lg bg-background/50 hover:bg-background"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      onClick={() => {
+                        window.open(`https://wa.me/?text=${encodeURIComponent("¡Mira esta app para dividir la cuenta!: https://la-cuota.vercel.app/")}`, '_blank');
+                      }}
+                      className="h-8 w-8 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-600"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </DialogContent>
