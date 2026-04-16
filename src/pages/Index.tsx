@@ -155,9 +155,9 @@ export default function Index() {
       toast.success('¡Mesa compartida creada!');
       navigate(`/session/${sid}`);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sharing:', error);
-      toast.error('No se pudo crear la mesa compartida');
+      toast.error(`No se pudo crear la mesa compartida: ${error.message || 'Error desconocido'}`);
     } finally {
       setSharing(false);
     }

@@ -77,9 +77,9 @@ export default function Session() {
         });
         setAssignments(aggAssignments);
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading session:', error);
-        toast.error('No se pudo cargar la mesa compartida');
+        toast.error(`Error al cargar la mesa: ${error.message || ''}`);
         navigate('/');
       } finally {
         setLoading(false);
