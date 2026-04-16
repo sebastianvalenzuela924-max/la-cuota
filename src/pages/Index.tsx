@@ -177,13 +177,47 @@ export default function Index() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 card-shadow">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Receipt className="w-6 h-6 text-primary-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">La Cuota</h1>
-            <p className="text-xs text-muted-foreground font-medium">Divide cuentas {getCurrencyFlag(currency)}</p>
-          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity active:scale-95">
+                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                  <Receipt className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">La Cuota</h1>
+                  <p className="text-xs text-muted-foreground font-medium">Divide cuentas {getCurrencyFlag(currency)}</p>
+                </div>
+              </div>
+            </DialogTrigger>
+            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in overflow-hidden">
+              <DialogHeader className="mb-6">
+                <DialogTitle className="text-center font-bold text-xl text-foreground">¡Comparte la App!</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col items-center w-full min-w-0">
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center mb-6 shrink-0">
+                  <QRCodeSVG 
+                    value="https://la-cuota.vercel.app/" 
+                    size={180} 
+                    level="H"
+                    includeMargin={false}
+                    className="w-full h-auto max-w-[180px]"
+                  />
+                </div>
+                
+                <div className="w-full space-y-3 mb-4">
+                  <p className="text-sm text-center font-bold text-foreground italic">"La mejor forma de dividir la cuenta con amigos"</p>
+                  <p className="text-[11px] text-muted-foreground text-center font-medium">Escanea este código para instalar o abrir la app 🇨🇱</p>
+                </div>
+
+                <div className="w-full p-3 bg-accent/50 rounded-2xl border border-border text-center overflow-hidden">
+                  <p className="text-[10px] font-mono text-muted-foreground truncate">https://la-cuota.vercel.app/</p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <div className="flex-1"></div>
+          
           <div className="flex flex-col items-end gap-2">
             <CurrencySelector currency={currency} onChange={setCurrency} />
             <Button 
