@@ -217,8 +217,8 @@ export default function Session() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-9 w-9 rounded-xl">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex-1">
-            <h1 className="font-extrabold text-lg text-foreground tracking-tight">Mesa Compartida</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-extrabold text-lg text-foreground tracking-tight whitespace-nowrap">Mesa Compartida</h1>
             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
               {getCurrencyFlag(currency)} Sincronizado en vivo
             </p>
