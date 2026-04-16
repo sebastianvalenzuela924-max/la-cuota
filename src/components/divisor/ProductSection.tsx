@@ -150,7 +150,7 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
               setAddPriceMode('total');
             }
           }}
-          className="text-[10px] text-primary hover:text-primary/70 underline block mt-[-8px] mb-3 ml-1 animate-fade-in"
+          className="text-xs font-bold text-primary bg-primary/10 px-3 py-2 rounded-xl hover:bg-primary/20 block w-fit mt-[-8px] mb-3 ml-1 animate-fade-in border border-primary/20"
         >
           {addPriceMode === 'total' 
             ? `¿${fmt(parseFloat(price))} es el total por los ${quantity}? Convertir a unitario`
@@ -174,7 +174,6 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
                   onChange={e => setEditName(e.target.value)}
                   onKeyDown={handleEditKeyDown}
                   className="text-sm h-8"
-                  autoFocus
                 />
                 <div className="flex gap-2">
                   <Input
@@ -222,7 +221,7 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
                         setEditPriceMode('total');
                       }
                     }}
-                    className="text-[10px] text-primary hover:text-primary/70 underline block mt-[-4px] ml-1"
+                    className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg hover:bg-primary/20 block w-fit mt-[-4px] ml-1 mb-1"
                   >
                     {editPriceMode === 'total' 
                       ? `¿${fmt(parseFloat(editPrice))} es el total? Convertir`
