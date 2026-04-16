@@ -14,7 +14,10 @@ import { sharingSupabase } from '@/integrations/supabase/sharing-client';
 import { Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
+import { Copy, CheckCircle2 } from 'lucide-react';
 
 export default function Index() {
   const navigate = useNavigate();
