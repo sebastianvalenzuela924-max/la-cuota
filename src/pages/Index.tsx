@@ -141,7 +141,11 @@ export default function Index() {
       const assignmentInserts: any[] = [];
       Object.entries(assignments).forEach(([productId, personIds]) => {
         personIds.forEach(personId => {
-          assignmentInserts.push({ product_id: productId, person_id: personId });
+          assignmentInserts.push({ 
+            product_id: productId, 
+            person_id: personId,
+            session_id: sid
+          });
         });
       });
 

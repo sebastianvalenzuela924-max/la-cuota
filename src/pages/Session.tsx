@@ -67,7 +67,8 @@ export default function Session() {
         // 4. Fetch Assignments
         const { data: aData, error: aError } = await sharingSupabase
           .from('bill_assignments')
-          .select('product_id, person_id');
+          .select('product_id, person_id')
+          .eq('session_id', sessionId);
         if (aError) throw aError;
 
         const aggAssignments: Record<string, string[]> = {};
@@ -106,11 +107,8 @@ export default function Session() {
         const { data } = await sharingSupabase.from('bill_people').select('*').eq('session_id', sessionId);
         setPeople(data || []);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_assignments' }, async () => {
-        const { data: pIds } = await sharingSupabase.from('bill_products').select('id').eq('session_id', sessionId);
-        if (!pIds) return;
-        const ids = pIds.map(p => p.id);
-        const { data } = await sharingSupabase.from('bill_assignments').select('*').in('product_id', ids);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_assignments', filter: `session_id=eq.${sessionId}` }, async () => {
+        const { data } = await sharingSupabase.from('bill_assignments').select('*').eq('session_id', sessionId);
         
         const agg: Record<string, string[]> = {};
         data?.forEach(a => {
@@ -171,14 +169,26 @@ export default function Session() {
     const exists = current.includes(personId);
 
     if (exists) {
-      await sharingSupabase.from('bill_assignments').delete().match({ product_id: productId, person_id: personId });
+      await sharingSupabase.from('bill_assignments').delete().match({ 
+        product_id: productId, 
+        person_id: personId,
+        session_id: sessionId 
+      });
     } else {
-      await sharingSupabase.from('bill_assignments').insert([{ product_id: productId, person_id: personId }]);
+      await sharingSupabase.from('bill_assignments').insert([{ 
+        product_id: productId, 
+        person_id: personId,
+        session_id: sessionId
+      }]);
     }
   };
 
   const assignAllToProduct = async (productId: string) => {
-    const inserts = people.map(p => ({ product_id: productId, person_id: p.id }));
+    const inserts = people.map(p => ({ 
+      product_id: productId, 
+      person_id: p.id,
+      session_id: sessionId
+    }));
     await sharingSupabase.from('bill_assignments').insert(inserts);
   };
 
@@ -186,10 +196,14 @@ export default function Session() {
     const inserts: any[] = [];
     products.forEach(p => {
       people.forEach(person => {
-        inserts.push({ product_id: p.id, person_id: person.id });
+        inserts.push({ 
+          product_id: p.id, 
+          person_id: person.id,
+          session_id: sessionId
+        });
       });
     });
-    await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id' });
+    await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
   };
 
   const updateSession = async (updates: any) => {
