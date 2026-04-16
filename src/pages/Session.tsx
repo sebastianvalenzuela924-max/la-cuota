@@ -244,18 +244,25 @@ export default function Session() {
                 <Share2 className="w-4 h-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[90vw] rounded-3xl sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-center font-bold">¡Invita a tus amigos!</DialogTitle>
+            <DialogContent className="w-[95vw] max-w-[400px] p-6 rounded-[2rem] gap-0 outline-none">
+              <DialogHeader className="mb-6">
+                <DialogTitle className="text-center font-bold text-xl">¡Invita a tus amigos!</DialogTitle>
               </DialogHeader>
-              <div className="flex flex-col items-center space-y-6 py-4">
-                <div className="bg-white p-4 rounded-3xl shadow-sm border border-border">
-                  <QRCodeSVG value={sessionUrl} size={200} level="H" />
+              <div className="flex flex-col items-center gap-6">
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center w-fit mx-auto">
+                  <QRCodeSVG 
+                    value={sessionUrl} 
+                    size={180} 
+                    level="H"
+                    includeMargin={false}
+                    className="max-w-full h-auto"
+                  />
                 </div>
-                <div className="w-full space-y-2">
-                  <p className="text-xs text-muted-foreground text-center">Escaneen el QR o compartan el link:</p>
-                  <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border">
-                    <p className="text-[10px] truncate flex-1 font-mono text-muted-foreground">{sessionUrl}</p>
+                
+                <div className="w-full space-y-3">
+                  <p className="text-[11px] text-muted-foreground text-center font-medium">Escaneen el QR o compartan el link:</p>
+                  <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden">
+                    <p className="text-[10px] truncate flex-1 font-mono text-muted-foreground select-all">{sessionUrl}</p>
                     <Button 
                       size="icon" 
                       variant="ghost" 
@@ -263,13 +270,14 @@ export default function Session() {
                         navigator.clipboard.writeText(sessionUrl);
                         toast.success('Link copiado');
                       }}
-                      className="h-8 w-8 rounded-lg"
+                      className="h-8 w-8 rounded-lg shrink-0 bg-background/50"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
-                <Button className="w-full rounded-2xl h-12 text-sm font-bold gap-2" onClick={() => navigate('/')}>
+
+                <Button className="w-full rounded-2xl h-12 text-sm font-bold gap-2 mt-2 shadow-lg shadow-primary/20" onClick={() => navigate('/')}>
                   <CheckCircle2 className="w-5 h-5" />
                   Listo
                 </Button>
