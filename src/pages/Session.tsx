@@ -244,25 +244,25 @@ export default function Session() {
                 <Share2 className="w-4 h-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in">
+            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in overflow-hidden">
               <DialogHeader className="mb-6">
                 <DialogTitle className="text-center font-bold text-xl text-foreground">¡Invita a tus amigos!</DialogTitle>
               </DialogHeader>
-              <div className="flex flex-col items-center w-full">
-                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center mb-6">
+              <div className="flex flex-col items-center w-full min-w-0">
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center mb-6 shrink-0">
                   <QRCodeSVG 
                     value={sessionUrl} 
-                    size={180} 
+                    size={160} 
                     level="H"
                     includeMargin={false}
-                    className="w-full h-auto max-w-[180px]"
+                    className="w-full h-auto max-w-[160px]"
                   />
                 </div>
                 
-                <div className="w-full space-y-3 mb-6">
+                <div className="w-full space-y-3 mb-6 min-w-0">
                   <p className="text-[11px] text-muted-foreground text-center font-medium">Escaneen el QR o compartan el link:</p>
-                  <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden w-full">
-                    <p className="text-[10px] truncate flex-1 font-mono text-muted-foreground">{sessionUrl}</p>
+                  <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border w-full overflow-hidden">
+                    <p className="text-[10px] truncate flex-1 min-w-0 font-mono text-muted-foreground">{sessionUrl}</p>
                     <Button 
                       size="icon" 
                       variant="ghost" 
@@ -278,7 +278,7 @@ export default function Session() {
                 </div>
 
                 <Button 
-                  className="w-full rounded-2xl h-12 text-sm font-bold gap-2 shadow-lg shadow-primary/20 transition-transform active:scale-95" 
+                  className="w-full rounded-2xl h-12 text-sm font-bold gap-2 shadow-lg shadow-primary/20 transition-transform active:scale-95 shrink-0" 
                   onClick={() => navigate('/')}
                 >
                   <CheckCircle2 className="w-5 h-5" />
