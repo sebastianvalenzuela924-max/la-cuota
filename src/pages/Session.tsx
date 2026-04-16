@@ -244,7 +244,7 @@ export default function Session() {
                 <Share2 className="w-4 h-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[95vw] max-w-[400px] p-6 rounded-[2rem] gap-0 outline-none">
+            <DialogContent className="fixed left-4 right-4 top-[50%] -translate-y-[50%] translate-x-0 mx-auto w-auto max-w-[400px] p-6 rounded-[2rem] gap-0 outline-none border-none shadow-2xl">
               <DialogHeader className="mb-6">
                 <DialogTitle className="text-center font-bold text-xl">¡Invita a tus amigos!</DialogTitle>
               </DialogHeader>
@@ -252,7 +252,7 @@ export default function Session() {
                 <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center w-fit mx-auto">
                   <QRCodeSVG 
                     value={sessionUrl} 
-                    size={180} 
+                    size={160} 
                     level="H"
                     includeMargin={false}
                     className="max-w-full h-auto"
