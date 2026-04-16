@@ -10,8 +10,15 @@ import TipSection from '@/components/divisor/TipSection';
 import BankSection from '@/components/divisor/BankSection';
 import SummarySection from '@/components/divisor/SummarySection';
 import CurrencySelector from '@/components/divisor/CurrencySelector';
+import { supabase } from '@/integrations/supabase/client';
+import { Share2, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function Index() {
+  const navigate = useNavigate();
+  const [sharing, setSharing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
@@ -90,6 +97,72 @@ export default function Index() {
     setProducts(prev => [...prev, ...detected]);
   };
 
+  const handleShare = async () => {
+    if (products.length === 0) {
+      toast.error('Agrega al menos un producto para compartir');
+      return;
+    }
+
+    setSharing(true);
+    try {
+      // 1. Create Session
+      const { data: session, error: sError } = await supabase
+        .from('bill_sessions')
+        .insert([{
+          currency,
+          tip_type: tipType,
+          tip_value: tipValue,
+          bank_data: bankData
+        }])
+        .select()
+        .single();
+
+      if (sError) throw sError;
+
+      const sid = session.id;
+
+      // 2. Create Products
+      if (products.length > 0) {
+        const { error: pError } = await supabase
+          .from('bill_products')
+          .insert(products.map(p => ({ ...p, session_id: sid })));
+        if (pError) throw pError;
+      }
+
+      // 3. Create People
+      if (people.length > 0) {
+        const { error: peError } = await supabase
+          .from('bill_people')
+          .insert(people.map(p => ({ ...p, session_id: sid })));
+        if (peError) throw peError;
+      }
+
+      // 4. Create Assignments
+      const assignmentInserts: any[] = [];
+      Object.entries(assignments).forEach(([productId, personIds]) => {
+        personIds.forEach(personId => {
+          assignmentInserts.push({ product_id: productId, person_id: personId });
+        });
+      });
+
+      if (assignmentInserts.length > 0) {
+        const { error: aError } = await supabase
+          .from('bill_assignments')
+          .insert(assignmentInserts);
+        if (aError) throw aError;
+      }
+
+      toast.success('¡Mesa compartida creada!');
+      navigate(`/session/${sid}`);
+
+    } catch (error) {
+      console.error('Error sharing:', error);
+      toast.error('No se pudo crear la mesa compartida');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -102,6 +175,20 @@ export default function Index() {
             <h1 className="font-extrabold text-xl text-foreground tracking-tight">La Cuota</h1>
             <p className="text-xs text-muted-foreground">Divide cuentas {getCurrencyFlag(currency)}</p>
           </div>
+          <Button 
+            onClick={handleShare} 
+            disabled={sharing || products.length === 0}
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-primary/20 bg-primary/5 text-primary gap-1.5 h-9 font-bold transition-all active:scale-95"
+          >
+            {sharing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Share2 className="w-4 h-4" />
+            )}
+            {sharing ? 'Creando...' : 'Compartir'}
+          </Button>
           <CurrencySelector currency={currency} onChange={setCurrency} />
         </div>
       </header>
