@@ -1,4 +1,4 @@
-export type Currency = 'CLP' | 'BRL';
+export type Currency = 'CLP' | 'BRL' | 'USD' | 'EUR';
 
 export interface Product {
   id: string;

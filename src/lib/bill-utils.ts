@@ -17,14 +17,20 @@ export function formatCurrency(amount: number, currency: Currency = 'CLP'): stri
   if (currency === 'BRL') {
     return 'R$' + amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  if (currency === 'USD') {
+    return 'US$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (currency === 'EUR') {
+    return '€' + amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   return '$' + Math.round(amount).toLocaleString('es-CL');
 }
 
 export function roundValue(val: number, currency: Currency): number {
-  if (currency === 'BRL') {
-    return Math.round(val * 100) / 100;
+  if (currency === 'CLP') {
+    return Math.round(val);
   }
-  return Math.round(val);
+  return Math.round(val * 100) / 100;
 }
 
 /** @deprecated Use formatCurrency instead */
@@ -47,13 +53,69 @@ export function getInitials(name: string): string {
 export function parseBankText(text: string): Partial<BankData> {
   const data: Partial<BankData> = {};
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  
+  // Regex para RUT chileno (con o sin puntos/guion)
+  const rutRegex = /(\d{1,2}(?:\.\d{3}){2}-[\dkK])|(\d{7,8}-[\dkK])/;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const lower = line.toLowerCase();
-    const value = line.split(/[:]\s*/).slice(1).join(':').trim();
+    
+    let value = '';
+    let matched = false;
+
+    // 1. Detección por dos puntos ":"
+    if (line.includes(':')) {
+      value = line.split(/[:]\s*/).slice(1).join(':').trim();
+      matched = !!value;
+    } 
+    
+    // 2. Detección por palabras clave (sin dos puntos)
+    if (!matched) {
+      const keywords = [
+        { reg: /^(titular|nombre|destinatario|beneficiario)\s+/i, type: 'name' },
+        { reg: /^banco\s+/i, type: 'bank' },
+        { reg: /^tipo\s+(de\s+)?cuenta\s+/i, type: 'accountType' },
+        { reg: /^(cuenta)\s+/i, type: 'accountNumber' },
+        { reg: /^(nro|n[úu]mero|n°)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
+        { reg: /^(rut|cpf)\s+/i, type: 'rut' },
+        { reg: /^(correo|email|mail|e-mail)\s+/i, type: 'email' },
+        { reg: /^(pix(\s+key)?|chave)\s+/i, type: 'email' }
+      ];
+      
+      for (const k of keywords) {
+        if (k.reg.test(line)) {
+          value = line.replace(k.reg, '').trim();
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // 3. HEURÍSTICA: RUT "desnudo" (sin etiqueta)
+    if (!matched && rutRegex.test(line)) {
+      const foundRut = line.match(rutRegex)[0];
+      data.rut = foundRut;
+      matched = true;
+      // Pre-poblar cuenta si es un RUT suelto en una cuenta RUT
+      if (!data.accountNumber) {
+        const cleanRut = foundRut.split('-')[0].replace(/\./g, '');
+        if (/^\d+$/.test(cleanRut)) data.accountNumber = cleanRut;
+      }
+      continue;
+    }
+
+    // 4. HEURÍSTICA: Nombre (primera o segunda línea, sin números, texto largo)
+    if (!matched && (i === 0 || i === 1) && !/\d/.test(line) && line.length > 3 && !data.name) {
+      data.name = line;
+      continue;
+    }
+
     if (!value) continue;
 
-    if (lower.includes('titular') || (lower.includes('nombre') && !lower.includes('banco'))) {
+    const isName = lower.includes('titular') || lower.includes('destinatario') || lower.includes('beneficiario') || (lower.includes('nombre') && !lower.includes('banco'));
+    
+    if (isName) {
       data.name = value;
     } else if (lower.includes('banco')) {
       data.bank = value;
@@ -63,11 +125,21 @@ export function parseBankText(text: string): Partial<BankData> {
       data.accountNumber = value;
     } else if (lower.includes('rut') || lower.includes('cpf')) {
       data.rut = value;
+      if (!data.accountNumber) {
+        const cleanRut = value.split('-')[0].replace(/\./g, '');
+        if (/^\d+$/.test(cleanRut)) data.accountNumber = cleanRut;
+      }
     } else if (lower.match(/correo|email|mail/)) {
       data.email = value;
     } else if (lower.includes('pix') || lower.includes('chave')) {
-      data.email = value; // PIX key goes to email field
+      data.email = value;
     }
+  }
+
+  // Sugerencia global si detecta Cuenta RUT
+  if (text.toLowerCase().includes('cuenta rut')) {
+    if (!data.bank) data.bank = 'Banco Estado';
+    if (!data.accountType) data.accountType = 'Cuenta RUT / Vista';
   }
 
   return data;
@@ -124,11 +196,23 @@ export function calculatePersonTotals(
 }
 
 export function getCurrencyLabel(currency: Currency): string {
-  return currency === 'BRL' ? 'Reales (R$)' : 'Pesos (CLP)';
+  const labels: Record<Currency, string> = {
+    'CLP': 'Pesos (CLP)',
+    'BRL': 'Reales (R$)',
+    'USD': 'Dólares (US$)',
+    'EUR': 'Euros (€)'
+  };
+  return labels[currency];
 }
 
 export function getCurrencyFlag(currency: Currency): string {
-  return currency === 'BRL' ? '🇧🇷' : '🇨🇱';
+  const flags: Record<Currency, string> = {
+    'CLP': '🇨🇱',
+    'BRL': '🇧🇷',
+    'USD': '🇺🇸',
+    'EUR': '🇪🇺'
+  };
+  return flags[currency];
 }
 
 export function generateSummaryText(
@@ -139,10 +223,11 @@ export function generateSummaryText(
   tipValue: number,
   bankData: Partial<BankData>,
   currency: Currency = 'CLP',
+  targetCurrency: Currency = 'CLP',
   conversionRate?: number
 ): string {
   const fmt = (n: number) => formatCurrency(n, currency);
-  const fmtCLP = (n: number) => formatCurrency(n * (conversionRate || 1), 'CLP');
+  const fmtConv = (n: number) => formatCurrency(n * (conversionRate || 1), targetCurrency);
   const subtotal = products.reduce((s, p) => s + p.price * p.quantity, 0);
   const tipAmount = tipType === 'percent'
     ? roundValue(subtotal * tipValue / 100, currency)
@@ -156,8 +241,8 @@ export function generateSummaryText(
     text += `🫰 Propina: ${fmt(tipAmount)}${tipType === 'percent' ? ` (${tipValue}%)` : ''}\n`;
   }
   text += `💵 Total: ${fmt(grandTotal)}\n`;
-  if (currency === 'BRL' && conversionRate && conversionRate > 0) {
-    text += `🇨🇱 Total en CLP: ${fmtCLP(grandTotal)} (cambio: $${conversionRate})\n`;
+  if (conversionRate && conversionRate > 0) {
+    text += `${getCurrencyFlag(targetCurrency)} Total en ${targetCurrency}: ${fmtConv(grandTotal)} (cambio: ${conversionRate})\n`;
   }
   text += `━━━━━━━━━━━━━━━\n\n`;
 
@@ -165,8 +250,8 @@ export function generateSummaryText(
     const pt = totals[person.id];
     if (!pt || pt.total === 0) continue;
     text += `👤 *${person.name}*: ${fmt(pt.total)}\n`;
-    if (currency === 'BRL' && conversionRate && conversionRate > 0) {
-      text += `   ↳ Aprox. *${fmtCLP(pt.total)}*\n`;
+    if (conversionRate && conversionRate > 0) {
+      text += `   ↳ Aprox. *${fmtConv(pt.total)}*\n`;
     }
     for (const item of pt.items) {
       if (item.tipAmount > 0) {

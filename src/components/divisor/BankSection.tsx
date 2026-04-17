@@ -12,27 +12,23 @@ interface Props {
 
 export default function BankSection({ bankData, onBankDataChange }: Props) {
   const [rawText, setRawText] = useState('');
-  const [parsed, setParsed] = useState(false);
 
-  const handlePaste = () => {
-    const data = parseBankText(rawText);
+  const updateData = (text: string) => {
+    setRawText(text);
+    const data = parseBankText(text);
     onBankDataChange(data);
-    setParsed(true);
   };
 
   const handleClipboardPaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setRawText(text);
-      const data = parseBankText(text);
-      onBankDataChange(data);
-      setParsed(true);
+      updateData(text);
     } catch {
       // Clipboard API not available
     }
   };
 
-  const hasData = bankData.name || bankData.bank || bankData.rut;
+  const hasData = !!(bankData.name || bankData.bank || bankData.rut || bankData.accountNumber || bankData.email || bankData.accountType);
 
   return (
     <section className="rounded-2xl bg-card p-5 card-shadow animate-fade-in-up border border-border">
@@ -43,39 +39,68 @@ export default function BankSection({ bankData, onBankDataChange }: Props) {
         <h2 className="font-bold text-foreground">Datos de transferencia</h2>
       </div>
 
-      {!parsed && (
-        <>
+      <div className="space-y-4">
+        <div className="space-y-2">
           <Textarea
-            placeholder={`Pega aquí los datos bancarios, ejemplo:\nNombre: Juan Pérez\nBanco: Banco de Chile\nTipo de cuenta: Corriente\nNúmero: 12345678\nRUT: 12.345.678-9\nCorreo: juan@email.com`}
+            placeholder={`Pega aquí los datos bancarios o escríbelos. Ejemplo:\nJuan Perez\n12.345.678-9\nCuenta RUT`}
             value={rawText}
-            onChange={e => setRawText(e.target.value)}
-            className="text-sm mb-3 min-h-[100px] rounded-xl"
+            onChange={e => updateData(e.target.value)}
+            className="text-sm min-h-[100px] rounded-xl bg-accent/30 border-dashed border-2 border-primary/20 focus-visible:border-solid transition-all"
           />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handlePaste} disabled={!rawText.trim()} className="text-xs rounded-xl font-semibold">
-              Procesar texto
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleClipboardPaste} className="text-xs gap-1.5 rounded-xl font-semibold">
-              <ClipboardPaste className="w-3.5 h-3.5" />
-              Pegar del portapapeles
-            </Button>
-          </div>
-        </>
-      )}
-
-      {hasData && parsed && (
-        <div className="space-y-2 text-sm">
-          {bankData.name && <div className="flex justify-between"><span className="text-muted-foreground">Nombre:</span><span className="font-semibold text-foreground">{bankData.name}</span></div>}
-          {bankData.bank && <div className="flex justify-between"><span className="text-muted-foreground">Banco:</span><span className="font-semibold text-foreground">{bankData.bank}</span></div>}
-          {bankData.accountType && <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><span className="font-semibold text-foreground">{bankData.accountType}</span></div>}
-          {bankData.accountNumber && <div className="flex justify-between"><span className="text-muted-foreground">Cuenta:</span><span className="font-semibold text-foreground">{bankData.accountNumber}</span></div>}
-          {bankData.rut && <div className="flex justify-between"><span className="text-muted-foreground">RUT:</span><span className="font-semibold text-foreground">{bankData.rut}</span></div>}
-          {bankData.email && <div className="flex justify-between"><span className="text-muted-foreground">Correo:</span><span className="font-semibold text-foreground">{bankData.email}</span></div>}
-          <Button variant="ghost" size="sm" onClick={() => setParsed(false)} className="text-xs mt-2 text-muted-foreground font-medium">
-            Editar datos
+          <Button variant="outline" size="sm" onClick={handleClipboardPaste} className="text-xs gap-1.5 rounded-xl font-semibold w-full">
+            <ClipboardPaste className="w-3.5 h-3.5" />
+            Pegar del portapapeles
           </Button>
         </div>
-      )}
+
+        {hasData && (
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2.5 animate-scale-in">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Datos detectados</span>
+              <span className="text-[10px] font-medium text-muted-foreground italic">Aparecerán en el resumen</span>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-1.5 text-xs">
+              {bankData.name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nombre:</span>
+                  <span className="font-semibold text-foreground text-right">{bankData.name}</span>
+                </div>
+              )}
+              {bankData.rut && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">RUT:</span>
+                  <span className="font-semibold text-foreground text-right">{bankData.rut}</span>
+                </div>
+              )}
+              {bankData.bank && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Banco:</span>
+                  <span className="font-semibold text-foreground text-right">{bankData.bank}</span>
+                </div>
+              )}
+              {bankData.accountType && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo:</span>
+                  <span className="font-semibold text-foreground text-right">{bankData.accountType}</span>
+                </div>
+              )}
+              {bankData.accountNumber && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cuenta:</span>
+                  <span className="font-semibold text-foreground text-right">{bankData.accountNumber}</span>
+                </div>
+              )}
+              {bankData.email && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Correo:</span>
+                  <span className="font-semibold text-foreground text-right text-balance max-w-[150px]">{bankData.email}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
