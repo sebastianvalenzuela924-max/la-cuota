@@ -50,6 +50,13 @@ export function getInitials(name: string): string {
   return name.trim().charAt(0).toUpperCase();
 }
 
+const CHILEAN_BANKS = [
+  'Banco de Chile', 'Banco Edwards', 'Banco Estado', 'Banco Santander', 'Santander',
+  'BCI', 'Mach', 'Scotiabank', 'Itaú', 'Banco BICE', 'BICE', 'Banco Security', 'Security',
+  'Banco Consorcio', 'Consorcio', 'Banco Falabella', 'Falabella', 'Banco Ripley', 'Ripley',
+  'Tenpo', 'Mercado Pago', 'MercadoPago', 'Coopeuch', 'Tapp'
+];
+
 export function parseBankText(text: string): Partial<BankData> {
   const data: Partial<BankData> = {};
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -145,20 +152,32 @@ export function parseBankText(text: string): Partial<BankData> {
       }
     }
 
-    // 3. HEURÍSTICA: RUT "desnudo"
+    // 3. NUEVA HEURÍSTICA: Reconocimiento de bancos conocidos por nombre (si no hay banco explícito)
+    if (!matched && !explicitBank) {
+      for (const b of CHILEAN_BANKS) {
+        if (lower.includes(b.toLowerCase())) {
+          data.bank = b;
+          explicitBank = true;
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // 4. HEURÍSTICA: RUT "desnudo"
     if (!matched && rutRegex.test(line)) {
       data.rut = line.match(rutRegex)![0];
       matched = true;
       continue;
     }
 
-    // 4. HEURÍSTICA: Nombre (primera o segunda línea)
+    // 5. HEURÍSTICA: Nombre (primera o segunda línea)
     if (!matched && (i === 0 || i === 1) && !/\d/.test(line) && line.length > 3 && !data.name) {
       data.name = line;
       continue;
     }
 
-    // 5. HEURÍSTICA: Número de cuenta "desnudo" (6-16 dígitos)
+    // 6. HEURÍSTICA: Número de cuenta "desnudo" (6-16 dígitos)
     if (!matched && !explicitAccount && /^[0-9-]{6,18}$/.test(line) && !rutRegex.test(line)) {
       const cleanNum = line.replace(/-/g, '');
       if (cleanNum.length >= 6) {
