@@ -54,92 +54,139 @@ export function parseBankText(text: string): Partial<BankData> {
   const data: Partial<BankData> = {};
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   
-  // Regex para RUT chileno (con o sin puntos/guion)
   const rutRegex = /(\d{1,2}(?:\.\d{3}){2}-[\dkK])|(\d{7,8}-[\dkK])/;
+  let explicitBank = false;
+  let explicitType = false;
+  let explicitAccount = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lower = line.toLowerCase();
-    
     let value = '';
     let matched = false;
 
     // 1. Detección por dos puntos ":"
     if (line.includes(':')) {
-      value = line.split(/[:]\s*/).slice(1).join(':').trim();
-      matched = !!value;
+      const parts = line.split(/[:]\s*/);
+      const label = parts[0].toLowerCase();
+      value = parts.slice(1).join(':').trim();
+      
+      if (value) {
+        if (label.includes('titular') || label.includes('nombre') || label.includes('destinatario')) {
+          data.name = value;
+          matched = true;
+        } else if (label.includes('banco')) {
+          data.bank = value;
+          explicitBank = true;
+          matched = true;
+        } else if ((label.includes('tipo') && label.includes('cuenta')) || label === 'tipo') {
+          data.accountType = value;
+          explicitType = true;
+          matched = true;
+        } else if (label.match(/n[úu]mero|nro|n°|cuenta/)) {
+          // Si el label es "cuenta" pero el valor parece un tipo (corriente, vista...), es tipo
+          if (value.toLowerCase().match(/corriente|vista|ahorro|rut/)) {
+            data.accountType = value;
+            explicitType = true;
+          } else {
+            data.accountNumber = value.replace(/-/g, '').trim();
+            explicitAccount = true;
+          }
+          matched = true;
+        } else if (label.includes('rut') || label.includes('cpf')) {
+          data.rut = value;
+          matched = true;
+        } else if (label.match(/correo|email|mail/)) {
+          data.email = value;
+          matched = true;
+        }
+      }
     } 
     
     // 2. Detección por palabras clave (sin dos puntos)
     if (!matched) {
-      const keywords = [
-        { reg: /^(titular|nombre|destinatario|beneficiario)\s+/i, type: 'name' },
-        { reg: /^banco\s+/i, type: 'bank' },
-        { reg: /^tipo\s+(de\s+)?cuenta\s+/i, type: 'accountType' },
-        { reg: /^(cuenta)\s+/i, type: 'accountNumber' },
-        { reg: /^(nro|n[úu]mero|n°)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
-        { reg: /^(rut|cpf)\s+/i, type: 'rut' },
-        { reg: /^(correo|email|mail|e-mail)\s+/i, type: 'email' },
-        { reg: /^(pix(\s+key)?|chave)\s+/i, type: 'email' }
-      ];
-      
-      for (const k of keywords) {
-        if (k.reg.test(line)) {
-          value = line.replace(k.reg, '').trim();
-          matched = true;
-          break;
+      // Prioridad a Tipo de Cuenta si contiene palabras clave de tipo
+      if (lower.match(/^tipo\s+(de\s+)?cuenta|^cuenta\s+(corriente|vista|ahorro|rut)/i)) {
+        data.accountType = line;
+        explicitType = true;
+        matched = true;
+      } else {
+        const keywords = [
+          { reg: /^(titular|nombre|destinatario|beneficiario)\s+/i, type: 'name' },
+          { reg: /^banco\s+/i, type: 'bank' },
+          { reg: /^(nro|n[úu]mero|n°)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
+          { reg: /^(cuenta)\s+/i, type: 'accountNumber' },
+          { reg: /^(rut|cpf)\s+/i, type: 'rut' },
+          { reg: /^(correo|email|mail|e-mail)\s+/i, type: 'email' },
+          { reg: /^(pix(\s+key)?|chave)\s+/i, type: 'email' }
+        ];
+        
+        for (const k of keywords) {
+          if (k.reg.test(line)) {
+            value = line.replace(k.reg, '').trim();
+            if (k.type === 'name') data.name = value;
+            if (k.type === 'bank') { data.bank = line; explicitBank = true; }
+            if (k.type === 'accountNumber') { 
+              // Doble check: si el valor de "cuenta" es un tipo, es tipo
+              if (value.toLowerCase().match(/^(corriente|vista|ahorro|rut)$/)) {
+                data.accountType = line;
+                explicitType = true;
+              } else {
+                data.accountNumber = value.replace(/-/g, '').trim(); 
+                explicitAccount = true; 
+              }
+            }
+            if (k.type === 'rut') data.rut = value;
+            if (k.type === 'email') data.email = value;
+            matched = true;
+            break;
+          }
         }
       }
     }
 
-    // 3. HEURÍSTICA: RUT "desnudo" (sin etiqueta)
+    // 3. HEURÍSTICA: RUT "desnudo"
     if (!matched && rutRegex.test(line)) {
-      const foundRut = line.match(rutRegex)[0];
-      data.rut = foundRut;
+      data.rut = line.match(rutRegex)![0];
       matched = true;
-      // Pre-poblar cuenta si es un RUT suelto en una cuenta RUT
-      if (!data.accountNumber) {
-        const cleanRut = foundRut.split('-')[0].replace(/\./g, '');
-        if (/^\d+$/.test(cleanRut)) data.accountNumber = cleanRut;
-      }
       continue;
     }
 
-    // 4. HEURÍSTICA: Nombre (primera o segunda línea, sin números, texto largo)
+    // 4. HEURÍSTICA: Nombre (primera o segunda línea)
     if (!matched && (i === 0 || i === 1) && !/\d/.test(line) && line.length > 3 && !data.name) {
       data.name = line;
       continue;
     }
 
-    if (!value) continue;
-
-    const isName = lower.includes('titular') || lower.includes('destinatario') || lower.includes('beneficiario') || (lower.includes('nombre') && !lower.includes('banco'));
-    
-    if (isName) {
-      data.name = value;
-    } else if (lower.includes('banco')) {
-      data.bank = value;
-    } else if (lower.includes('tipo') && lower.includes('cuenta')) {
-      data.accountType = value;
-    } else if (lower.match(/n[úu]mero|nro|n°|cuenta/) && !lower.includes('tipo')) {
-      data.accountNumber = value;
-    } else if (lower.includes('rut') || lower.includes('cpf')) {
-      data.rut = value;
-      if (!data.accountNumber) {
-        const cleanRut = value.split('-')[0].replace(/\./g, '');
-        if (/^\d+$/.test(cleanRut)) data.accountNumber = cleanRut;
+    // 5. HEURÍSTICA: Número de cuenta "desnudo" (6-16 dígitos)
+    if (!matched && !explicitAccount && /^[0-9-]{6,18}$/.test(line) && !rutRegex.test(line)) {
+      const cleanNum = line.replace(/-/g, '');
+      if (cleanNum.length >= 6) {
+        data.accountNumber = cleanNum;
+        explicitAccount = true;
+        matched = true;
+        continue;
       }
-    } else if (lower.match(/correo|email|mail/)) {
-      data.email = value;
-    } else if (lower.includes('pix') || lower.includes('chave')) {
-      data.email = value;
     }
   }
 
-  // Sugerencia global si detecta Cuenta RUT
+  // Lógica final de decisión para Cuenta RUT
+  const rutBody = data.rut ? data.rut.split('-')[0].replace(/\./g, '') : null;
+  
+  if (rutBody) {
+    if (!data.accountNumber || data.accountNumber === rutBody) {
+      data.accountNumber = rutBody;
+      if (!explicitBank && !explicitType) {
+        if (!data.bank) data.bank = 'Banco Estado';
+        if (!data.accountType) data.accountType = 'Cuenta RUT / Vista';
+      }
+    }
+  }
+
+  // Sobrescribir si el texto dice explícitamente "cuenta rut"
   if (text.toLowerCase().includes('cuenta rut')) {
-    if (!data.bank) data.bank = 'Banco Estado';
-    if (!data.accountType) data.accountType = 'Cuenta RUT / Vista';
+    if (!explicitBank) data.bank = 'Banco Estado';
+    if (!explicitType) data.accountType = 'Cuenta RUT / Vista';
   }
 
   return data;

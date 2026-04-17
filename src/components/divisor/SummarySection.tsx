@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Product, Person, TipType, PersonTotal, BankData, Currency } from '@/lib/types';
 import { formatCurrency, PERSON_COLORS, getInitials, generateSummaryText, roundValue } from '@/lib/bill-utils';
 import { toast } from 'sonner';
@@ -30,9 +30,9 @@ export default function SummarySection({ products, people, totals, tipType, tipV
     if (targetCurrency === currency) {
       setTargetCurrency(currency === 'BRL' ? 'CLP' : 'BRL');
     }
-  }, [currency]);
+  }, [currency, targetCurrency]);
 
-  const fetchLiveRate = async () => {
+  const fetchLiveRate = useCallback(async () => {
     setIsLoadingRate(true);
     try {
       const response = await fetch(`https://open.er-api.com/v6/latest/${currency}`);
@@ -47,13 +47,13 @@ export default function SummarySection({ products, people, totals, tipType, tipV
     } finally {
       setIsLoadingRate(false);
     }
-  };
+  }, [currency, targetCurrency]);
 
   useEffect(() => {
     if (showConversion && isAutoRate) {
       fetchLiveRate();
     }
-  }, [showConversion, targetCurrency, currency]);
+  }, [showConversion, isAutoRate, fetchLiveRate]);
 
   const fmt = (n: number) => formatCurrency(n, currency);
   const fmtTarget = (n: number) => formatCurrency(n * exchangeRate, targetCurrency);

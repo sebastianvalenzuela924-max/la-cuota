@@ -83,9 +83,10 @@ export default function Session() {
         });
         setAssignments(aggAssignments);
 
-      } catch (error: any) {
+      } catch (error) {
+        const e = error as Error;
         console.error('Error loading session:', error);
-        toast.error(`Error al cargar la mesa: ${error.message || ''}`);
+        toast.error(`Error al cargar la mesa: ${e.message || ''}`);
         navigate('/');
       } finally {
         setLoading(false);
@@ -98,7 +99,7 @@ export default function Session() {
     const channel = sharingSupabase
       .channel(`session-${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_sessions', filter: `id=eq.${sessionId}` }, (payload) => {
-        const data = payload.new as any;
+        const data = payload.new as { currency?: Currency; tip_type?: TipType; tip_value?: number; bank_data?: Partial<BankData> };
         if (data.currency) setCurrency(data.currency);
         if (data.tip_type) setTipType(data.tip_type);
         if (data.tip_value !== undefined) setTipValue(data.tip_value);
@@ -208,7 +209,7 @@ export default function Session() {
   };
 
   const divideAllAmongAll = async () => {
-    const inserts: any[] = [];
+    const inserts: { product_id: string; person_id: string; session_id: string }[] = [];
     products.forEach(p => {
       people.forEach(person => {
         inserts.push({ 
@@ -221,7 +222,7 @@ export default function Session() {
     await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
   };
 
-  const updateSession = async (updates: any) => {
+  const updateSession = async (updates: Record<string, unknown>) => {
     await sharingSupabase.from('bill_sessions').update(updates).eq('id', sessionId);
   };
 

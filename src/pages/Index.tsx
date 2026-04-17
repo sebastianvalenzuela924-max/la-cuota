@@ -146,7 +146,7 @@ export default function Index() {
       }
 
       // 4. Create Assignments
-      const assignmentInserts: any[] = [];
+      const assignmentInserts: { product_id: string; person_id: string; session_id: string }[] = [];
       Object.entries(assignments).forEach(([productId, personIds]) => {
         personIds.forEach(personId => {
           assignmentInserts.push({ 
@@ -167,9 +167,10 @@ export default function Index() {
       toast.success('¡Mesa compartida creada!');
       navigate(`/session/${sid}`);
 
-    } catch (error: any) {
+    } catch (error) {
+      const e = error as Error;
       console.error('Error sharing:', error);
-      toast.error(`No se pudo crear la mesa compartida: ${error.message || 'Error desconocido'}`);
+      toast.error(`No se pudo crear la mesa compartida: ${e.message || 'Error desconocido'}`);
     } finally {
       setSharing(false);
     }
