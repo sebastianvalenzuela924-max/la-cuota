@@ -128,7 +128,7 @@ export default function SummarySection({ products, people, totals, tipType, tipV
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
               <Label htmlFor="conversion-toggle" className="text-sm font-bold cursor-pointer">
-                {currency === 'BRL' ? 'Modo Turista (CLP)' : `Convertir a ${targetCurrency}`}
+                Modo Turista
               </Label>
             </div>
             <Switch 
