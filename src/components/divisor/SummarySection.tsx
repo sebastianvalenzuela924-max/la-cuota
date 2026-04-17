@@ -122,12 +122,14 @@ export default function SummarySection({ products, people, totals, tipType, tipV
         <span className="font-extrabold text-primary text-xl">{fmt(grandTotal)}</span>
       </div>
 
-      {currency === 'BRL' && (
+      {(currency === 'BRL' || currency === 'CLP') && (
         <div className="mb-6 p-3.5 bg-primary/5 rounded-2xl border border-primary/10">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
-              <Label htmlFor="conversion-toggle" className="text-sm font-bold cursor-pointer">Modo Turista (CLP)</Label>
+              <Label htmlFor="conversion-toggle" className="text-sm font-bold cursor-pointer">
+                {currency === 'BRL' ? 'Modo Turista (CLP)' : `Convertir a ${targetCurrency}`}
+              </Label>
             </div>
             <Switch 
               id="conversion-toggle" 
