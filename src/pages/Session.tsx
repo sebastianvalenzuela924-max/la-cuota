@@ -303,29 +303,38 @@ export default function Session() {
   return (
     <div className="min-h-screen bg-background pb-10">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 card-shadow">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-9 w-9 rounded-xl">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-extrabold text-lg text-foreground tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">Mesa Compartida</h1>
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium italic">
-              {getCurrencyFlag(currency)} Sincronizado en vivo
-            </p>
+      <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 card-shadow">
+        <div className="max-w-lg mx-auto space-y-3">
+          {/* Top Row: Back and Title */}
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-10 w-10 rounded-xl">
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="font-extrabold text-2xl text-foreground tracking-tight leading-tight">Mesa Compartida</h1>
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium italic">
+                {getCurrencyFlag(currency)} Sincronizado en vivo
+              </p>
+            </div>
           </div>
           
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <CurrencySelector 
-              currency={currency} 
-              onChange={c => updateSession({ currency: c })} 
-            />
+          {/* Bottom Row: Controls */}
+          <div className="flex items-center justify-between pt-2 border-t border-border/40">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Moneda:</span>
+              <CurrencySelector 
+                currency={currency} 
+                onChange={c => updateSession({ currency: c })} 
+              />
+            </div>
+            
             <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-            <DialogTrigger asChild>
-              <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl border-primary/20 bg-primary/5 text-primary">
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </DialogTrigger>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="rounded-xl border-primary/20 bg-primary/5 text-primary gap-2 h-9 px-3 font-bold transition-all active:scale-95 shadow-sm">
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-[11px]">Compartir</span>
+                </Button>
+              </DialogTrigger>
             <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in overflow-hidden">
               <DialogHeader className="mb-6">
                 <DialogTitle className="text-center font-bold text-xl text-foreground">¡Invita a tus amigos!</DialogTitle>
