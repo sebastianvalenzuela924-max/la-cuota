@@ -186,43 +186,89 @@ export default function Session() {
   const toggleAssignment = async (productId: string, personId: string) => {
     const current = assignments[productId] || [];
     const exists = current.includes(personId);
+    const previousAssignments = { ...assignments };
 
-    if (exists) {
-      await sharingSupabase.from('bill_assignments').delete().match({ 
-        product_id: productId, 
-        person_id: personId,
-        session_id: sessionId 
-      });
-    } else {
-      await sharingSupabase.from('bill_assignments').insert([{ 
-        product_id: productId, 
-        person_id: personId,
-        session_id: sessionId
-      }]);
+    // Optimistic Update
+    const newAssigned = exists 
+      ? current.filter(id => id !== personId)
+      : [...current, personId];
+    
+    setAssignments(prev => ({
+      ...prev,
+      [productId]: newAssigned
+    }));
+
+    try {
+      if (exists) {
+        const { error } = await sharingSupabase
+          .from('bill_assignments')
+          .delete()
+          .eq('product_id', productId)
+          .eq('person_id', personId)
+          .eq('session_id', sessionId);
+        if (error) throw error;
+      } else {
+        const { error } = await sharingSupabase.from('bill_assignments').insert([{ 
+          product_id: productId, 
+          person_id: personId,
+          session_id: sessionId
+        }]);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error toggling assignment:', error);
+      setAssignments(previousAssignments);
+      toast.error('Error al sincronizar cambio');
     }
   };
 
   const assignAllToProduct = async (productId: string) => {
-    const inserts = people.map(p => ({ 
-      product_id: productId, 
-      person_id: p.id,
-      session_id: sessionId
-    }));
-    await sharingSupabase.from('bill_assignments').insert(inserts);
+    const previousAssignments = { ...assignments };
+    const allPersonIds = people.map(p => p.id);
+    
+    // Optimistic Update
+    setAssignments(prev => ({ ...prev, [productId]: allPersonIds }));
+
+    try {
+      const inserts = people.map(p => ({ 
+        product_id: productId, 
+        person_id: p.id,
+        session_id: sessionId
+      }));
+      const { error } = await sharingSupabase.from('bill_assignments').insert(inserts);
+      if (error) throw error;
+    } catch (error) {
+      setAssignments(previousAssignments);
+      toast.error('Error al asignar todos');
+    }
   };
 
   const divideAllAmongAll = async () => {
-    const inserts: { product_id: string; person_id: string; session_id: string }[] = [];
-    products.forEach(p => {
-      people.forEach(person => {
-        inserts.push({ 
-          product_id: p.id, 
-          person_id: person.id,
-          session_id: sessionId
+    const previousAssignments = { ...assignments };
+    const allPersonIds = people.map(p => p.id);
+    const optimistic: Record<string, string[]> = {};
+    products.forEach(p => { optimistic[p.id] = allPersonIds; });
+    
+    // Optimistic Update
+    setAssignments(optimistic);
+
+    try {
+      const inserts: { product_id: string; person_id: string; session_id: string }[] = [];
+      products.forEach(p => {
+        people.forEach(person => {
+          inserts.push({ 
+            product_id: p.id, 
+            person_id: person.id,
+            session_id: sessionId
+          });
         });
       });
-    });
-    await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
+      const { error } = await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
+      if (error) throw error;
+    } catch (error) {
+      setAssignments(previousAssignments);
+      toast.error('Error al dividir todo');
+    }
   };
 
   const updateSession = async (updates: Record<string, unknown>) => {
