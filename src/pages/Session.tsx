@@ -14,11 +14,14 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import ReceiptScanner from '@/components/divisor/ReceiptScanner';
+import CurrencySelector from '@/components/divisor/CurrencySelector';
 
 export default function Session() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -226,6 +229,18 @@ export default function Session() {
     await sharingSupabase.from('bill_sessions').update(updates).eq('id', sessionId);
   };
 
+  const handleProductsDetected = async (detected: Product[], detectedCurrency?: Currency) => {
+    if (detectedCurrency && detectedCurrency !== currency) {
+      await updateSession({ currency: detectedCurrency });
+    }
+    
+    if (detected.length > 0) {
+      const inserts = detected.map(p => ({ ...p, session_id: sessionId }));
+      const { error } = await sharingSupabase.from('bill_products').insert(inserts);
+      if (error) toast.error('Error al añadir productos detectados');
+    }
+  };
+
   const sessionUrl = window.location.href;
 
   if (loading) {
@@ -247,66 +262,19 @@ export default function Session() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-9 w-9 rounded-xl">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity active:scale-95">
-                <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">Mesa Compartida</h1>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                  {getCurrencyFlag(currency)} Sincronizado en vivo
-                </p>
-              </div>
-            </DialogTrigger>
-            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in overflow-hidden">
-              <DialogHeader className="mb-6">
-                <DialogTitle className="text-center font-bold text-xl text-foreground">¡Comparte la App!</DialogTitle>
-              </DialogHeader>
-              <div className="flex flex-col items-center w-full min-w-0">
-                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-border flex items-center justify-center mb-6 shrink-0">
-                  <QRCodeSVG 
-                    value="https://la-cuota.vercel.app/" 
-                    size={180} 
-                    level="H"
-                    includeMargin={false}
-                    className="w-full h-auto max-w-[180px]"
-                  />
-                </div>
-                
-                <div className="w-full space-y-3 mb-4">
-                  <p className="text-sm text-center font-bold text-foreground italic">"La mejor forma de dividir la cuenta con amigos"</p>
-                  <p className="text-[11px] text-muted-foreground text-center font-medium">Escanea este código para instalar o abrir la app 🇨🇱</p>
-                </div>
-
-                <div className="w-full flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden">
-                  <p className="text-[10px] font-mono text-muted-foreground truncate flex-1">https://la-cuota.vercel.app/</p>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      onClick={() => {
-                        navigator.clipboard.writeText("https://la-cuota.vercel.app/");
-                        toast.success('Link de la app copiado');
-                      }}
-                      className="h-8 w-8 rounded-lg bg-background/50 hover:bg-background"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      onClick={() => {
-                        window.open(`https://wa.me/?text=${encodeURIComponent("¡Mira esta app para dividir la cuenta!: https://la-cuota.vercel.app/")}`, '_blank');
-                      }}
-                      className="h-8 w-8 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-600"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">Mesa Compartida</h1>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+              {getCurrencyFlag(currency)} Sincronizado en vivo
+            </p>
+          </div>
           
-          <Dialog>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <CurrencySelector 
+              currency={currency} 
+              onChange={c => updateSession({ currency: c })} 
+            />
+            <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
             <DialogTrigger asChild>
               <Button size="icon" variant="outline" className="h-9 w-9 rounded-xl border-primary/20 bg-primary/5 text-primary">
                 <Share2 className="w-4 h-4" />
@@ -347,7 +315,7 @@ export default function Session() {
 
                 <Button 
                   className="w-full rounded-2xl h-12 text-sm font-bold gap-2 shadow-lg shadow-primary/20 transition-transform active:scale-95 shrink-0" 
-                  onClick={() => navigate('/')}
+                  onClick={() => setIsInviteOpen(false)}
                 >
                   <CheckCircle2 className="w-5 h-5" />
                   Listo
@@ -356,10 +324,13 @@ export default function Session() {
             </DialogContent>
           </Dialog>
         </div>
-      </header>
+      </div>
+    </header>
 
       {/* Main Content */}
       <main className="max-w-lg mx-auto px-4 space-y-5 mt-5">
+        <ReceiptScanner onProductsDetected={handleProductsDetected} />
+        
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-accent/40 rounded-2xl p-3 border border-border/50">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Productos</p>

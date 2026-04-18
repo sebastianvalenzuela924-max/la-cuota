@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard, ClipboardPaste } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,25 @@ interface Props {
 
 export default function BankSection({ bankData, onBankDataChange }: Props) {
   const [rawText, setRawText] = useState('');
+
+  // Sincronizar texto local si cambian los datos (ej. otro usuario los pega)
+  useEffect(() => {
+    if (bankData && Object.keys(bankData).length > 0) {
+      // Solo actualizamos si el texto actual está vacío o es significativamente diferente de un resumen de bankData
+      // Para simplificar, si hay datos y el área está vacía, mostramos un resumen
+      if (!rawText) {
+        const summary = [
+          bankData.name,
+          bankData.rut,
+          bankData.bank,
+          bankData.accountType,
+          bankData.accountNumber,
+          bankData.email
+        ].filter(Boolean).join('\n');
+        setRawText(summary);
+      }
+    }
+  }, [bankData]);
 
   const updateData = (text: string) => {
     setRawText(text);
