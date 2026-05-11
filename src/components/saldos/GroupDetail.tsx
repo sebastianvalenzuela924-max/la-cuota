@@ -153,8 +153,11 @@ export default function SaldamosGroupDetail({
 
   useEffect(() => { 
     load(); 
+  }, [groupId]);
+
+  useEffect(() => {
     if (activeTab === 'actividad') loadActivities();
-  }, [groupId, activeTab]);
+  }, [activeTab]);
 
   // Auto-trigger import if pending text exists
   useEffect(() => {
@@ -384,8 +387,8 @@ export default function SaldamosGroupDetail({
 
   return (
     <div className="space-y-6 animate-fade-in-up pb-10">
-      {/* Top Nav Bar */}
-      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-0 bg-background/80 backdrop-blur-md z-10 border-b border-border/40">
+      {/* Top Nav Bar - Adjusted top to account for main header */}
+      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40">
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" /> Volver
         </button>
@@ -442,8 +445,8 @@ export default function SaldamosGroupDetail({
         </Button>
       </div>
 
-      <Tabs defaultValue="balances" className="w-full" onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 rounded-xl bg-muted/50 p-1 h-11">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/50 p-1 h-11">
           <TabsTrigger value="balances" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
             <LayoutDashboard className="w-3.5 h-3.5" /> Balances
           </TabsTrigger>
@@ -454,7 +457,7 @@ export default function SaldamosGroupDetail({
             <User className="w-3.5 h-3.5" /> Mi Historial
           </TabsTrigger>
           <TabsTrigger value="actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <History className="w-3.5 h-3.5" /> Actividad
+            <Sparkles className="w-3.5 h-3.5" /> Actividad
           </TabsTrigger>
         </TabsList>
 
