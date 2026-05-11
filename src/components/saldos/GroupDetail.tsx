@@ -64,9 +64,13 @@ type Assignment = { parsedName: string; amount: number; target: string };
 interface Props {
   groupId: string;
   onBack: () => void;
+  pendingImportText?: string | null;
+  onClearPendingImport?: () => void;
 }
 
-export default function SaldamosGroupDetail({ groupId, onBack }: Props) {
+export default function SaldamosGroupDetail({ 
+  groupId, onBack, pendingImportText, onClearPendingImport 
+}: Props) {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -105,6 +109,27 @@ export default function SaldamosGroupDetail({ groupId, onBack }: Props) {
   };
 
   useEffect(() => { load(); }, [groupId]);
+
+  // Auto-trigger import if pending text exists
+  useEffect(() => {
+    if (!loading && members.length > 0 && pendingImportText && onClearPendingImport) {
+      const parsed = parseLaCuotaMessage(pendingImportText);
+      if (parsed.length > 0) {
+        setImportText(pendingImportText);
+        setImportParsed(parsed);
+        setAssignments(
+          parsed.map(p => ({
+            parsedName: p.name,
+            amount: p.amount,
+            target: findMemberMatch(p.name, members) ?? CREATE_NEW,
+          }))
+        );
+        setImportOpen(true);
+        // Clear it so it doesn't re-trigger
+        onClearPendingImport();
+      }
+    }
+  }, [loading, members, pendingImportText]);
 
   const balances = useMemo(() => computeBalances(members, expenses), [members, expenses]);
   const settlements = useMemo(() => simplifyDebts(balances), [balances]);

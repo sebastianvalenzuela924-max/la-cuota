@@ -1,4 +1,4 @@
-import { Receipt, Copy, Share2, TrendingUp, RefreshCcw, CreditCard } from 'lucide-react';
+import { Receipt, Copy, Share2, TrendingUp, RefreshCcw, CreditCard, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -16,9 +16,12 @@ interface Props {
   tipValue: number;
   bankData: Partial<BankData>;
   currency: Currency;
+  onImportToSaldos?: (text: string) => void;
 }
 
-export default function SummarySection({ products, people, totals, tipType, tipValue, bankData, currency }: Props) {
+export default function SummarySection({ 
+  products, people, totals, tipType, tipValue, bankData, currency, onImportToSaldos 
+}: Props) {
   const [showConversion, setShowConversion] = useState(false);
   const [targetCurrency, setTargetCurrency] = useState<Currency>(currency === 'BRL' ? 'CLP' : 'BRL');
   const [exchangeRate, setExchangeRate] = useState(currency === 'BRL' ? 175 : 0.0057);
@@ -304,6 +307,16 @@ export default function SummarySection({ products, people, totals, tipType, tipV
           </Button>
         </div>
         
+        {onImportToSaldos && (
+          <Button 
+            onClick={() => onImportToSaldos(summaryText)}
+            className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90 rounded-xl py-6 font-semibold shadow-sm"
+          >
+            <Scale className="w-5 h-5 mr-2" />
+            Guardar en Mis Saldos
+          </Button>
+        )}
+
         {!!(bankData.name || bankData.bank || bankData.rut) && (
           <Button 
             variant="ghost"

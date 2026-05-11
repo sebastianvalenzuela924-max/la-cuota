@@ -5,7 +5,12 @@ import GroupsList from '@/components/saldos/GroupsList';
 import GroupDetail from '@/components/saldos/GroupDetail';
 import { Loader2 } from 'lucide-react';
 
-export default function SaldosPage() {
+interface Props {
+  pendingImportText: string | null;
+  onClearPendingImport: () => void;
+}
+
+export default function SaldosPage({ pendingImportText, onClearPendingImport }: Props) {
   const { user, loading } = useSaldamosAuth();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
@@ -22,7 +27,14 @@ export default function SaldosPage() {
   }
 
   if (selectedGroupId) {
-    return <GroupDetail groupId={selectedGroupId} onBack={() => setSelectedGroupId(null)} />;
+    return (
+      <GroupDetail 
+        groupId={selectedGroupId} 
+        onBack={() => setSelectedGroupId(null)} 
+        pendingImportText={pendingImportText}
+        onClearPendingImport={onClearPendingImport}
+      />
+    );
   }
 
   return <GroupsList onSelectGroup={setSelectedGroupId} />;

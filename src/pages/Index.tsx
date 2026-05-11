@@ -25,6 +25,7 @@ export default function Index() {
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
   const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>('dividir');
+  const [pendingImportText, setPendingImportText] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -348,13 +349,20 @@ export default function Index() {
           tipValue={tipValue}
           bankData={bankData}
           currency={currency}
+          onImportToSaldos={(text) => {
+            setPendingImportText(text);
+            setActiveTab('saldos');
+          }}
         />
       </main>
       )}
       {/* Saldos Tab Panel */}
       {activeTab === 'saldos' && (
         <main className="max-w-lg mx-auto px-4 pb-28 pt-4">
-          <SaldosPage />
+          <SaldosPage 
+            pendingImportText={pendingImportText} 
+            onClearPendingImport={() => setPendingImportText(null)} 
+          />
         </main>
       )}
 
