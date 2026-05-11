@@ -364,6 +364,8 @@ export function generateSummaryText(
     text += `\n${bankText}`;
   }
 
+  text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
+
   return text;
 }
 
@@ -386,6 +388,9 @@ export function generateBankDetailsText(
   if (bankData.rut) text += `*${labelRut}:* ${bankData.rut}\n`;
   if (bankData.email) text += `*${labelEmail}:* ${bankData.email}\n`;
   text += `━━━━━━━━━━━━━━━\n`;
+  
+  text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
+
   return text;
 }
 
@@ -417,6 +422,8 @@ export function generateIndividualSummaryText(
   const bankText = generateBankDetailsText(bankData, currency);
   if (bankText) {
     text += `\nPara transferir, aquí tienes los datos:\n\n${bankText}`;
+  } else {
+    text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
   }
 
   return text;
