@@ -364,7 +364,7 @@ export function generateSummaryText(
     text += `\n${bankText}`;
   }
 
-  text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
+  text += `\nCalculado con *La Cuota* 💸\nhttps://la-cuota.vercel.app`;
 
   return text;
 }
@@ -389,7 +389,7 @@ export function generateBankDetailsText(
   if (bankData.email) text += `*${labelEmail}:* ${bankData.email}\n`;
   text += `━━━━━━━━━━━━━━━\n`;
   
-  text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
+  text += `\nCalculado con *La Cuota* 💸\nhttps://la-cuota.vercel.app`;
 
   return text;
 }
@@ -423,7 +423,7 @@ export function generateIndividualSummaryText(
   if (bankText) {
     text += `\nPara transferir, aquí tienes los datos:\n\n${bankText}`;
   } else {
-    text += `\nCalculado con *La Cuota* 💸\nhttps://lacuota.app`;
+    text += `\nCalculado con *La Cuota* 💸\nhttps://la-cuota.vercel.app`;
   }
 
   return text;
