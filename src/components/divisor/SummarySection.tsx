@@ -106,6 +106,22 @@ export default function SummarySection({ products, people, totals, tipType, tipV
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  const handleCopyBankDetails = async () => {
+    const text = generateBankDetailsText(bankData, currency);
+    if (!text) {
+      toast.error('No hay datos bancarios configurados');
+      return;
+    }
+    try {
+      // Remover emojis y asteriscos para un copiado más limpio si se prefiere, 
+      // pero el usuario suele querer el formato tal cual
+      await navigator.clipboard.writeText(text);
+      toast.success('Datos bancarios copiados');
+    } catch (err) {
+      toast.error('Error al copiar');
+    }
+  };
+
   return (
     <section className="rounded-2xl bg-card p-5 card-shadow-lg animate-fade-in-up border border-primary/20">
       <div className="flex items-center gap-2.5 mb-4">
@@ -276,15 +292,29 @@ export default function SummarySection({ products, people, totals, tipType, tipV
         })}
       </div>
 
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={handleCopy} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold">
-          <Copy className="w-3.5 h-3.5" />
-          Copiar Todo
-        </Button>
-        <Button size="sm" onClick={handleWhatsApp} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
-          <Share2 className="w-3.5 h-3.5" />
-          WhatsApp Resumen
-        </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleCopy} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold">
+            <Copy className="w-3.5 h-3.5" />
+            Copiar Todo
+          </Button>
+          <Button size="sm" onClick={handleWhatsApp} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
+            <Share2 className="w-3.5 h-3.5" />
+            WhatsApp Resumen
+          </Button>
+        </div>
+        
+        {!!(bankData.name || bankData.bank || bankData.rut) && (
+          <Button 
+            variant="ghost"
+            size="sm" 
+            onClick={handleCopyBankDetails} 
+            className="w-full text-xs gap-1.5 rounded-xl font-bold bg-primary/5 hover:bg-primary/10 text-primary border border-primary/10 h-10"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Copiar Solo Datos Bancarios
+          </Button>
+        )}
       </div>
     </section>
   );
