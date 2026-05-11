@@ -1,11 +1,11 @@
-import { Receipt, Copy, Share2, TrendingUp, RefreshCcw } from 'lucide-react';
+import { Receipt, Copy, Share2, TrendingUp, RefreshCcw, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useState, useEffect, useCallback } from 'react';
 import type { Product, Person, TipType, PersonTotal, BankData, Currency } from '@/lib/types';
-import { formatCurrency, PERSON_COLORS, getInitials, generateSummaryText, roundValue } from '@/lib/bill-utils';
+import { formatCurrency, PERSON_COLORS, getInitials, generateSummaryText, generateBankDetailsText, roundValue } from '@/lib/bill-utils';
 import { toast } from 'sonner';
 
 interface Props {
@@ -255,15 +255,25 @@ export default function SummarySection({ products, people, totals, tipType, tipV
         })}
       </div>
 
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={handleCopy} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold">
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={handleCopy} className="text-xs gap-1.5 rounded-xl font-semibold">
           <Copy className="w-3.5 h-3.5" />
-          Copiar
+          Copiar Todo
         </Button>
-        <Button size="sm" onClick={handleWhatsApp} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
+        <Button size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
           <Share2 className="w-3.5 h-3.5" />
-          WhatsApp
+          WhatsApp Resumen
         </Button>
+        {!!(bankData.name || bankData.bank || bankData.rut) && (
+          <Button 
+            size="sm" 
+            onClick={handleWhatsAppBank} 
+            className="col-span-2 text-xs gap-1.5 rounded-xl font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            Enviar Datos Bancarios por WhatsApp
+          </Button>
+        )}
       </div>
     </section>
   );

@@ -341,21 +341,27 @@ export function generateSummaryText(
     text += `\n`;
   }
 
-  if (bankData.name || bankData.bank || bankData.rut) {
-    text += `💳 *Datos de transferencia:*\n`;
-    if (bankData.name) text += `Nombre: ${bankData.name}\n`;
-    if (bankData.bank) text += `Banco: ${bankData.bank}\n`;
-    if (bankData.accountType) text += `Tipo: ${bankData.accountType}\n`;
-    if (bankData.accountNumber) text += `Cuenta: ${bankData.accountNumber}\n`;
-    if (bankData.rut) {
-      const idLabel = currency === 'CLP' ? 'RUT' : (currency === 'BRL' ? 'CPF' : (currency === 'ARS' ? 'CUIL/CUIT' : 'ID/Documento'));
-      text += `${idLabel}: ${bankData.rut}\n`;
-    }
-    if (bankData.email) {
-      const emailLabel = currency === 'BRL' ? 'PIX/Email' : (currency === 'ARS' ? 'Alias/CBU' : 'Correo/Alias');
-      text += `${emailLabel}: ${bankData.email}\n`;
-    }
-  }
+  return text;
+}
 
+export function generateBankDetailsText(
+  bankData: Partial<BankData>,
+  currency: Currency = 'CLP'
+): string {
+  const hasData = !!(bankData.name || bankData.bank || bankData.rut || bankData.accountNumber || bankData.email || bankData.accountType);
+  if (!hasData) return '';
+
+  const labelRut = currency === 'BRL' ? 'CPF' : (currency === 'ARS' || currency === 'COP') ? 'CBU/Alias' : 'RUT';
+  const labelEmail = currency === 'BRL' ? 'PIX/Email' : (currency === 'ARS' ? 'Alias/CBU' : 'Email');
+  
+  let text = `🏦 *Datos de Transferencia*\n`;
+  text += `━━━━━━━━━━━━━━━\n`;
+  if (bankData.name) text += `*Nombre:* ${bankData.name}\n`;
+  if (bankData.bank) text += `*Banco:* ${bankData.bank}\n`;
+  if (bankData.accountType) text += `*Tipo:* ${bankData.accountType}\n`;
+  if (bankData.accountNumber) text += `*Cuenta:* ${bankData.accountNumber}\n`;
+  if (bankData.rut) text += `*${labelRut}:* ${bankData.rut}\n`;
+  if (bankData.email) text += `*${labelEmail}:* ${bankData.email}\n`;
+  text += `━━━━━━━━━━━━━━━\n`;
   return text;
 }
