@@ -301,40 +301,55 @@ export default function SaldamosGroupDetail({
   }
 
   return (
-    <div className="space-y-4 animate-fade-in-up pb-10">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-3.5 h-3.5" /> Volver
+    <div className="space-y-6 animate-fade-in-up pb-10">
+      {/* Top Nav Bar */}
+      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-0 bg-background/80 backdrop-blur-md z-10 border-b border-border/40">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Volver
         </button>
-        <div className="flex gap-1">
-          <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px]" onClick={() => setMemberOpen(true)}>
-            <UserPlus className="w-3 h-3 mr-1" /> Persona
-          </Button>
-        </div>
+        <Button size="sm" variant="ghost" className="rounded-xl h-9 px-3 text-xs gap-2 text-muted-foreground hover:text-violet-600" onClick={() => setMemberOpen(true)}>
+          <UserPlus className="w-4 h-4" />
+          <span className="hidden sm:inline">Agregar Persona</span>
+        </Button>
       </div>
 
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold leading-tight break-words">{group?.name || 'Cargando...'}</h2>
-          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members?.length || 0} Miembros</p>
+      {/* Hero Section */}
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-black tracking-tight leading-none text-foreground break-words bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">
+            {group?.name || 'Cargando...'}
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider">
+              {currency}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
+              <Users className="w-3 h-3" /> {members?.length || 0} Miembros
+            </span>
+          </div>
         </div>
-        <div className="flex gap-2">
+
+        {/* Primary Actions */}
+        <div className="grid grid-cols-2 gap-3">
           <Button 
-            size="sm" 
+            size="lg" 
             variant="outline" 
-            className="rounded-xl h-10 px-4 text-xs font-semibold gap-2 border-violet-200 hover:bg-violet-50" 
+            className="rounded-2xl h-14 text-sm font-bold gap-3 border-violet-100 bg-violet-50/30 hover:bg-violet-50 hover:border-violet-200 transition-all shadow-sm" 
             onClick={handleImportClick}
           >
-            <Sparkles className="w-4 h-4 text-violet-500" />
+            <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600">
+              <Sparkles className="w-5 h-5" />
+            </div>
             Importar
           </Button>
           <Button 
-            size="sm" 
-            className="rounded-xl h-10 px-6 text-xs font-bold gap-2 bg-gradient-to-r from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-200" 
+            size="lg" 
+            className="rounded-2xl h-14 text-sm font-bold gap-3 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all active:scale-[0.98]" 
             onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
           >
-            <Plus className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+              <Plus className="w-5 h-5" />
+            </div>
             Añadir Gasto
           </Button>
         </div>
