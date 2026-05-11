@@ -63,6 +63,7 @@ export function parseBankText(text: string): Partial<BankData> {
   
   const rutRegex = /(\d{1,2}(?:\.\d{3}){2}-[\dkK])|(\d{7,8}-[\dkK])/;
   const cbuRegex = /^\d{22}$/; // CBU/CVU in Argentina
+  const ibanRegex = /^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/i; // IBAN
   let explicitBank = false;
   let explicitType = false;
   let explicitAccount = false;
@@ -83,7 +84,7 @@ export function parseBankText(text: string): Partial<BankData> {
         if (label.includes('titular') || label.includes('nombre') || label.includes('destinatario')) {
           data.name = value;
           matched = true;
-        } else if (label.includes('banco') || label.includes('entidad')) {
+        } else if (label.includes('banco') || label.includes('entidad') || label.includes('bank') || label.includes('swift') || label.includes('bic')) {
           data.bank = value;
           explicitBank = true;
           matched = true;
@@ -91,13 +92,13 @@ export function parseBankText(text: string): Partial<BankData> {
           data.accountType = value;
           explicitType = true;
           matched = true;
-        } else if (label.match(/n[úu]mero|nro|n°|cuenta|cbu|cvu/)) {
+        } else if (label.match(/n[úu]mero|nro|n°|cuenta|cbu|cvu|iban|account|routing|sort code/)) {
           // Si el label es "cuenta" pero el valor parece un tipo (corriente, vista...), es tipo
           if (value.toLowerCase().match(/corriente|vista|ahorro|rut/)) {
             data.accountType = value;
             explicitType = true;
           } else {
-            data.accountNumber = value.replace(/-/g, '').trim();
+            data.accountNumber = value.replace(/-/g, '').replace(/\s+/g, '').trim();
             explicitAccount = true;
           }
           matched = true;
@@ -120,11 +121,11 @@ export function parseBankText(text: string): Partial<BankData> {
         matched = true;
       } else {
         const keywords = [
-          { reg: /^(titular|nombre|destinatario|beneficiario)\s+/i, type: 'name' },
-          { reg: /^(banco|entidad)\s+/i, type: 'bank' },
-          { reg: /^(nro|n[úu]mero|n°|cbu|cvu)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
+          { reg: /^(titular|nombre|destinatario|beneficiario|name|holder)\s+/i, type: 'name' },
+          { reg: /^(banco|entidad|bank|swift|bic)\s+/i, type: 'bank' },
+          { reg: /^(nro|n[úu]mero|n°|cbu|cvu|iban|account|acc|routing)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
           { reg: /^(cuenta)\s+/i, type: 'accountNumber' },
-          { reg: /^(rut|cpf|cuil|cuit|dni|c\.c\.|c\.i\.|documento|id)\s+/i, type: 'rut' },
+          { reg: /^(rut|cpf|cuil|cuit|dni|c\.c\.|c\.i\.|documento|id|passport)\s+/i, type: 'rut' },
           { reg: /^(correo|email|mail|e-mail|alias)\s+/i, type: 'email' },
           { reg: /^(pix(\s+key)?|chave)\s+/i, type: 'email' }
         ];
@@ -179,8 +180,16 @@ export function parseBankText(text: string): Partial<BankData> {
     }
 
     // 6. HEURÍSTICA: CBU/CVU "desnudo" (Argentina - 22 dígitos)
-    if (!matched && !explicitAccount && cbuRegex.test(line)) {
-      data.accountNumber = line;
+    if (!matched && !explicitAccount && cbuRegex.test(line.replace(/\s+/g, ''))) {
+      data.accountNumber = line.replace(/\s+/g, '');
+      explicitAccount = true;
+      matched = true;
+      continue;
+    }
+
+    // 6b. HEURÍSTICA: IBAN "desnudo" (Europa)
+    if (!matched && !explicitAccount && ibanRegex.test(line.replace(/\s+/g, ''))) {
+      data.accountNumber = line.replace(/\s+/g, '');
       explicitAccount = true;
       matched = true;
       continue;
