@@ -1,17 +1,28 @@
-name: Supabase Keep Alive
+name: Supabase Projects Keep Alive
 
 on:
   schedule:
-    # Se ejecuta cada 3 días a las 00:00 UTC
     - cron: '0 0 */3 * *'
-  workflow_dispatch: # Permite ejecutarlo manualmente para probar
+  workflow_dispatch:
 
 jobs:
-  ping_supabase:
+  ping_all:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Sharing Supabase
+      - name: Ping Main Supabase (La Cuota)
         run: |
-          curl -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/bill_sessions?select=count" \
+          curl -X GET "https://hgcxjkkwjyzlyjyhimix.supabase.co/rest/v1/?select=count" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnY3hqa2t3anl6bHlqeWhpbWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NjAwMjgsImV4cCI6MjA4NzQzNjAyOH0.MfAPl7ysDTRoXZ_25l8JkqaNa0clTR4Ej7tGcaWjmZw" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnY3hqa2t3anl6bHlqeWhpbWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NjAwMjgsImV4cCI6MjA4NzQzNjAyOH0.MfAPl7ysDTRoXZ_25l8JkqaNa0clTR4Ej7tGcaWjmZw"
+
+      - name: Ping Sharing Supabase (Sessions)
+        run: |
+          curl -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/?select=count" \
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4"
+
+      - name: Ping Saldamos2 Supabase (Groups)
+        run: |
+          curl -X GET "https://atvkvzukbeifwinoxzli.supabase.co/rest/v1/?select=count" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dmt2enVrYmVpZndpbm94emxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0ODY0MzYsImV4cCI6MjA5MjA2MjQzNn0.rHsCvtFGgx0L9k_m1NIdak1ssyFPITLRLKt3Q_2DkXk" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dmt2enVrYmVpZndpbm94emxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0ODY0MzYsImV4cCI6MjA5MjA2MjQzNn0.rHsCvtFGgx0L9k_m1NIdak1ssyFPITLRLKt3Q_2DkXk"
