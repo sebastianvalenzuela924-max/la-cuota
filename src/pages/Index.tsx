@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Receipt, Scale, Scissors } from 'lucide-react';
+import { Receipt, Scale, Scissors, Trash2, RefreshCw } from 'lucide-react';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue, generateSummaryText } from '@/lib/bill-utils';
 import ReceiptScanner from '@/components/divisor/ReceiptScanner';
@@ -102,6 +102,17 @@ export default function Index() {
       all[p.id] = people.map(person => person.id);
     }
     setAssignments(all);
+  };
+
+  const resetBill = () => {
+    if (confirm('¿Estás seguro de que quieres vaciar la boleta actual? Se borrarán todos los productos y personas.')) {
+      setProducts([]);
+      setPeople([]);
+      setAssignments({});
+      setTipValue(0);
+      setBankData({});
+      toast.success('Boleta vaciada');
+    }
   };
 
   const handleProductsDetected = (detected: Product[], detectedCurrency?: Currency) => {
@@ -305,7 +316,22 @@ export default function Index() {
           </div>
         </div>
 
-        <ReceiptScanner onProductsDetected={handleProductsDetected} />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <ReceiptScanner onProductsDetected={handleProductsDetected} />
+          </div>
+          {(products.length > 0 || people.length > 0) && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-12 w-12 rounded-2xl shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 animate-in fade-in zoom-in duration-300 shadow-sm" 
+              onClick={resetBill} 
+              title="Vaciar boleta"
+            >
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
 
         <ProductSection
           products={products}
