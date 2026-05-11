@@ -62,6 +62,7 @@ export function parseBankText(text: string): Partial<BankData> {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   
   const rutRegex = /(\d{1,2}(?:\.\d{3}){2}-[\dkK])|(\d{7,8}-[\dkK])/;
+  const cbuRegex = /^\d{22}$/; // CBU/CVU in Argentina
   let explicitBank = false;
   let explicitType = false;
   let explicitAccount = false;
@@ -82,7 +83,7 @@ export function parseBankText(text: string): Partial<BankData> {
         if (label.includes('titular') || label.includes('nombre') || label.includes('destinatario')) {
           data.name = value;
           matched = true;
-        } else if (label.includes('banco')) {
+        } else if (label.includes('banco') || label.includes('entidad')) {
           data.bank = value;
           explicitBank = true;
           matched = true;
@@ -90,7 +91,7 @@ export function parseBankText(text: string): Partial<BankData> {
           data.accountType = value;
           explicitType = true;
           matched = true;
-        } else if (label.match(/n[úu]mero|nro|n°|cuenta/)) {
+        } else if (label.match(/n[úu]mero|nro|n°|cuenta|cbu|cvu/)) {
           // Si el label es "cuenta" pero el valor parece un tipo (corriente, vista...), es tipo
           if (value.toLowerCase().match(/corriente|vista|ahorro|rut/)) {
             data.accountType = value;
@@ -100,10 +101,10 @@ export function parseBankText(text: string): Partial<BankData> {
             explicitAccount = true;
           }
           matched = true;
-        } else if (label.includes('rut') || label.includes('cpf')) {
+        } else if (label.match(/rut|cpf|cuil|cuit|dni|c\.c\.|c\.i\.|documento|id/)) {
           data.rut = value;
           matched = true;
-        } else if (label.match(/correo|email|mail/)) {
+        } else if (label.match(/correo|email|mail|alias|pix/)) {
           data.email = value;
           matched = true;
         }
@@ -120,11 +121,11 @@ export function parseBankText(text: string): Partial<BankData> {
       } else {
         const keywords = [
           { reg: /^(titular|nombre|destinatario|beneficiario)\s+/i, type: 'name' },
-          { reg: /^banco\s+/i, type: 'bank' },
-          { reg: /^(nro|n[úu]mero|n°)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
+          { reg: /^(banco|entidad)\s+/i, type: 'bank' },
+          { reg: /^(nro|n[úu]mero|n°|cbu|cvu)\s+((de\s+)?cuenta\s+)?/i, type: 'accountNumber' },
           { reg: /^(cuenta)\s+/i, type: 'accountNumber' },
-          { reg: /^(rut|cpf)\s+/i, type: 'rut' },
-          { reg: /^(correo|email|mail|e-mail)\s+/i, type: 'email' },
+          { reg: /^(rut|cpf|cuil|cuit|dni|c\.c\.|c\.i\.|documento|id)\s+/i, type: 'rut' },
+          { reg: /^(correo|email|mail|e-mail|alias)\s+/i, type: 'email' },
           { reg: /^(pix(\s+key)?|chave)\s+/i, type: 'email' }
         ];
         
@@ -177,8 +178,16 @@ export function parseBankText(text: string): Partial<BankData> {
       continue;
     }
 
-    // 6. HEURÍSTICA: Número de cuenta "desnudo" (6-16 dígitos)
-    if (!matched && !explicitAccount && /^[0-9-]{6,18}$/.test(line) && !rutRegex.test(line)) {
+    // 6. HEURÍSTICA: CBU/CVU "desnudo" (Argentina - 22 dígitos)
+    if (!matched && !explicitAccount && cbuRegex.test(line)) {
+      data.accountNumber = line;
+      explicitAccount = true;
+      matched = true;
+      continue;
+    }
+
+    // 7. HEURÍSTICA: Número de cuenta "desnudo" genérico (6-20 dígitos)
+    if (!matched && !explicitAccount && /^[0-9-]{6,20}$/.test(line) && !rutRegex.test(line)) {
       const cleanNum = line.replace(/-/g, '');
       if (cleanNum.length >= 6) {
         data.accountNumber = cleanNum;
@@ -189,13 +198,13 @@ export function parseBankText(text: string): Partial<BankData> {
     }
   }
 
-  // Lógica final de decisión para Cuenta RUT
-  const rutBody = data.rut ? data.rut.split('-')[0].replace(/\./g, '') : null;
+  // Lógica final de decisión para Cuenta RUT (Solo si parece un RUT chileno y no hay otro banco)
+  const rutBody = data.rut && rutRegex.test(data.rut) ? data.rut.split('-')[0].replace(/\./g, '') : null;
   
-  if (rutBody) {
+  if (rutBody && !explicitBank) {
     if (!data.accountNumber || data.accountNumber === rutBody) {
       data.accountNumber = rutBody;
-      if (!explicitBank && !explicitType) {
+      if (!explicitType) {
         if (!data.bank) data.bank = 'Banco Estado';
         if (!data.accountType) data.accountType = 'Cuenta RUT / Vista';
       }
