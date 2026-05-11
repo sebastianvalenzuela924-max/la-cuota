@@ -352,6 +352,17 @@ export default function Session() {
                 
                 <div className="w-full space-y-3 mb-6 min-w-0">
                   <p className="text-[11px] text-muted-foreground text-center font-medium">Escaneen el QR o compartan el link:</p>
+
+                  {canInstall && (
+                    <Button 
+                      onClick={install}
+                      className="w-full rounded-2xl h-12 bg-primary text-primary-foreground font-bold gap-2 shadow-lg shadow-primary/20 animate-bounce-subtle"
+                    >
+                      <Download className="w-5 h-5" />
+                      Instalar con solo un click
+                    </Button>
+                  )}
+
                   <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border w-full overflow-hidden">
                     <p className="text-[10px] truncate flex-1 min-w-0 font-mono text-muted-foreground">{sessionUrl}</p>
                     <Button 

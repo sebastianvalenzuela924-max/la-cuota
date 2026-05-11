@@ -213,6 +213,16 @@ export default function Index() {
                   <p className="text-[11px] text-muted-foreground text-center font-medium">Escanea este código para instalar o abrir la app 🇨🇱</p>
                 </div>
 
+                {canInstall && (
+                  <Button 
+                    onClick={install}
+                    className="w-full mb-4 rounded-2xl h-12 bg-primary text-primary-foreground font-bold gap-2 shadow-lg shadow-primary/20 animate-bounce-subtle"
+                  >
+                    <Download className="w-5 h-5" />
+                    Instalar con solo un click
+                  </Button>
+                )}
+
                 <div className="w-full flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden">
                   <p className="text-[10px] font-mono text-muted-foreground truncate flex-1">https://la-cuota.vercel.app/</p>
                   <div className="flex items-center gap-1.5 shrink-0">
