@@ -75,6 +75,7 @@ export default function SaldamosGroupDetail({
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('all');
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
+  const [showConverter, setShowConverter] = useState(false);
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
   const load = async () => {
@@ -126,7 +127,7 @@ export default function SaldamosGroupDetail({
   const currency = group?.currency ?? 'CLP';
   
   const fmt = (n: number, curr?: string) => {
-    const target = curr || displayCurrency;
+    const target = curr || (showConverter ? displayCurrency : currency);
     if (target === currency) return formatMoney(n, currency);
     const converted = convert(n, target);
     if (converted == null) return formatMoney(n, currency);
@@ -337,9 +338,7 @@ export default function SaldamosGroupDetail({
             className="rounded-2xl h-14 text-sm font-bold gap-3 border-violet-100 bg-violet-50/30 hover:bg-violet-50 hover:border-violet-200 transition-all shadow-sm" 
             onClick={handleImportClick}
           >
-            <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600">
-              <Sparkles className="w-5 h-5" />
-            </div>
+            <Sparkles className="w-5 h-5 text-violet-600" />
             Importar
           </Button>
           <Button 
@@ -347,9 +346,7 @@ export default function SaldamosGroupDetail({
             className="rounded-2xl h-14 text-sm font-bold gap-3 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all active:scale-[0.98]" 
             onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
           >
-            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-              <Plus className="w-5 h-5" />
-            </div>
+            <Plus className="w-5 h-5" />
             Añadir Gasto
           </Button>
         </div>
@@ -422,14 +419,29 @@ export default function SaldamosGroupDetail({
         </TabsContent>
 
         <TabsContent value="historial" className="space-y-4 pt-4">
-          <CurrencyConverter 
-            baseCurrency={currency} 
-            targetCurrency={displayCurrency} 
-            onTargetChange={setDisplayCurrency} 
-            loading={ratesLoading} 
-            error={ratesError} 
-            fetchedAt={fetchedAt} 
-          />
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Historial de gastos</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
+              onClick={() => setShowConverter(!showConverter)}
+            >
+              <HandCoins className="w-3 h-3" />
+              {showConverter ? 'Ocultar conversor' : 'Ver en otra moneda'}
+            </Button>
+          </div>
+
+          {showConverter && (
+            <CurrencyConverter 
+              baseCurrency={currency} 
+              targetCurrency={displayCurrency} 
+              onTargetChange={setDisplayCurrency} 
+              loading={ratesLoading} 
+              error={ratesError} 
+              fetchedAt={fetchedAt} 
+            />
+          )}
           <div className="space-y-3">
             <div className="flex gap-2">
               <div className="relative flex-1">

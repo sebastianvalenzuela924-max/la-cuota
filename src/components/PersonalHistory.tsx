@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Receipt, Tag, User, HandCoins, Filter, Search } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Category } from "@/components/CategoryPicker";
 import { useExchangeRates } from "@/lib/currency";
@@ -30,13 +31,15 @@ export function PersonalHistory({ members, expenses, categories, currency }: Pro
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [displayCurrency, setDisplayCurrency] = useState<string>(currency);
+  const [showConverter, setShowConverter] = useState(false);
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(currency);
 
   const fmt = (amount: number) => {
-    if (displayCurrency === currency) return formatMoney(amount, currency);
-    const converted = convert(amount, displayCurrency);
+    const target = showConverter ? displayCurrency : currency;
+    if (target === currency) return formatMoney(amount, currency);
+    const converted = convert(amount, target);
     if (converted == null) return formatMoney(amount, currency);
-    return formatMoney(converted, displayCurrency);
+    return formatMoney(converted, target);
   };
 
   const categoryById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
@@ -158,7 +161,29 @@ export function PersonalHistory({ members, expenses, categories, currency }: Pro
 
       {selectedId && (
         <>
-          <CurrencyConverter baseCurrency={currency} targetCurrency={displayCurrency} onTargetChange={setDisplayCurrency} loading={ratesLoading} error={ratesError} fetchedAt={fetchedAt} />
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estadísticas</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
+              onClick={() => setShowConverter(!showConverter)}
+            >
+              <HandCoins className="w-3 h-3" />
+              {showConverter ? 'Ocultar conversor' : 'Ver en otra moneda'}
+            </Button>
+          </div>
+
+          {showConverter && (
+            <CurrencyConverter 
+              baseCurrency={currency} 
+              targetCurrency={displayCurrency} 
+              onTargetChange={setDisplayCurrency} 
+              loading={ratesLoading} 
+              error={ratesError} 
+              fetchedAt={fetchedAt} 
+            />
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Card className="rounded-2xl p-4">
               <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Consumido Total</p>
