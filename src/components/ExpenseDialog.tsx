@@ -212,6 +212,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, currency, 
     }
     toast.success(existing ? "Gasto actualizado" : "Gasto guardado");
     onSaved();
+    onOpenChange(false);
   };
 
   const handlePasteProcess = () => {

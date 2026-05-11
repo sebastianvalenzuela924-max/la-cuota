@@ -68,6 +68,10 @@ export default function SaldamosGroupDetail({
   const [payAmount, setPayAmount] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
 
+  // Filters and search
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyCategory, setHistoryCategory] = useState('all');
+
   const load = async () => {
     try {
       setLoading(true);
@@ -138,6 +142,53 @@ export default function SaldamosGroupDetail({
     setMemberName('');
     setMemberOpen(false);
     load();
+  };
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter(ex => {
+      const matchesSearch = (ex.description || '').toLowerCase().includes(historySearch.toLowerCase());
+      const matchesCategory = historyCategory === 'all' || ex.category_id === historyCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [expenses, historySearch, historyCategory]);
+
+  const categoryTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ex of expenses) {
+      if (ex.is_settlement) continue;
+      const catId = ex.category_id || 'others';
+      const current = map.get(catId) ?? 0;
+      map.set(catId, current + (ex.total_amount || 0));
+    }
+    return Array.from(map.entries()).map(([id, total]) => ({
+      id,
+      name: categories.find(c => c.id === id)?.name ?? 'Otros',
+      total
+    })).sort((a, b) => b.total - a.total);
+  }, [expenses, categories]);
+
+  const handleImportClick = () => {
+    if (pendingImportText) {
+      const parsed = parseLaCuotaMessage(pendingImportText);
+      if (parsed.length > 0) {
+        setImportText(pendingImportText);
+        setImportParsed(parsed);
+        setAssignments(
+          parsed.map(p => ({
+            parsedName: p.name,
+            amount: p.amount,
+            target: findMemberMatch(p.name, members) ?? CREATE_NEW,
+          }))
+        );
+        setImportOpen(true);
+        if (onClearPendingImport) onClearPendingImport();
+        return;
+      }
+    }
+    setImportText('');
+    setImportParsed(null);
+    setAssignments([]);
+    setImportOpen(true);
   };
 
   // ─── IMPORT FROM LA CUOTA ────────────────────────────────────────────────────
@@ -269,15 +320,33 @@ export default function SaldamosGroupDetail({
           <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px]" onClick={() => setMemberOpen(true)}>
             <UserPlus className="w-3 h-3 mr-1" /> Persona
           </Button>
-          <Button size="sm" className="rounded-xl h-8 text-[10px] bg-violet-600 text-white" onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}>
-            <Plus className="w-3 h-3 mr-1" /> Gasto
-          </Button>
         </div>
       </div>
 
-      <div className="mb-2">
-        <h2 className="text-xl font-bold">{group?.name || 'Cargando...'}</h2>
-        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members?.length || 0} Miembros</p>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold truncate">{group?.name || 'Cargando...'}</h2>
+          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members?.length || 0} Miembros</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="rounded-xl h-10 px-4 text-xs font-semibold gap-2 border-violet-200 hover:bg-violet-50" 
+            onClick={handleImportClick}
+          >
+            <Sparkles className="w-4 h-4 text-violet-500" />
+            Importar
+          </Button>
+          <Button 
+            size="sm" 
+            className="rounded-xl h-10 px-6 text-xs font-bold gap-2 bg-gradient-to-r from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-200" 
+            onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+          >
+            <Plus className="w-4 h-4" />
+            Añadir Gasto
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="balances" className="w-full" onValueChange={setActiveTab}>
@@ -347,14 +416,43 @@ export default function SaldamosGroupDetail({
         </TabsContent>
 
         <TabsContent value="historial" className="space-y-4 pt-4">
-          <div className="flex justify-end">
-            <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px]" onClick={() => { setImportText(''); setImportParsed(null); setAssignments([]); setImportOpen(true); }}>
-              <Sparkles className="w-3 h-3 mr-1" /> Importar de La Cuota
-            </Button>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Buscar gasto..."
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  className="rounded-xl pl-9 h-10 text-sm"
+                />
+                <Filter className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              </div>
+              <Select value={historyCategory} onValueChange={setHistoryCategory}>
+                <SelectTrigger className="w-[140px] rounded-xl h-10 text-xs">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {categoryTotals.length > 0 && historyCategory === 'all' && (
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {categoryTotals.map(ct => (
+                  <div key={ct.id} className="shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px]">
+                    <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
+                    <p className="text-xs font-bold">{fmt(ct.total)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
           <div className="space-y-2">
-            {expenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados.</p> :
-              expenses.map(ex => (
+            {filteredExpenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">No se encontraron gastos.</p> :
+              filteredExpenses.map(ex => (
                 <div key={ex.id} className={`p-4 rounded-2xl border flex justify-between items-start ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1">

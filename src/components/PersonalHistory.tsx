@@ -7,8 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Receipt, Tag, User, HandCoins } from "lucide-react";
+import { Receipt, Tag, User, HandCoins, Filter, Search } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
+import { Input } from "@/components/ui/input";
 import type { Category } from "@/components/CategoryPicker";
 import { useExchangeRates } from "@/lib/currency";
 import { CurrencyConverter } from "@/components/CurrencyConverter";
@@ -27,6 +28,7 @@ const SETTLEMENT_LABEL = "Pagos / Saldos";
 export function PersonalHistory({ members, expenses, categories, currency }: Props) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [displayCurrency, setDisplayCurrency] = useState<string>(currency);
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(currency);
 
@@ -118,7 +120,24 @@ export function PersonalHistory({ members, expenses, categories, currency }: Pro
 
   const availableCategoryNames = useMemo(() => Array.from(new Set(personalRows.map((r) => r.categoryName))).sort(), [personalRows]);
 
-  const filteredRows = useMemo(() => categoryFilter === "all" ? personalRows : personalRows.filter((r) => r.categoryName === categoryFilter), [personalRows, categoryFilter]);
+  const filteredRows = useMemo(() => {
+    return personalRows.filter((r) => {
+      const matchesCategory = categoryFilter === "all" || r.categoryName === categoryFilter;
+      const matchesSearch = r.expense.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (r.counterpartyName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [personalRows, categoryFilter, searchQuery]);
+
+  const personalCategoryTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of personalRows) {
+      if (r.isSettlement) continue;
+      const current = map.get(r.categoryName) ?? 0;
+      map.set(r.categoryName, current + r.consumed);
+    }
+    return Array.from(map.entries()).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+  }, [personalRows]);
 
   return (
     <div className="space-y-4">
@@ -142,13 +161,47 @@ export function PersonalHistory({ members, expenses, categories, currency }: Pro
           <CurrencyConverter baseCurrency={currency} targetCurrency={displayCurrency} onTargetChange={setDisplayCurrency} loading={ratesLoading} error={ratesError} fetchedAt={fetchedAt} />
           <div className="grid grid-cols-2 gap-2">
             <Card className="rounded-2xl p-4">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Consumido</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Consumido Total</p>
               <p className="text-xl font-bold tabular-nums text-foreground">{fmt(totalConsumed)}</p>
             </Card>
             <Card className="rounded-2xl p-4 border-violet-500/20 bg-violet-500/5">
               <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Gasto Personal</p>
               <p className="text-xl font-bold tabular-nums text-violet-600">{fmt(totalPersonal)}</p>
             </Card>
+          </div>
+
+          {personalCategoryTotals.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {personalCategoryTotals.map(ct => (
+                <div key={ct.name} className="shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px]">
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
+                  <p className="text-xs font-bold">{fmt(ct.total)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Buscar en historial..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="rounded-xl pl-9 h-10 text-sm"
+                />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[140px] rounded-xl h-10 text-xs">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {availableCategoryNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Card className="rounded-2xl">
