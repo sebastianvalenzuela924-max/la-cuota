@@ -192,24 +192,32 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
               fetchedAt={fetchedAt} 
             />
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <Card className="rounded-2xl p-4">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Consumido Total</p>
-              <p className="text-xl font-bold tabular-nums text-foreground">{fmt(totalConsumed)}</p>
+          <div className="grid grid-cols-3 gap-2">
+            <Card className="rounded-2xl p-3 border-emerald-500/20 bg-emerald-500/5">
+              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Total Aportado</p>
+              <p className="text-lg font-bold tabular-nums text-emerald-600">{fmt(totalPaid)}</p>
             </Card>
-            <Card className="rounded-2xl p-4 border-violet-500/20 bg-violet-500/5">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Gasto Personal</p>
-              <p className="text-xl font-bold tabular-nums text-violet-600">{fmt(totalPersonal)}</p>
+            <Card className="rounded-2xl p-3">
+              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Consumido Total</p>
+              <p className="text-lg font-bold tabular-nums text-foreground">{fmt(totalConsumed)}</p>
+            </Card>
+            <Card className="rounded-2xl p-3 border-violet-500/20 bg-violet-500/5">
+              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Gasto Personal</p>
+              <p className="text-lg font-bold tabular-nums text-violet-600">{fmt(totalPersonal)}</p>
             </Card>
           </div>
 
           {personalCategoryTotals.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {personalCategoryTotals.map(ct => (
-                <div key={ct.name} className="shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px]">
+                <button 
+                  key={ct.name} 
+                  onClick={() => setCategoryFilter(categoryFilter === ct.name ? 'all' : ct.name)}
+                  className={`shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px] transition-all active:scale-95 ${categoryFilter === ct.name ? 'border-violet-600 bg-violet-50' : 'border-border/50 hover:border-violet-300'}`}
+                >
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
-                  <p className="text-xs font-bold">{fmt(ct.total)}</p>
-                </div>
+                  <p className={`text-xs font-bold ${categoryFilter === ct.name ? 'text-violet-600' : ''}`}>{fmt(ct.total)}</p>
+                </button>
               ))}
             </div>
           )}
