@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Receipt, Scale, Scissors } from 'lucide-react';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
-import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue } from '@/lib/bill-utils';
+import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue, generateSummaryText } from '@/lib/bill-utils';
 import ReceiptScanner from '@/components/divisor/ReceiptScanner';
 import ProductSection from '@/components/divisor/ProductSection';
 import PeopleSection from '@/components/divisor/PeopleSection';

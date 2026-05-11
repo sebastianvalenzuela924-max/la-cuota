@@ -346,40 +346,71 @@ export function ExpenseDialog({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Categoría</Label>
-              <button 
-                type="button"
-                onClick={() => {
-                  const name = prompt("Nombre de la nueva categoría:");
-                  if (name?.trim()) {
-                    (async () => {
-                      const { data, error } = await saldamosSupabase
-                        .from("expense_categories" as any)
-                        .insert({ group_id: groupId, name: name.trim(), is_default: false })
-                        .select("id")
-                        .single();
-                      if (error) toast.error(error.message);
-                      else {
-                        await onCategoriesChanged();
-                        setCategoryId((data as any).id);
-                        toast.success(`Categoría "${name}" creada`);
+            <Label>Categoría</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <CategoryPicker
+                  groupId={groupId}
+                  categories={categories}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  onCategoriesChanged={onCategoriesChanged}
+                />
+              </div>
+              <div className="flex gap-1">
+                <Input 
+                  placeholder="Nueva..." 
+                  className="w-24 text-[10px] h-10 rounded-xl"
+                  id="new-cat-input"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = (e.currentTarget as HTMLInputElement).value;
+                      if (val.trim()) {
+                        (async () => {
+                          const { data, error } = await saldamosSupabase
+                            .from("expense_categories" as any)
+                            .insert({ group_id: groupId, name: val.trim(), is_default: false })
+                            .select("id")
+                            .single();
+                          if (!error) {
+                            await onCategoriesChanged();
+                            setCategoryId((data as any).id);
+                            (document.getElementById('new-cat-input') as HTMLInputElement).value = '';
+                            toast.success(`Categoría "${val}" creada`);
+                          }
+                        })();
                       }
-                    })();
-                  }
-                }}
-                className="text-[10px] font-bold text-violet-600 hover:underline"
-              >
-                + Nueva Categoría
-              </button>
+                    }
+                  }}
+                />
+                <Button 
+                  size="icon" 
+                  variant="outline" 
+                  className="h-10 w-10 rounded-xl shrink-0"
+                  onClick={() => {
+                    const input = document.getElementById('new-cat-input') as HTMLInputElement;
+                    const val = input.value;
+                    if (val.trim()) {
+                      (async () => {
+                        const { data, error } = await saldamosSupabase
+                          .from("expense_categories" as any)
+                          .insert({ group_id: groupId, name: val.trim(), is_default: false })
+                          .select("id")
+                          .single();
+                        if (!error) {
+                          await onCategoriesChanged();
+                          setCategoryId((data as any).id);
+                          input.value = '';
+                          toast.success(`Categoría "${val}" creada`);
+                        }
+                      })();
+                    }
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-            <CategoryPicker
-              groupId={groupId}
-              categories={categories}
-              value={categoryId}
-              onChange={setCategoryId}
-              onCategoriesChanged={onCategoriesChanged}
-            />
           </div>
 
           <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
