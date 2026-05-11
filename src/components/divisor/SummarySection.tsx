@@ -122,9 +122,8 @@ export default function SummarySection({ products, people, totals, tipType, tipV
         <span className="font-extrabold text-primary text-xl">{fmt(grandTotal)}</span>
       </div>
 
-      {(currency === 'BRL' || currency === 'CLP') && (
-        <div className="mb-6 p-3.5 bg-primary/5 rounded-2xl border border-primary/10">
-          <div className="flex items-center justify-between mb-3">
+      <div className="mb-6 p-3.5 bg-primary/5 rounded-2xl border border-primary/10">
+        <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
               <Label htmlFor="conversion-toggle" className="text-sm font-bold cursor-pointer">
@@ -142,7 +141,7 @@ export default function SummarySection({ products, people, totals, tipType, tipV
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Convertir a</span>
                 <div className="flex flex-wrap gap-2">
-                  {(['CLP', 'BRL', 'USD', 'EUR'] as Currency[]).map((cur) => {
+                  {(['CLP', 'ARS', 'COP', 'PEN', 'MXN', 'UYU', 'VES', 'BRL', 'USD', 'EUR'] as Currency[]).map((cur) => {
                     if (cur === currency) return null;
                     const isActive = targetCurrency === cur;
                     return (
@@ -155,9 +154,6 @@ export default function SummarySection({ products, people, totals, tipType, tipV
                             : 'bg-background text-muted-foreground border-border hover:border-primary/50'
                         }`}
                       >
-                        <span className="text-sm">
-                          {cur === 'CLP' ? '🇨🇱' : cur === 'BRL' ? '🇧🇷' : cur === 'USD' ? '🇺🇸' : '🇪🇺'}
-                        </span>
                         {cur}
                       </button>
                     );
@@ -214,7 +210,6 @@ export default function SummarySection({ products, people, totals, tipType, tipV
             </div>
           )}
         </div>
-      )}
 
       <div className="space-y-3 mb-5">
         {people.map(person => {

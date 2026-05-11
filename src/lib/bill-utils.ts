@@ -14,20 +14,20 @@ export const PERSON_COLORS = [
 ];
 
 export function formatCurrency(amount: number, currency: Currency = 'CLP'): string {
-  if (currency === 'BRL') {
-    return 'R$' + amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  if (currency === 'USD') {
-    return 'US$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  if (currency === 'EUR') {
-    return '€' + amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+  if (currency === 'BRL') return 'R$' + amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'USD') return 'US$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'EUR') return '€' + amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'ARS') return '$' + amount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'COP') return '$' + Math.round(amount).toLocaleString('es-CO');
+  if (currency === 'VES') return 'Bs.' + amount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'PEN') return 'S/' + amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'MXN') return '$' + amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency === 'UYU') return '$U' + amount.toLocaleString('es-UY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return '$' + Math.round(amount).toLocaleString('es-CL');
 }
 
 export function roundValue(val: number, currency: Currency): number {
-  if (currency === 'CLP') {
+  if (currency === 'CLP' || currency === 'COP') {
     return Math.round(val);
   }
   return Math.round(val * 100) / 100;
@@ -263,10 +263,16 @@ export function calculatePersonTotals(
 
 export function getCurrencyLabel(currency: Currency): string {
   const labels: Record<Currency, string> = {
-    'CLP': 'Pesos (CLP)',
-    'BRL': 'Reales (R$)',
-    'USD': 'Dólares (US$)',
-    'EUR': 'Euros (€)'
+    'CLP': 'Chile (CLP)',
+    'BRL': 'Brasil (BRL)',
+    'USD': 'EEUU (USD)',
+    'EUR': 'Europa (EUR)',
+    'ARS': 'Argentina (ARS)',
+    'COP': 'Colombia (COP)',
+    'VES': 'Venezuela (VES)',
+    'PEN': 'Perú (PEN)',
+    'MXN': 'México (MXN)',
+    'UYU': 'Uruguay (UYU)'
   };
   return labels[currency];
 }
@@ -276,7 +282,13 @@ export function getCurrencyFlag(currency: Currency): string {
     'CLP': '🇨🇱',
     'BRL': '🇧🇷',
     'USD': '🇺🇸',
-    'EUR': '🇪🇺'
+    'EUR': '🇪🇺',
+    'ARS': '🇦🇷',
+    'COP': '🇨🇴',
+    'VES': '🇻🇪',
+    'PEN': '🇵🇪',
+    'MXN': '🇲🇽',
+    'UYU': '🇺🇾'
   };
   return flags[currency];
 }
@@ -335,8 +347,14 @@ export function generateSummaryText(
     if (bankData.bank) text += `Banco: ${bankData.bank}\n`;
     if (bankData.accountType) text += `Tipo: ${bankData.accountType}\n`;
     if (bankData.accountNumber) text += `Cuenta: ${bankData.accountNumber}\n`;
-    if (bankData.rut) text += `${currency === 'BRL' ? 'CPF' : 'RUT'}: ${bankData.rut}\n`;
-    if (bankData.email) text += `${currency === 'BRL' ? 'PIX/Email' : 'Correo'}: ${bankData.email}\n`;
+    if (bankData.rut) {
+      const idLabel = currency === 'CLP' ? 'RUT' : (currency === 'BRL' ? 'CPF' : (currency === 'ARS' ? 'CUIL/CUIT' : 'ID/Documento'));
+      text += `${idLabel}: ${bankData.rut}\n`;
+    }
+    if (bankData.email) {
+      const emailLabel = currency === 'BRL' ? 'PIX/Email' : (currency === 'ARS' ? 'Alias/CBU' : 'Correo/Alias');
+      text += `${emailLabel}: ${bankData.email}\n`;
+    }
   }
 
   return text;
