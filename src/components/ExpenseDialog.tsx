@@ -346,7 +346,33 @@ export function ExpenseDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Categoría</Label>
+            <div className="flex items-center justify-between">
+              <Label>Categoría</Label>
+              <button 
+                type="button"
+                onClick={() => {
+                  const name = prompt("Nombre de la nueva categoría:");
+                  if (name?.trim()) {
+                    (async () => {
+                      const { data, error } = await saldamosSupabase
+                        .from("expense_categories" as any)
+                        .insert({ group_id: groupId, name: name.trim(), is_default: false })
+                        .select("id")
+                        .single();
+                      if (error) toast.error(error.message);
+                      else {
+                        await onCategoriesChanged();
+                        setCategoryId((data as any).id);
+                        toast.success(`Categoría "${name}" creada`);
+                      }
+                    })();
+                  }
+                }}
+                className="text-[10px] font-bold text-violet-600 hover:underline"
+              >
+                + Nueva Categoría
+              </button>
+            </div>
             <CategoryPicker
               groupId={groupId}
               categories={categories}

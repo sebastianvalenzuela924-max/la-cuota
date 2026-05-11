@@ -8,9 +8,10 @@ import { Loader2 } from 'lucide-react';
 interface Props {
   pendingImportText: string | null;
   onClearPendingImport: () => void;
+  billData?: string | null;
 }
 
-export default function SaldosPage({ pendingImportText, onClearPendingImport }: Props) {
+export default function SaldosPage({ pendingImportText, onClearPendingImport, billData }: Props) {
   const { user, loading } = useSaldamosAuth();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -39,6 +40,7 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport }: 
         onBack={() => setSelectedGroupId(null)} 
         pendingImportText={pendingImportText}
         onClearPendingImport={onClearPendingImport}
+        billData={billData}
       />
     );
   }

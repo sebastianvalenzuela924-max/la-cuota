@@ -366,6 +366,7 @@ export default function Index() {
           <SaldosPage 
             pendingImportText={pendingImportText} 
             onClearPendingImport={() => setPendingImportText(null)} 
+            billData={products.length > 0 ? generateSummaryText(products, people, totals, tipType, tipValue, bankData, currency) : null}
           />
         </main>
       )}

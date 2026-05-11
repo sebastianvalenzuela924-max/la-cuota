@@ -40,10 +40,11 @@ interface Props {
   onBack: () => void;
   pendingImportText?: string | null;
   onClearPendingImport?: () => void;
+  billData?: string | null;
 }
 
 export default function SaldamosGroupDetail({ 
-  groupId, onBack, pendingImportText, onClearPendingImport 
+  groupId, onBack, pendingImportText, onClearPendingImport, billData 
 }: Props) {
   const [group, setGroup] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
@@ -219,17 +220,16 @@ export default function SaldamosGroupDetail({
   }, [expenses, categories]);
 
   const handleImportClick = () => {
-    if (pendingImportText) {
-      setImportTextForDialog(pendingImportText);
-      if (onClearPendingImport) onClearPendingImport();
+    const textToImport = billData || pendingImportText;
+    if (textToImport) {
+      setImportTextForDialog(textToImport);
+      setSelectedExpense(null);
+      setExpenseOpen(true);
+      if (pendingImportText && onClearPendingImport) onClearPendingImport();
+      toast.success(billData ? 'Importando datos de "Dividir" automáticamente' : 'Importando resumen detectado');
     } else {
-      setImportTextForDialog(null);
-      // If no pending text, we can still open the old import dialog or just let user paste in ExpenseDialog
-      // The user wants it to work like "Guardar en mis saldos", so let's just open the expense dialog 
-      // but maybe they want to paste there.
+      setImportOpen(true);
     }
-    setSelectedExpense(null);
-    setExpenseOpen(true);
   };
 
   // ─── IMPORT FROM LA CUOTA ────────────────────────────────────────────────────
