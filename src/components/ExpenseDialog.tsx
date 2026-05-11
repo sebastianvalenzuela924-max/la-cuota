@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
@@ -90,7 +90,7 @@ export function ExpenseDialog({
       }
     } else if (initialImportText) {
       const parsed = parseLaCuotaMessage(initialImportText);
-      setDescription("Importado de La Cuota");
+      setDescription(""); // Leave empty as requested
       const sum = parsed.reduce((s, p) => s + p.amount, 0);
       setTotal(sum.toString());
       setDate(new Date().toISOString().slice(0, 10));
@@ -359,14 +359,25 @@ export function ExpenseDialog({
                     <div key={m.id} className={`rounded-lg p-2 grid grid-cols-[auto_1fr_7rem_7rem] items-center gap-2 ${isSel ? "bg-card shadow-sm" : "opacity-60"}`}>
                       <Checkbox checked={isSel} onCheckedChange={() => toggle(m.id)} id={`c-${m.id}`} />
                       <Label htmlFor={`c-${m.id}`} className="text-xs truncate cursor-pointer font-medium">{m.name}</Label>
-                      <Input
-                        type="number"
-                        disabled={!isSel}
-                        value={contribs[m.id] ?? ""}
-                        onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
-                        placeholder="Aportó"
-                        className="h-8 text-xs rounded-lg"
-                      />
+                        <div className="flex gap-1">
+                          <Input
+                            type="number"
+                            disabled={!isSel}
+                            value={contribs[m.id] ?? ""}
+                            onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
+                            placeholder="Pagó"
+                            className="h-8 text-[10px] rounded-lg"
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 rounded-lg text-violet-600 hover:bg-violet-50"
+                            onClick={() => assignAllToOne(m.id)}
+                            title="Pagó todo"
+                          >
+                            <HandCoins className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       <Input
                         type="number"
                         disabled={!isSel}

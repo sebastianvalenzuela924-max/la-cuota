@@ -280,9 +280,11 @@ export default function Index() {
         </div>
       </header>
 
-      {/* Summary Cards */}
-      <div className="max-w-lg mx-auto px-4 pt-5">
-        <div className="grid grid-cols-3 gap-3 mb-5">
+      {/* Main Content - only shown on Dividir tab */}
+      {activeTab === 'dividir' && (
+      <main className="max-w-lg mx-auto px-4 space-y-5 pb-24">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-3 gap-3 mb-5 mt-2">
           <div className="bg-accent rounded-2xl p-3.5">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Productos</p>
             <p className="text-xl font-bold text-foreground">{products.length}</p>
@@ -296,11 +298,7 @@ export default function Index() {
             <p className="text-lg font-bold text-foreground">{fmt(subtotal + tipAmount)}</p>
           </div>
         </div>
-      </div>
 
-      {/* Main Content - only shown on Dividir tab */}
-      {activeTab === 'dividir' && (
-      <main className="max-w-lg mx-auto px-4 space-y-5 pb-24">
         <ReceiptScanner onProductsDetected={handleProductsDetected} />
 
         <ProductSection

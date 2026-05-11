@@ -28,6 +28,8 @@ import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { PersonalHistory } from '@/components/PersonalHistory';
 import type { Category } from '@/components/CategoryPicker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useExchangeRates } from '@/lib/currency';
+import { CurrencyConverter } from '@/components/CurrencyConverter';
 
 const CREATE_NEW = '__create__';
 const SKIP = '__skip__';
@@ -72,6 +74,8 @@ export default function SaldamosGroupDetail({
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('all');
+  const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
+  const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
   const load = async () => {
     try {
@@ -120,7 +124,14 @@ export default function SaldamosGroupDetail({
   const balances = useMemo(() => computeBalances(members, expenses), [members, expenses]);
   const settlements = useMemo(() => simplifyDebts(balances), [balances]);
   const currency = group?.currency ?? 'CLP';
-  const fmt = (n: number) => formatMoney(n, currency);
+  
+  const fmt = (n: number, curr?: string) => {
+    const target = curr || displayCurrency;
+    if (target === currency) return formatMoney(n, currency);
+    const converted = convert(n, target);
+    if (converted == null) return formatMoney(n, currency);
+    return formatMoney(converted, target);
+  };
 
   const addMember = async () => {
     if (!memberName.trim()) return;
@@ -396,6 +407,14 @@ export default function SaldamosGroupDetail({
         </TabsContent>
 
         <TabsContent value="historial" className="space-y-4 pt-4">
+          <CurrencyConverter 
+            baseCurrency={currency} 
+            targetCurrency={displayCurrency} 
+            onTargetChange={setDisplayCurrency} 
+            loading={ratesLoading} 
+            error={ratesError} 
+            fetchedAt={fetchedAt} 
+          />
           <div className="space-y-3">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -441,26 +460,28 @@ export default function SaldamosGroupDetail({
                     </div>
                     <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right mr-1">
-                      <p className="text-sm font-bold tabular-nums">{fmt(ex.total_amount)}</p>
-                      <p className="text-[9px] text-muted-foreground">{ex.is_settlement ? 'Pago' : 'Total'}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right mr-0.5">
+                      <p className="text-sm font-bold tabular-nums leading-none mb-0.5">{fmt(ex.total_amount)}</p>
+                      <p className="text-[9px] text-muted-foreground leading-none">{ex.is_settlement ? 'Pago' : 'Total'}</p>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full ml-1"><MoreVertical className="w-4 h-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl">
-                        {!ex.is_settlement && (
-                          <DropdownMenuItem onClick={() => { setSelectedExpense(ex); setExpenseOpen(true); }}>
-                            <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
+                    <div className="flex items-center justify-center w-10">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-accent/50 transition-colors"><MoreVertical className="w-4 h-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl">
+                          {!ex.is_settlement && (
+                            <DropdownMenuItem onClick={() => { setSelectedExpense(ex); setExpenseOpen(true); }}>
+                              <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={() => deleteExpense(ex.id)}>
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem className="text-red-500" onClick={() => deleteExpense(ex.id)}>
-                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </div>
               ))
