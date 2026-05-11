@@ -424,36 +424,44 @@ export function ExpenseDialog({
                 {eligible.map((m) => {
                   const isSel = selected.has(m.id);
                   return (
-                    <div key={m.id} className={`rounded-lg p-2 grid grid-cols-[auto_1fr_7rem_7rem] items-center gap-2 ${isSel ? "bg-card shadow-sm" : "opacity-60"}`}>
-                      <Checkbox checked={isSel} onCheckedChange={() => toggle(m.id)} id={`c-${m.id}`} />
-                      <Label htmlFor={`c-${m.id}`} className="text-xs truncate cursor-pointer font-medium">{m.name}</Label>
-                        <div className="flex gap-1">
-                          <Input
-                            type="number"
-                            disabled={!isSel}
-                            value={contribs[m.id] ?? ""}
-                            onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
-                            placeholder="Pagó"
-                            className="h-8 text-[10px] rounded-lg"
-                          />
+                    <div key={m.id} className={`rounded-lg p-2 grid grid-cols-[1fr_auto_auto] items-center gap-2 ${isSel ? "bg-card shadow-sm" : "opacity-60"}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Checkbox checked={isSel} onCheckedChange={() => toggle(m.id)} id={`c-${m.id}`} />
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          <Label htmlFor={`c-${m.id}`} className="text-xs truncate cursor-pointer font-medium">{m.name}</Label>
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 rounded-lg text-violet-600 hover:bg-violet-50"
-                            onClick={() => assignAllToOne(m.id)}
+                            className={`h-6 w-6 rounded-lg shrink-0 ${isSel ? 'text-violet-600 hover:bg-violet-50' : 'text-muted-foreground/30'}`}
+                            onClick={(e) => { e.preventDefault(); assignAllToOne(m.id); }}
+                            disabled={!isSel}
                             title="Pagó todo"
                           >
                             <HandCoins className="w-3.5 h-3.5" />
                           </Button>
                         </div>
-                      <Input
-                        type="number"
-                        disabled={!isSel}
-                        value={owed[m.id] ?? ""}
-                        onChange={(e) => setOwed({ ...owed, [m.id]: e.target.value })}
-                        placeholder="Consumió"
-                        className="h-8 text-xs rounded-lg"
-                      />
+                      </div>
+
+                      <div className="flex gap-1 justify-end">
+                        <Input
+                          type="number"
+                          disabled={!isSel}
+                          value={contribs[m.id] ?? ""}
+                          onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
+                          placeholder="Pagó"
+                          className="h-8 text-[10px] rounded-lg w-20"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Input
+                          type="number"
+                          disabled={!isSel}
+                          value={owed[m.id] ?? ""}
+                          onChange={(e) => setOwed({ ...owed, [m.id]: e.target.value })}
+                          placeholder="Consumió"
+                          className="h-8 text-xs rounded-lg w-24"
+                        />
+                      </div>
                     </div>
                   );
                 })}

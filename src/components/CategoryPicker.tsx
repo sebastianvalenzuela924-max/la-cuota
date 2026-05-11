@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronsUpDown, Plus, Tag } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Tag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -131,7 +131,7 @@ export function CategoryPicker({ groupId, categories, value, onChange, onCategor
                 <CommandItem
                   value={`__create_${trimmed}`}
                   onSelect={createCategory}
-                  className="text-primary"
+                  className="text-primary font-bold"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Crear "{trimmed}"
@@ -139,6 +139,22 @@ export function CategoryPicker({ groupId, categories, value, onChange, onCategor
               )}
             </CommandGroup>
           </CommandList>
+          <div className="p-2 border-t border-border bg-accent/20">
+             <div className="flex gap-2">
+                <input 
+                  placeholder="Nueva categoría..." 
+                  className="flex-1 bg-background border rounded-lg px-2 py-1 text-xs outline-none focus:border-primary transition-colors"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') createCategory();
+                  }}
+                />
+                <Button size="sm" className="h-7 px-2 rounded-lg text-[10px]" onClick={createCategory} disabled={!canCreate || creating}>
+                  {creating ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Añadir'}
+                </Button>
+             </div>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>
