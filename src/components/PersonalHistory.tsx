@@ -22,12 +22,20 @@ type Props = {
   expenses: (ExpenseWithContribs & { category_id: string | null; is_personal?: boolean })[];
   categories: Category[];
   currency: string;
+  selectedId?: string | null;
+  onSelectedIdChange?: (id: string) => void;
 };
 
 const SETTLEMENT_LABEL = "Pagos / Saldos";
 
-export function PersonalHistory({ members, expenses, categories, currency }: Props) {
-  const [selectedId, setSelectedId] = useState<string>("");
+export function PersonalHistory({ members, expenses, categories, currency, selectedId: propSelectedId, onSelectedIdChange }: Props) {
+  const [localSelectedId, setLocalSelectedId] = useState<string>("");
+  const selectedId = propSelectedId !== undefined ? propSelectedId || "" : localSelectedId;
+
+  const handleSelectedIdChange = (id: string) => {
+    if (onSelectedIdChange) onSelectedIdChange(id);
+    else setLocalSelectedId(id);
+  };
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [displayCurrency, setDisplayCurrency] = useState<string>(currency);
@@ -152,7 +160,7 @@ export function PersonalHistory({ members, expenses, categories, currency }: Pro
           <CardDescription className="text-xs">Elegí tu nombre para ver tus estadísticas.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={selectedId} onValueChange={setSelectedId}>
+          <Select value={selectedId} onValueChange={handleSelectedIdChange}>
             <SelectTrigger className="rounded-xl"><SelectValue placeholder="Seleccioná una persona..." /></SelectTrigger>
             <SelectContent>{members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
           </Select>
