@@ -56,6 +56,7 @@ export default function SaldamosGroupDetail({
 
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
+  const [importTextForDialog, setImportTextForDialog] = useState<string | null>(null);
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -109,21 +110,10 @@ export default function SaldamosGroupDetail({
   // Auto-trigger import if pending text exists
   useEffect(() => {
     if (!loading && members.length > 0 && pendingImportText && onClearPendingImport) {
-      const parsed = parseLaCuotaMessage(pendingImportText);
-      if (parsed.length > 0) {
-        setImportText(pendingImportText);
-        setImportParsed(parsed);
-        setAssignments(
-          parsed.map(p => ({
-            parsedName: p.name,
-            amount: p.amount,
-            target: findMemberMatch(p.name, members) ?? CREATE_NEW,
-          }))
-        );
-        setImportOpen(true);
-        // Clear it so it doesn't re-trigger
-        onClearPendingImport();
-      }
+      setImportTextForDialog(pendingImportText);
+      setSelectedExpense(null);
+      setExpenseOpen(true);
+      onClearPendingImport();
     }
   }, [loading, members, pendingImportText]);
 
@@ -169,26 +159,16 @@ export default function SaldamosGroupDetail({
 
   const handleImportClick = () => {
     if (pendingImportText) {
-      const parsed = parseLaCuotaMessage(pendingImportText);
-      if (parsed.length > 0) {
-        setImportText(pendingImportText);
-        setImportParsed(parsed);
-        setAssignments(
-          parsed.map(p => ({
-            parsedName: p.name,
-            amount: p.amount,
-            target: findMemberMatch(p.name, members) ?? CREATE_NEW,
-          }))
-        );
-        setImportOpen(true);
-        if (onClearPendingImport) onClearPendingImport();
-        return;
-      }
+      setImportTextForDialog(pendingImportText);
+      if (onClearPendingImport) onClearPendingImport();
+    } else {
+      setImportTextForDialog(null);
+      // If no pending text, we can still open the old import dialog or just let user paste in ExpenseDialog
+      // The user wants it to work like "Guardar en mis saldos", so let's just open the expense dialog 
+      // but maybe they want to paste there.
     }
-    setImportText('');
-    setImportParsed(null);
-    setAssignments([]);
-    setImportOpen(true);
+    setSelectedExpense(null);
+    setExpenseOpen(true);
   };
 
   // ─── IMPORT FROM LA CUOTA ────────────────────────────────────────────────────
@@ -324,8 +304,8 @@ export default function SaldamosGroupDetail({
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold truncate">{group?.name || 'Cargando...'}</h2>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-bold leading-tight break-words">{group?.name || 'Cargando...'}</h2>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members?.length || 0} Miembros</p>
         </div>
         <div className="flex gap-2">
@@ -456,7 +436,7 @@ export default function SaldamosGroupDetail({
                 <div key={ex.id} className={`p-4 rounded-2xl border flex justify-between items-start ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <p className="font-bold text-sm truncate">{ex.description}</p>
+                      <p className="font-bold text-sm break-words leading-tight">{ex.description}</p>
                       {ex.is_personal && <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold uppercase">Personal</span>}
                     </div>
                     <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()}</p>
@@ -468,7 +448,7 @@ export default function SaldamosGroupDetail({
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full ml-1"><MoreVertical className="w-4 h-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="rounded-xl">
                         {!ex.is_settlement && (
@@ -500,12 +480,13 @@ export default function SaldamosGroupDetail({
 
       <ExpenseDialog 
         open={expenseOpen} 
-        onOpenChange={setExpenseOpen} 
+        onOpenChange={(v) => { setExpenseOpen(v); if(!v) setImportTextForDialog(null); }} 
         groupId={groupId} 
         members={members} 
         currency={currency} 
         categories={categories} 
         existing={selectedExpense} 
+        initialImportText={importTextForDialog}
         onSaved={load} 
         onCategoriesChanged={load} 
       />

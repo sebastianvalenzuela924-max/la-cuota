@@ -34,9 +34,12 @@ type Props = {
   onSaved: () => void;
   onMembersChanged?: () => Promise<void> | void;
   onCategoriesChanged: () => Promise<void> | void;
+  initialImportText?: string | null;
 };
 
-export function ExpenseDialog({ open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged }: Props) {
+export function ExpenseDialog({ 
+  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText 
+}: Props) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [total, setTotal] = useState<string>("");
@@ -85,6 +88,27 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, currency, 
       } else {
         setPersonalPayer("");
       }
+    } else if (initialImportText) {
+      const parsed = parseLaCuotaMessage(initialImportText);
+      setDescription("Importado de La Cuota");
+      const sum = parsed.reduce((s, p) => s + p.amount, 0);
+      setTotal(sum.toString());
+      setDate(new Date().toISOString().slice(0, 10));
+      setCategoryId(defaultCat?.id ?? null);
+      setIsPersonal(false);
+      
+      const nextOwed: Record<string, string> = {};
+      const nextSelected = new Set<string>();
+      parsed.forEach(p => {
+        const matchId = findMemberMatch(p.name, members);
+        if (matchId) {
+          nextOwed[matchId] = p.amount.toString();
+          nextSelected.add(matchId);
+        }
+      });
+      setOwed(nextOwed);
+      setSelected(nextSelected);
+      setContribs({});
     } else {
       setDescription("");
       setTotal("");
@@ -98,7 +122,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, currency, 
       setContribs(map);
       setOwed({ ...map });
     }
-  }, [open, existing]);
+  }, [open, existing, initialImportText]);
 
   const totalNum = Number(total) || 0;
   const sumContribs = Array.from(selected).reduce((s, id) => s + (Number(contribs[id]) || 0), 0);

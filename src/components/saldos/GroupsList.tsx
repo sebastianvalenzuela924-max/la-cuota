@@ -5,10 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Plus, ChevronRight, Loader2, Trash2, LogOut, Users } from 'lucide-react';
+import { Plus, ChevronRight, Loader2, Trash2, LogOut, Users, MoreVertical } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
@@ -118,13 +124,23 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               onClick={() => onSelectGroup(g.id)}
             >
               <div>
-                <p className="font-semibold text-sm text-foreground">{g.name}</p>
+                <p className="font-semibold text-sm text-foreground break-words">{g.name}</p>
                 <p className="text-xs text-muted-foreground">{g.currency}{!g.isOwner && ' · Compartido'}</p>
               </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="w-7 h-7 rounded-lg text-muted-foreground hover:text-destructive" onClick={(e) => deleteGroup(g, e)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+              <div className="flex items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full text-muted-foreground">
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => deleteGroup(g, e)}>
+                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      {g.isOwner ? 'Eliminar grupo' : 'Salir del grupo'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </div>
             </div>
