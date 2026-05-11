@@ -62,25 +62,35 @@ export default function SaldamosGroupDetail({
   const [savingPayment, setSavingPayment] = useState(false);
 
   const load = async () => {
-    setLoading(true);
-    const [g, m, e, c] = await Promise.all([
-      saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
-      saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
-      saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(member_id, amount_paid, amount_owed)').eq('group_id', groupId).order('expense_date', { ascending: false }),
-      saldamosSupabase.from('expense_categories' as any).select('id, name, is_default').eq('group_id', groupId),
-    ]);
-    setGroup(g.data ?? null);
-    setMembers(m.data ?? []);
-    setExpenses((e.data ?? []).map((ex: any) => ({
-      ...ex,
-      contributions: (ex.expense_contributions ?? []).map((c: any) => ({
-        member_id: c.member_id,
-        amount_paid: Number(c.amount_paid),
-        amount_owed: Number(c.amount_owed),
-      })),
-    })));
-    setCategories(c.data ?? []);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const [g, m, e, c] = await Promise.all([
+        saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
+        saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
+        saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(member_id, amount_paid, amount_owed)').eq('group_id', groupId).order('expense_date', { ascending: false }),
+        saldamosSupabase.from('expense_categories' as any).select('id, name, is_default').eq('group_id', groupId),
+      ]);
+      
+      if (g.error) throw g.error;
+      if (m.error) throw m.error;
+      
+      setGroup(g.data ?? null);
+      setMembers(m.data ?? []);
+      setExpenses((e.data ?? []).map((ex: any) => ({
+        ...ex,
+        contributions: (ex.expense_contributions ?? []).map((c: any) => ({
+          member_id: c.member_id,
+          amount_paid: Number(c.amount_paid || 0),
+          amount_owed: Number(c.amount_owed || 0),
+        })),
+      })));
+      setCategories(c.data ?? []);
+    } catch (err: any) {
+      console.error('Error loading group:', err);
+      toast.error('Error al cargar datos: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, [groupId]);
@@ -249,8 +259,8 @@ export default function SaldamosGroupDetail({
       </div>
 
       <div className="mb-2">
-        <h2 className="text-xl font-bold">{group.name}</h2>
-        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members.length} Miembros</p>
+        <h2 className="text-xl font-bold">{group?.name || 'Cargando...'}</h2>
+        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members?.length || 0} Miembros</p>
       </div>
 
       <Tabs defaultValue="balances" className="w-full" onValueChange={setActiveTab}>
