@@ -39,7 +39,8 @@ export default function SummarySection({ products, people, totals, tipType, tipV
       const data = await response.json();
       if (data.result === 'success' && data.rates[targetCurrency]) {
         const rate = data.rates[targetCurrency];
-        setExchangeRate(targetCurrency === 'CLP' ? Math.round(rate) : parseFloat(rate.toFixed(4)));
+        // Conservar hasta 6 decimales para mayor precisión en monedas pequeñas (ej. ARS, VES, COP)
+        setExchangeRate(parseFloat(rate.toFixed(6)));
       }
     } catch (error) {
       toast.error('No se pudo obtener el cambio en vivo');
