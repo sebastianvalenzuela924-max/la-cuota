@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Receipt } from 'lucide-react';
+import { Receipt, Scale, Scissors } from 'lucide-react';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue } from '@/lib/bill-utils';
 import ReceiptScanner from '@/components/divisor/ReceiptScanner';
@@ -10,6 +10,7 @@ import TipSection from '@/components/divisor/TipSection';
 import BankSection from '@/components/divisor/BankSection';
 import SummarySection from '@/components/divisor/SummarySection';
 import CurrencySelector from '@/components/divisor/CurrencySelector';
+import SaldosPage from '@/pages/SaldosPage';
 import { sharingSupabase } from '@/integrations/supabase/sharing-client';
 import { Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 export default function Index() {
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
+  const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>('dividir');
   const [sharing, setSharing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -295,8 +297,9 @@ export default function Index() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <main className="max-w-lg mx-auto px-4 space-y-5 pb-10">
+      {/* Main Content - only shown on Dividir tab */}
+      {activeTab === 'dividir' && (
+      <main className="max-w-lg mx-auto px-4 space-y-5 pb-24">
         <ReceiptScanner onProductsDetected={handleProductsDetected} />
 
         <ProductSection
@@ -347,6 +350,37 @@ export default function Index() {
           currency={currency}
         />
       </main>
+      )}
+      {/* Saldos Tab Panel */}
+      {activeTab === 'saldos' && (
+        <main className="max-w-lg mx-auto px-4 pb-28 pt-4">
+          <SaldosPage />
+        </main>
+      )}
+
+      {/* Bottom Tab Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-t border-border">
+        <div className="max-w-lg mx-auto flex">
+          <button
+            onClick={() => setActiveTab('dividir')}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors ${
+              activeTab === 'dividir' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <Scissors className={`w-5 h-5 ${activeTab === 'dividir' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className="text-[10px] font-semibold">Dividir</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('saldos')}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors ${
+              activeTab === 'saldos' ? 'text-violet-500' : 'text-muted-foreground'
+            }`}
+          >
+            <Scale className={`w-5 h-5 ${activeTab === 'saldos' ? 'text-violet-500' : 'text-muted-foreground'}`} />
+            <span className="text-[10px] font-semibold">Mis Saldos</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
