@@ -346,6 +346,14 @@ export default function SaldamosGroupDetail({
     setExpandedExpenses(next);
   };
 
+  const toggleExpandAll = () => {
+    if (expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0) {
+      setExpandedExpenses(new Set());
+    } else {
+      setExpandedExpenses(new Set(filteredExpenses.map(ex => ex.id)));
+    }
+  };
+
   const inviteCollaborator = async () => {
     if (!inviteEmail.trim()) return;
     setInviting(true);
@@ -516,16 +524,25 @@ export default function SaldamosGroupDetail({
 
         <TabsContent value="historial" className="space-y-4 pt-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Historial de gastos</h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
-              onClick={() => setShowConverter(!showConverter)}
-            >
-              <HandCoins className="w-3 h-3" />
-              {showConverter ? 'Ocultar conversor' : 'Ver en otra moneda'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-7 text-[10px] rounded-lg gap-1 text-violet-600 hover:bg-violet-50"
+                onClick={toggleExpandAll}
+              >
+                {expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0 ? 'Contraer todo' : 'Expandir todo'}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
+                onClick={() => setShowConverter(!showConverter)}
+              >
+                <HandCoins className="w-3 h-3" />
+                {showConverter ? 'Ocultar conversor' : 'Ver en otra moneda'}
+              </Button>
+            </div>
           </div>
 
           {showConverter && (
@@ -563,10 +580,14 @@ export default function SaldamosGroupDetail({
             {categoryTotals.length > 0 && historyCategory === 'all' && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {categoryTotals.map(ct => (
-                  <div key={ct.id} className="shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px]">
+                  <button 
+                    key={ct.id} 
+                    onClick={() => setHistoryCategory(ct.id)}
+                    className="shrink-0 bg-card border border-border/50 rounded-xl px-3 py-2 text-center min-w-[100px] hover:border-violet-300 hover:bg-violet-50/30 transition-all active:scale-95"
+                  >
                     <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
-                    <p className="text-xs font-bold">{fmt(ct.total)}</p>
-                  </div>
+                    <p className="text-xs font-bold text-violet-600">{fmt(ct.total)}</p>
+                  </button>
                 ))}
               </div>
             )}
@@ -588,26 +609,12 @@ export default function SaldamosGroupDetail({
                       <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()} · {ex.is_settlement ? 'Saldado' : (ex.contributions?.length || 0) + ' personas'}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="text-right mr-0.5">
+                      <div className="text-right">
                         <p className="text-sm font-bold tabular-nums leading-none mb-0.5">{fmt(ex.total_amount)}</p>
                         <p className="text-[9px] text-muted-foreground leading-none">{ex.is_settlement ? 'Pago' : 'Total'}</p>
                       </div>
-                      <div className="flex items-center justify-center w-10">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-accent/50 transition-colors"><MoreVertical className="w-4 h-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl">
-                            {!ex.is_settlement && (
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}>
-                                <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={(e) => { e.stopPropagation(); deleteExpense(ex.id); }}>
-                              <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      <div className="flex items-center justify-center w-6">
+                        <ArrowRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedExpenses.has(ex.id) ? 'rotate-90' : ''}`} />
                       </div>
                     </div>
                   </div>
@@ -632,6 +639,26 @@ export default function SaldamosGroupDetail({
                             </div>
                           );
                         })}
+                      </div>
+                      <div className="pt-2 mt-2 border-t border-border/40 flex justify-end gap-2">
+                        {!ex.is_settlement && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 rounded-lg text-[10px] gap-1.5 hover:bg-violet-100 hover:text-violet-700" 
+                            onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}
+                          >
+                            <Pencil className="w-3 h-3" /> Editar
+                          </Button>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 rounded-lg text-[10px] gap-1.5 text-red-500 hover:bg-red-50 hover:text-red-600" 
+                          onClick={(e) => { e.stopPropagation(); deleteExpense(ex.id); }}
+                        >
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </Button>
                       </div>
                     </div>
                   )}
