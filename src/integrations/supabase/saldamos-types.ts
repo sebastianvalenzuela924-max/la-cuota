@@ -32,6 +32,12 @@ export type SaldamosDatabase = {
         Update: { role?: string };
         Relationships: [];
       };
+      group_activity: {
+        Row: { id: string; group_id: string; user_id: string | null; user_name: string; action: string; details: any; created_at: string };
+        Insert: { group_id: string; user_id?: string | null; user_name: string; action: string; details?: any; created_at?: string };
+        Update: { action?: string; details?: any };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

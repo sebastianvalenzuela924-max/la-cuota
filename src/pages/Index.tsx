@@ -24,7 +24,13 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 export default function Index() {
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
-  const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>('dividir');
+  const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('group')) return 'saldos';
+    }
+    return 'dividir';
+  });
   const [pendingImportText, setPendingImportText] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
-  MoreVertical, Pencil, Filter, LayoutDashboard, User
+  MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -55,6 +55,12 @@ export default function SaldamosGroupDetail({
   const [memberOpen, setMemberOpen] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [savingMember, setSavingMember] = useState(false);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
 
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
@@ -76,6 +82,7 @@ export default function SaldamosGroupDetail({
   const [historyCategory, setHistoryCategory] = useState('all');
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
+  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
   const load = async () => {
@@ -110,7 +117,44 @@ export default function SaldamosGroupDetail({
     }
   };
 
-  useEffect(() => { load(); }, [groupId]);
+  const loadActivities = async () => {
+    try {
+      setLoadingActivities(true);
+      const { data, error } = await saldamosSupabase
+        .from('group_activity' as any)
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setActivities(data || []);
+    } catch (err) {
+      console.error('Error loading activities:', err);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const logActivity = async (action: string, details: any = {}) => {
+    try {
+      const { data: sess } = await saldamosSupabase.auth.getSession();
+      const user = sess.session?.user;
+      await saldamosSupabase.from('group_activity' as any).insert({
+        group_id: groupId,
+        user_id: user?.id || null,
+        user_name: user?.email || 'Sistema/Anónimo',
+        action,
+        details
+      });
+    } catch (err) {
+      console.error('Error logging activity:', err);
+    }
+  };
+
+  useEffect(() => { 
+    load(); 
+    if (activeTab === 'actividad') loadActivities();
+  }, [groupId, activeTab]);
 
   // Auto-trigger import if pending text exists
   useEffect(() => {
@@ -141,6 +185,7 @@ export default function SaldamosGroupDetail({
     setSavingMember(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`${memberName.trim()} agregado`);
+    logActivity('MEMBER_ADDED', { name: memberName.trim() });
     setMemberName('');
     setMemberOpen(false);
     load();
@@ -248,6 +293,7 @@ export default function SaldamosGroupDetail({
     if (cErr) { toast.error(cErr.message); return; }
 
     toast.success('✅ Consumos importados desde La Cuota');
+    logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
     setImportOpen(false);
     setImportText('');
     setImportParsed(null);
@@ -274,6 +320,7 @@ export default function SaldamosGroupDetail({
     ]);
     setSavingPayment(false);
     toast.success(`Pago de ${fmt(amount)} registrado`);
+    logActivity('PAYMENT_REGISTERED', { from: fromName, to: toName, amount });
     setPayFrom(''); setPayTo(''); setPayAmount('');
     load();
   };
@@ -284,8 +331,42 @@ export default function SaldamosGroupDetail({
     if (error) toast.error(error.message);
     else {
       toast.success('Gasto eliminado');
+      logActivity('EXPENSE_DELETED', { id });
       load();
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    const next = new Set(expandedExpenses);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedExpenses(next);
+  };
+
+  const inviteCollaborator = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      // First, we need to find if there's a user with that email. 
+      // Supabase client doesn't allow searching users by email easily without a service role.
+      // But we can insert into collaborators and let a trigger/logic handle it, 
+      // OR we just tell the user to share the link.
+      // For now, we'll try to insert and see if it works (assuming a trigger exists)
+      // Actually, let's just use the link sharing as primary.
+      
+      // If we don't have user_id, we can't insert into group_collaborators Row which requires user_id.
+      // I'll check if I can use a generic invite table, but I don't see one.
+      // I'll stick to a "Copy Link" feature with a message.
+      toast.success('¡Enlace listo para compartir!');
+      setShareOpen(false);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copiado al portapapeles');
   };
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
@@ -350,6 +431,15 @@ export default function SaldamosGroupDetail({
             Añadir Gasto
           </Button>
         </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="w-full rounded-xl text-xs gap-2 text-muted-foreground hover:text-violet-600 border border-dashed border-border"
+          onClick={() => setShareOpen(true)}
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          Invitar amigos / Compartir grupo
+        </Button>
       </div>
 
       <Tabs defaultValue="balances" className="w-full" onValueChange={setActiveTab}>
@@ -362,6 +452,9 @@ export default function SaldamosGroupDetail({
           </TabsTrigger>
           <TabsTrigger value="mi-actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
             <User className="w-3.5 h-3.5" /> Mi Historial
+          </TabsTrigger>
+          <TabsTrigger value="actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            <History className="w-3.5 h-3.5" /> Actividad
           </TabsTrigger>
         </TabsList>
 
@@ -478,40 +571,67 @@ export default function SaldamosGroupDetail({
 
           <div className="space-y-2">
             {filteredExpenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">No se encontraron gastos.</p> :
-              filteredExpenses.map(ex => (
-                <div key={ex.id} className={`p-4 rounded-2xl border flex justify-between items-start ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <p className="font-bold text-sm break-words leading-tight">{ex.description}</p>
-                      {ex.is_personal && <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold uppercase">Personal</span>}
+                <div key={ex.id} className="space-y-1">
+                  <div 
+                    className={`p-4 rounded-2xl border flex justify-between items-start transition-all cursor-pointer hover:border-violet-300 ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}
+                    onClick={() => toggleExpand(ex.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="font-bold text-sm break-words leading-tight">{ex.description}</p>
+                        {ex.is_personal && <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold uppercase">Personal</span>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()} · {ex.is_settlement ? 'Saldado' : (ex.contributions?.length || 0) + ' personas'}</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right mr-0.5">
-                      <p className="text-sm font-bold tabular-nums leading-none mb-0.5">{fmt(ex.total_amount)}</p>
-                      <p className="text-[9px] text-muted-foreground leading-none">{ex.is_settlement ? 'Pago' : 'Total'}</p>
-                    </div>
-                    <div className="flex items-center justify-center w-10">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-accent/50 transition-colors"><MoreVertical className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                          {!ex.is_settlement && (
-                            <DropdownMenuItem onClick={() => { setSelectedExpense(ex); setExpenseOpen(true); }}>
-                              <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-0.5">
+                        <p className="text-sm font-bold tabular-nums leading-none mb-0.5">{fmt(ex.total_amount)}</p>
+                        <p className="text-[9px] text-muted-foreground leading-none">{ex.is_settlement ? 'Pago' : 'Total'}</p>
+                      </div>
+                      <div className="flex items-center justify-center w-10">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-accent/50 transition-colors"><MoreVertical className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl">
+                            {!ex.is_settlement && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}>
+                                <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={(e) => { e.stopPropagation(); deleteExpense(ex.id); }}>
+                              <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={() => deleteExpense(ex.id)}>
-                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </div>
+
+                  {expandedExpenses.has(ex.id) && (
+                    <div className="mx-2 p-3 bg-muted/30 border border-t-0 rounded-b-xl space-y-2 animate-in slide-in-from-top-1 duration-200">
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Detalle por persona</p>
+                      <div className="space-y-1.5">
+                        {ex.contributions.map((c: any) => {
+                          const mName = members.find(m => m.id === c.member_id)?.name || 'Desconocido';
+                          return (
+                            <div key={c.member_id} className="flex items-center justify-between text-[11px]">
+                              <span className="font-medium">{mName}</span>
+                              <div className="flex gap-3 text-right tabular-nums">
+                                <span className={c.amount_paid > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/60'}>
+                                  Aportó: {fmt(c.amount_paid)}
+                                </span>
+                                <span className={c.amount_owed > 0 ? 'text-violet-600 font-bold' : 'text-muted-foreground/60'}>
+                                  Consumió: {fmt(c.amount_owed)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))
             }
           </div>
         </TabsContent>
@@ -524,6 +644,47 @@ export default function SaldamosGroupDetail({
             currency={currency} 
           />
         </TabsContent>
+
+        <TabsContent value="actividad" className="space-y-4 pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Log de actividad</h3>
+            <Button variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={loadActivities} disabled={loadingActivities}>
+              {loadingActivities ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refrescar'}
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {activities.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 italic">No hay actividad registrada aún.</p>
+            ) : (
+              activities.map((a) => (
+                <div key={a.id} className="flex gap-3 items-start p-3 rounded-xl bg-card border border-border/50">
+                  <div className={`mt-1 p-1.5 rounded-lg ${
+                    a.action.includes('DELETED') ? 'bg-red-50 text-red-500' : 
+                    a.action.includes('ADDED') || a.action.includes('IMPORTED') ? 'bg-emerald-50 text-emerald-500' :
+                    'bg-violet-50 text-violet-500'
+                  }`}>
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground">
+                      <span className="font-bold">{a.user_name.split('@')[0]}</span>{' '}
+                      {a.action === 'EXPENSE_ADDED' && 'añadió un gasto'}
+                      {a.action === 'EXPENSE_UPDATED' && 'editó un gasto'}
+                      {a.action === 'EXPENSE_DELETED' && 'eliminó un gasto'}
+                      {a.action === 'MEMBER_ADDED' && `agregó a ${a.details?.name || 'alguien'}`}
+                      {a.action === 'PAYMENT_REGISTERED' && `registró un pago de ${a.details?.from} a ${a.details?.to}`}
+                      {a.action === 'EXPENSE_IMPORTED' && `importó ${a.details?.count} consumos`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {new Date(a.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
       <ExpenseDialog 
@@ -535,7 +696,10 @@ export default function SaldamosGroupDetail({
         categories={categories} 
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
-        onSaved={load} 
+        onSaved={() => {
+          logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { description: 'Gasto guardado/actualizado' });
+          load();
+        }} 
         onCategoriesChanged={load} 
       />
 
@@ -553,6 +717,55 @@ export default function SaldamosGroupDetail({
               {savingMember && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Agregar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share/Invite Dialog */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-violet-500" /> Compartir grupo
+            </DialogTitle>
+            <DialogDescription>
+              Cualquiera con el enlace podrá ver los gastos. Para que otros puedan editar, deben iniciar sesión.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Enlace del grupo</Label>
+              <div className="flex gap-2">
+                <Input 
+                  readOnly 
+                  value={window.location.origin + '/?group=' + groupId} 
+                  className="rounded-xl text-xs font-mono bg-muted/30" 
+                />
+                <Button size="icon" variant="outline" className="rounded-xl shrink-0" onClick={() => copyToClipboard(window.location.origin + '/?group=' + groupId)}>
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <Label>Invitar por Email (Gmail)</Label>
+              <div className="flex gap-2">
+                <Input 
+                  placeholder="ejemplo@gmail.com" 
+                  value={inviteEmail} 
+                  onChange={e => setInviteEmail(e.target.value)}
+                  className="rounded-xl text-sm"
+                />
+                <Button className="rounded-xl bg-violet-600 text-white" onClick={() => {
+                  const subject = encodeURIComponent(`Te invito al grupo ${group?.name} en La Cuota`);
+                  const body = encodeURIComponent(`Hola! Únete al grupo para gestionar los gastos juntos: ${window.location.origin}/?group=${groupId}`);
+                  window.location.href = `mailto:${inviteEmail}?subject=${subject}&body=${body}`;
+                  setShareOpen(false);
+                }}>
+                  Enviar
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">Se abrirá tu aplicación de correo para enviar la invitación.</p>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

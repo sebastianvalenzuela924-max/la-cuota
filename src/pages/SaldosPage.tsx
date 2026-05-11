@@ -12,7 +12,13 @@ interface Props {
 
 export default function SaldosPage({ pendingImportText, onClearPendingImport }: Props) {
   const { user, loading } = useSaldamosAuth();
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('group');
+    }
+    return null;
+  });
 
   if (loading) {
     return (
