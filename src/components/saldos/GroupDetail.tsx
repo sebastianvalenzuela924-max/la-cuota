@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
-  MoreVertical, Pencil, Filter, LayoutDashboard
+  MoreVertical, Pencil, Filter, LayoutDashboard, User
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -248,6 +248,16 @@ export default function SaldamosGroupDetail({
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (!group) return <div className="text-center py-8 text-muted-foreground">Grupo no encontrado. <button onClick={onBack} className="text-primary underline">Volver</button></div>;
 
+  // Defensive check for computed values
+  let currentBalances: Balance[] = [];
+  let currentSettlements: Settlement[] = [];
+  try {
+    currentBalances = balances;
+    currentSettlements = settlements;
+  } catch (e) {
+    console.error("Error computing balances:", e);
+  }
+
   return (
     <div className="space-y-4 animate-fade-in-up pb-10">
       {/* Header */}
@@ -287,7 +297,7 @@ export default function SaldamosGroupDetail({
           <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
-            ) : balances.map(b => (
+            ) : currentBalances.map(b => (
               <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                 <span className="text-sm font-medium">{b.name}</span>
                 <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -297,10 +307,10 @@ export default function SaldamosGroupDetail({
             ))}
           </div>
 
-          {settlements.length > 0 && (
+          {currentSettlements.length > 0 && (
             <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
               <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quién paga a quién</h3>
-              {settlements.map((s, i) => (
+              {currentSettlements.map((s, i) => (
                 <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
                   <div className="flex items-center gap-2 text-sm truncate mr-2">
                     <span className="font-semibold text-red-500 truncate">{s.fromName}</span>
