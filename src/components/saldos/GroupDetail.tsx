@@ -382,8 +382,9 @@ export default function SaldamosGroupDetail({
   };
 
   const handleSetIdentity = (id: string) => {
-    setMyMemberId(id);
-    if (id) localStorage.setItem(`saldamos_id_${groupId}`, id);
+    const finalId = id === 'none' ? null : id;
+    setMyMemberId(finalId);
+    if (finalId) localStorage.setItem(`saldamos_id_${groupId}`, finalId);
     else localStorage.removeItem(`saldamos_id_${groupId}`);
   };
 
@@ -427,13 +428,13 @@ export default function SaldamosGroupDetail({
               <Users className="w-3 h-3" /> {members?.length || 0} Miembros
             </span>
             <div className="ml-auto">
-              <Select value={myMemberId || ''} onValueChange={handleSetIdentity}>
+              <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
                 <SelectTrigger className="h-7 text-[10px] rounded-lg bg-violet-50 border-violet-100 text-violet-700 font-bold px-2 gap-1.5 min-w-[100px]">
                   <User className="w-3 h-3" />
                   <SelectValue placeholder="¿Quién eres tú?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">(Nadie)</SelectItem>
+                  <SelectItem value="none">(Nadie)</SelectItem>
                   {members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -627,16 +628,16 @@ export default function SaldamosGroupDetail({
                       </div>
                       <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()} · {ex.is_settlement ? 'Saldado' : (ex.contributions?.length || 0) + ' personas'}</p>
                       
-                      {myMemberId && !ex.is_settlement && (
+                      {myMemberId && myMemberId !== 'none' && !ex.is_settlement && ex.contributions && (
                         <div className="mt-1.5 flex gap-2">
                           {(() => {
-                            const myC = ex.contributions?.find((c: any) => c.member_id === myMemberId);
+                            const myC = ex.contributions.find((c: any) => c.member_id === myMemberId);
                             if (!myC) return null;
                             return (
                               <div className="flex gap-2 text-[10px] font-bold px-2 py-0.5 bg-violet-50 text-violet-600 rounded-lg border border-violet-100">
-                                <span>Tú: {fmt(myC.amount_paid)} <span className="text-[8px] opacity-60">PAGADO</span></span>
+                                <span>Tú: {fmt(myC.amount_paid)} <span className="text-[8px] opacity-60 uppercase">Pagado</span></span>
                                 <span className="opacity-30">|</span>
-                                <span>{fmt(myC.amount_owed)} <span className="text-[8px] opacity-60">CONSUMIDO</span></span>
+                                <span>{fmt(myC.amount_owed)} <span className="text-[8px] opacity-60 uppercase">Consumido</span></span>
                               </div>
                             );
                           })()}
