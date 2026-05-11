@@ -255,9 +255,15 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                       <p className="text-xs font-semibold truncate max-w-[150px]">{r.isSettlement ? (r.settlementDirection === 'sent' ? `Pagaste a ${r.counterpartyName}` : `${r.counterpartyName} te pagó`) : r.expense.description}</p>
                       <p className="text-[10px] text-muted-foreground">{new Date(r.expense.expense_date).toLocaleDateString()}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold tabular-nums">{fmt(r.isSettlement ? r.expense.total_amount : r.consumed)}</p>
-                      <p className="text-[9px] text-muted-foreground">Tu parte</p>
+                    <div className="text-right space-y-0.5">
+                      <div className="flex flex-col items-end">
+                        <p className={`text-xs font-bold tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                          {fmt(r.paid)} <span className="text-[8px] opacity-60 font-medium">APORTASTE</span>
+                        </p>
+                        <p className={`text-xs font-bold tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
+                          {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] opacity-60 font-medium">CONSUMISTE</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))
