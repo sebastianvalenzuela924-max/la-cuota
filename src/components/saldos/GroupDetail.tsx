@@ -1,13 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { Textarea } from '@/components/ui/textarea';
-import {
+import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
-  Trash2, Wand2, Sparkles, Users, HandCoins
+  Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
+  MoreVertical, Pencil, Filter, LayoutDashboard
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -15,48 +9,19 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { parseLaCuotaMessage, findMemberMatch, type ParsedPerson } from '@/lib/lacuota-parser';
+import { computeBalances, simplifyDebts, formatMoney, type ExpenseWithContribs, type Member, type Balance, type Settlement } from '@/lib/balances';
+import { ExpenseDialog } from '@/components/ExpenseDialog';
+import { PersonalHistory } from '@/components/PersonalHistory';
+import type { Category } from '@/components/CategoryPicker';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Group = { id: string; name: string; currency: string; owner_id: string };
-type Member = { id: string; name: string };
-type Balance = { memberId: string; name: string; balance: number };
-type Settlement = { fromName: string; toName: string; amount: number };
-
-// Simple balance computation
-function computeBalances(members: Member[], expenses: any[]): Balance[] {
-  const bal: Record<string, number> = {};
-  members.forEach(m => (bal[m.id] = 0));
-  for (const exp of expenses) {
-    for (const c of exp.contributions ?? []) {
-      if (bal[c.member_id] !== undefined) {
-        bal[c.member_id] += c.amount_paid - c.amount_owed;
-      }
-    }
-  }
-  return members.map(m => ({ memberId: m.id, name: m.name, balance: bal[m.id] ?? 0 }));
-}
-
-function simplifyDebts(balances: Balance[]): Settlement[] {
-  const pos = balances.filter(b => b.balance > 0.01).map(b => ({ ...b }));
-  const neg = balances.filter(b => b.balance < -0.01).map(b => ({ ...b }));
-  const result: Settlement[] = [];
-  let i = 0, j = 0;
-  while (i < neg.length && j < pos.length) {
-    const amount = Math.min(-neg[i].balance, pos[j].balance);
-    if (amount > 0.01) result.push({ fromName: neg[i].name, toName: pos[j].name, amount });
-    neg[i].balance += amount;
-    pos[j].balance -= amount;
-    if (Math.abs(neg[i].balance) < 0.01) i++;
-    if (Math.abs(pos[j].balance) < 0.01) j++;
-  }
-  return result;
-}
-
-function formatMoney(amount: number, currency: string) {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
-}
-
-// Assignment for the import dialog
 const CREATE_NEW = '__create__';
 const SKIP = '__skip__';
 type Assignment = { parsedName: string; amount: number; target: string };
@@ -71,18 +36,26 @@ interface Props {
 export default function SaldamosGroupDetail({ 
   groupId, onBack, pendingImportText, onClearPendingImport 
 }: Props) {
-  const [group, setGroup] = useState<Group | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [group, setGroup] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('balances');
+
   const [memberOpen, setMemberOpen] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [savingMember, setSavingMember] = useState(false);
+
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<any>(null);
+
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importParsed, setImportParsed] = useState<ParsedPerson[] | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [importing, setImporting] = useState(false);
+
   const [payFrom, setPayFrom] = useState('');
   const [payTo, setPayTo] = useState('');
   const [payAmount, setPayAmount] = useState('');
@@ -90,13 +63,14 @@ export default function SaldamosGroupDetail({
 
   const load = async () => {
     setLoading(true);
-    const [g, m, e] = await Promise.all([
+    const [g, m, e, c] = await Promise.all([
       saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
-      saldamosSupabase.from('group_members').select('id, name').eq('group_id', groupId).order('joined_at', { ascending: true }),
-      saldamosSupabase.from('expenses').select('id, description, total_amount, is_settlement, created_at, expense_contributions(member_id, amount_paid, amount_owed)').eq('group_id', groupId).order('created_at', { ascending: false }),
+      saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
+      saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(member_id, amount_paid, amount_owed)').eq('group_id', groupId).order('expense_date', { ascending: false }),
+      saldamosSupabase.from('expense_categories' as any).select('id, name, is_default').eq('group_id', groupId),
     ]);
     setGroup(g.data ?? null);
-    setMembers((m.data ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+    setMembers(m.data ?? []);
     setExpenses((e.data ?? []).map((ex: any) => ({
       ...ex,
       contributions: (ex.expense_contributions ?? []).map((c: any) => ({
@@ -105,6 +79,7 @@ export default function SaldamosGroupDetail({
         amount_owed: Number(c.amount_owed),
       })),
     })));
+    setCategories(c.data ?? []);
     setLoading(false);
   };
 
@@ -243,141 +218,184 @@ export default function SaldamosGroupDetail({
     load();
   };
 
+  const deleteExpense = async (id: string) => {
+    if (!confirm('¿Seguro quieres borrar este gasto?')) return;
+    const { error } = await saldamosSupabase.from('expenses').delete().eq('id', id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success('Gasto eliminado');
+      load();
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (!group) return <div className="text-center py-8 text-muted-foreground">Grupo no encontrado. <button onClick={onBack} className="text-primary underline">Volver</button></div>;
 
   return (
-    <div className="space-y-5 animate-fade-in-up">
+    <div className="space-y-4 animate-fade-in-up pb-10">
       {/* Header */}
-      <div>
-        <button onClick={onBack} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2">
-          <ArrowLeft className="w-3.5 h-3.5" /> Mis grupos
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-3.5 h-3.5" /> Volver
         </button>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-foreground">{group.name}</h2>
-            <p className="text-xs text-muted-foreground">{members.length} participantes · {currency}</p>
-          </div>
-          <div className="flex gap-1 flex-wrap justify-end">
-            <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => setMemberOpen(true)}>
-              <UserPlus className="w-3.5 h-3.5" /> Persona
-            </Button>
-            <Button
-              size="sm"
-              className="rounded-xl text-xs gap-1 bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90"
-              onClick={() => { setImportText(''); setImportParsed(null); setAssignments([]); setImportOpen(true); }}
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Importar de La Cuota
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Balances */}
-      <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Balances</h3>
-        {members.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
-        ) : balances.map(b => (
-          <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-[10px] font-bold text-accent-foreground">
-                {b.name.slice(0, 2).toUpperCase()}
-              </div>
-              <span className="text-sm font-medium">{b.name}</span>
-            </div>
-            <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
-              {b.balance > 0.01 ? '+' : ''}{fmt(b.balance)}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Settlements */}
-      {settlements.length > 0 && (
-        <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Quién paga a quién</h3>
-          {settlements.map((s, i) => (
-            <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold text-red-500">{s.fromName}</span>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                <span className="font-semibold text-emerald-600">{s.toName}</span>
-              </div>
-              <span className="font-bold text-sm tabular-nums">{fmt(s.amount)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Register payment */}
-      <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <HandCoins className="w-3.5 h-3.5" /> Registrar pago
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Quien paga</Label>
-            <Select value={payFrom} onValueChange={setPayFrom}>
-              <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="Pagador" /></SelectTrigger>
-              <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id} disabled={m.id === payTo}>{m.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">A quien paga</Label>
-            <Select value={payTo} onValueChange={setPayTo}>
-              <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="Receptor" /></SelectTrigger>
-              <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id} disabled={m.id === payFrom}>{m.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            placeholder="Monto"
-            value={payAmount}
-            onChange={e => setPayAmount(e.target.value)}
-            className="rounded-xl text-sm h-9 flex-1"
-            inputMode="decimal"
-          />
-          <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl">
-            {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Registrar'}
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px]" onClick={() => setMemberOpen(true)}>
+            <UserPlus className="w-3 h-3 mr-1" /> Persona
+          </Button>
+          <Button size="sm" className="rounded-xl h-8 text-[10px] bg-violet-600 text-white" onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}>
+            <Plus className="w-3 h-3 mr-1" /> Gasto
           </Button>
         </div>
       </div>
 
-      {/* Expense history */}
-      {expenses.length > 0 && (
-        <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Historial</h3>
-          {expenses.map(ex => (
-            <div key={ex.id} className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-sm ${ex.is_settlement ? 'bg-emerald-500/10' : 'bg-accent/40'}`}>
-              <div>
-                <p className="font-medium text-foreground text-xs leading-tight">{ex.description}</p>
-                <p className="text-[10px] text-muted-foreground">{new Date(ex.created_at).toLocaleDateString('es-CL')}</p>
+      <div className="mb-2">
+        <h2 className="text-xl font-bold">{group.name}</h2>
+        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{currency} · {members.length} Miembros</p>
+      </div>
+
+      <Tabs defaultValue="balances" className="w-full" onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3 rounded-xl bg-muted/50 p-1 h-11">
+          <TabsTrigger value="balances" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            <LayoutDashboard className="w-3.5 h-3.5" /> Balances
+          </TabsTrigger>
+          <TabsTrigger value="historial" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            <History className="w-3.5 h-3.5" /> Gastos
+          </TabsTrigger>
+          <TabsTrigger value="mi-actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            <User className="w-3.5 h-3.5" /> Mi Historial
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="balances" className="space-y-4 pt-4">
+          <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
+            {members.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
+            ) : balances.map(b => (
+              <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                <span className="text-sm font-medium">{b.name}</span>
+                <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {b.balance > 0.01 ? '+' : ''}{fmt(b.balance)}
+                </span>
               </div>
-              <span className={`font-bold text-sm tabular-nums ${ex.is_settlement ? 'text-emerald-600' : ''}`}>
-                {fmt(ex.total_amount)}
-              </span>
+            ))}
+          </div>
+
+          {settlements.length > 0 && (
+            <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quién paga a quién</h3>
+              {settlements.map((s, i) => (
+                <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm truncate mr-2">
+                    <span className="font-semibold text-red-500 truncate">{s.fromName}</span>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="font-semibold text-emerald-600 truncate">{s.toName}</span>
+                  </div>
+                  <span className="font-bold text-sm tabular-nums shrink-0">{fmt(s.amount)}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+
+          <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+              <HandCoins className="w-3.5 h-3.5" /> Registrar pago
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={payFrom} onValueChange={setPayFrom}>
+                <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="De..." /></SelectTrigger>
+                <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={payTo} onValueChange={setPayTo}>
+                <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="A..." /></SelectTrigger>
+                <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="Monto" value={payAmount} onChange={e => setPayAmount(e.target.value)} className="rounded-xl text-sm h-9" />
+              <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl px-4 bg-violet-600 text-white">
+                {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Saldar'}
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="historial" className="space-y-4 pt-4">
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px]" onClick={() => { setImportText(''); setImportParsed(null); setAssignments([]); setImportOpen(true); }}>
+              <Sparkles className="w-3 h-3 mr-1" /> Importar de La Cuota
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {expenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">Sin gastos registrados.</p> :
+              expenses.map(ex => (
+                <div key={ex.id} className={`p-4 rounded-2xl border flex justify-between items-start ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <p className="font-bold text-sm truncate">{ex.description}</p>
+                      {ex.is_personal && <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold uppercase">Personal</span>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right mr-1">
+                      <p className="text-sm font-bold tabular-nums">{fmt(ex.total_amount)}</p>
+                      <p className="text-[9px] text-muted-foreground">{ex.is_settlement ? 'Pago' : 'Total'}</p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl">
+                        {!ex.is_settlement && (
+                          <DropdownMenuItem onClick={() => { setSelectedExpense(ex); setExpenseOpen(true); }}>
+                            <Pencil className="w-3.5 h-3.5 mr-2" /> Editar
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem className="text-red-500" onClick={() => deleteExpense(ex.id)}>
+                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        </TabsContent>
+
+        <TabsContent value="mi-actividad" className="pt-4">
+          <PersonalHistory 
+            members={members} 
+            expenses={expenses} 
+            categories={categories} 
+            currency={currency} 
+          />
+        </TabsContent>
+      </Tabs>
+
+      <ExpenseDialog 
+        open={expenseOpen} 
+        onOpenChange={setExpenseOpen} 
+        groupId={groupId} 
+        members={members} 
+        currency={currency} 
+        categories={categories} 
+        existing={selectedExpense} 
+        onSaved={load} 
+        onCategoriesChanged={load} 
+      />
 
       {/* Add Member Dialog */}
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nueva persona</DialogTitle>
-            <DialogDescription>Solo participa en gastos creados después de ahora.</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader><DialogTitle>Nueva persona</DialogTitle></DialogHeader>
           <div className="space-y-2 py-2">
             <Label>Nombre</Label>
-            <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" autoFocus />
+            <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" autoFocus />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setMemberOpen(false)}>Cancelar</Button>
-            <Button onClick={addMember} disabled={savingMember || !memberName.trim()}>
+            <Button variant="ghost" className="rounded-xl" onClick={() => setMemberOpen(false)}>Cancelar</Button>
+            <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="rounded-xl bg-violet-600 text-white">
               {savingMember && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Agregar
             </Button>
           </DialogFooter>
@@ -386,68 +404,40 @@ export default function SaldamosGroupDetail({
 
       {/* Import from La Cuota Dialog */}
       <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); } }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5 text-violet-500" />
-              Importar desde La Cuota
-            </DialogTitle>
-            <DialogDescription>
-              Pega el mensaje del resumen que genera La Cuota. Detectaremos automáticamente a cada persona y su monto.
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-violet-500" /> Importar</DialogTitle>
           </DialogHeader>
 
           {!importParsed ? (
             <div className="space-y-3">
-              <Label>Mensaje de La Cuota</Label>
-              <Textarea
-                value={importText}
-                onChange={e => setImportText(e.target.value)}
-                placeholder={`👤 *Pedro*: $5.500\n   • Cerveza: $3.500\n   • Propina: $2.000\n\n👤 *Ana*: $7.200\n   • Sushi: $7.200`}
-                className="min-h-[180px] font-mono text-xs rounded-xl"
-              />
+              <Textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Pega el mensaje de La Cuota aquí..." className="min-h-[180px] font-mono text-xs rounded-xl" />
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setImportOpen(false)}>Cancelar</Button>
-                <Button
-                  onClick={handleParseImport}
-                  disabled={!importText.trim()}
-                  className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" /> Detectar personas
-                </Button>
+                <Button onClick={handleParseImport} disabled={!importText.trim()} className="bg-violet-600 text-white rounded-xl w-full">Detectar personas</Button>
               </DialogFooter>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Confirma la asignación de cada persona detectada al miembro del grupo:</p>
               {assignments.map((a, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border bg-accent/30 p-3">
                   <div>
-                    <p className="font-semibold text-sm">{a.parsedName}</p>
-                    <p className="text-xs text-muted-foreground tabular-nums">{fmt(a.amount)}</p>
+                    <p className="font-semibold text-xs truncate">{a.parsedName}</p>
+                    <p className="text-[10px] text-muted-foreground tabular-nums">{fmt(a.amount)}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">→</span>
+                  <ArrowRight className="w-3 h-3 text-muted-foreground" />
                   <Select value={a.target} onValueChange={v => setAssignments(prev => prev.map((p, i) => i === idx ? { ...p, target: v } : p))}>
-                    <SelectTrigger className="text-xs rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="text-xs rounded-xl h-8"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={CREATE_NEW}>+ Crear "{a.parsedName}"</SelectItem>
                       <SelectItem value={SKIP}>Omitir</SelectItem>
-                      {members.length > 0 && <><div className="my-1 border-t" />{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</>}
+                      {members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               ))}
-              <div className="flex justify-between items-center bg-muted rounded-xl px-3 py-2 text-sm">
-                <span className="text-muted-foreground">Total a importar</span>
-                <span className="font-bold tabular-nums">{fmt(assignments.filter(a => a.target !== SKIP).reduce((s, a) => s + a.amount, 0))}</span>
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setImportParsed(null)}>← Volver</Button>
-                <Button onClick={handleApplyImport} disabled={importing} className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90">
-                  {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Importar consumos
-                </Button>
-              </DialogFooter>
+              <Button onClick={handleApplyImport} disabled={importing} className="bg-violet-600 text-white rounded-xl w-full">
+                {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Importar consumos
+              </Button>
             </div>
           )}
         </DialogContent>
