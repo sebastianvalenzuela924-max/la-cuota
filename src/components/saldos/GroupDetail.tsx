@@ -1,3 +1,10 @@
+import { useState, useEffect, useMemo } from 'react';
+import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
