@@ -85,13 +85,22 @@ export default function SummarySection({ products, people, totals, tipType, tipV
     try {
       await navigator.clipboard.writeText(summaryText);
       toast.success('Resumen copiado');
-    } catch {
-      toast.error('No se pudo copiar');
+    } catch (err) {
+      toast.error('Error al copiar');
     }
   };
 
   const handleWhatsApp = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(summaryText)}`, '_blank');
+  };
+
+  const handleWhatsAppBank = () => {
+    const text = generateBankDetailsText(bankData, currency);
+    if (!text) {
+      toast.error('No hay datos bancarios configurados');
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   return (
