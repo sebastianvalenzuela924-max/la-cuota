@@ -17,10 +17,12 @@ import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
-import { Copy, CheckCircle2 } from 'lucide-react';
+import { Copy, CheckCircle2, Download } from 'lucide-react';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 export default function Index() {
   const navigate = useNavigate();
+  const { canInstall, install } = usePWAInstall();
   const [sharing, setSharing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Receipt, Share2, ArrowLeft, Copy, CheckCircle2 } from 'lucide-react';
+import { Receipt, Share2, ArrowLeft, Copy, CheckCircle2, Download } from 'lucide-react';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { sharingSupabase } from '@/integrations/supabase/sharing-client';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue } from '@/lib/bill-utils';
@@ -20,6 +21,7 @@ import CurrencySelector from '@/components/divisor/CurrencySelector';
 export default function Session() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { canInstall, install } = usePWAInstall();
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(true);
 
