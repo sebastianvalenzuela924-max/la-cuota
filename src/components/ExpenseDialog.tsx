@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
