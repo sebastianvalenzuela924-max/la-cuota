@@ -14,7 +14,14 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
@@ -52,6 +59,12 @@ export function ExpenseDialog({
   const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
   const [personalPayer, setPersonalPayer] = useState<string>("");
+  const [unmappedPersons, setUnmatchedPersons] = useState<any[]>([]);
+  const [manualMappings, setManualMappings] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`saldamos_mappings_${groupId}`) || '{}');
+    } catch { return {}; }
+  });
 
   const eligible = useMemo(() => {
     if (existing) {
@@ -99,15 +112,27 @@ export function ExpenseDialog({
       
       const nextOwed: Record<string, string> = {};
       const nextSelected = new Set<string>();
+      const unmatched: any[] = [];
+      
       parsed.forEach(p => {
-        const matchId = findMemberMatch(p.name, members);
+        // Try exact/fuzzy match first
+        let matchId = findMemberMatch(p.name, members);
+        
+        // If no match, try saved manual mapping
+        if (!matchId && manualMappings[p.name]) {
+          matchId = manualMappings[p.name];
+        }
+
         if (matchId) {
           nextOwed[matchId] = p.amount.toString();
           nextSelected.add(matchId);
+        } else {
+          unmatched.push(p);
         }
       });
       setOwed(nextOwed);
       setSelected(nextSelected);
+      setUnmatchedPersons(unmatched);
       setContribs({});
     } else {
       setDescription("");
@@ -264,6 +289,21 @@ export function ExpenseDialog({
     setPasteOpen(false);
   };
 
+  const saveMapping = (externalName: string, memberId: string) => {
+    const newMappings = { ...manualMappings, [externalName]: memberId };
+    setManualMappings(newMappings);
+    localStorage.setItem(`saldamos_mappings_${groupId}`, JSON.stringify(newMappings));
+    
+    // Update the current expense state too
+    const person = unmappedPersons.find(p => p.name === externalName);
+    if (person) {
+      setOwed(prev => ({ ...prev, [memberId]: person.amount.toString() }));
+      setSelected(prev => new Set(prev).add(memberId));
+      setUnmatchedPersons(prev => prev.filter(p => p.name !== externalName));
+    }
+    toast.success(`Nombre "${externalName}" vinculado.`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl rounded-2xl">
@@ -326,6 +366,34 @@ export function ExpenseDialog({
             </div>
             <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
           </div>
+          
+          {unmappedPersons.length > 0 && (
+            <div className="space-y-3 p-4 rounded-2xl bg-amber-50 border border-amber-100 animate-in fade-in zoom-in duration-300">
+              <div className="flex items-center gap-2 text-amber-700 mb-1">
+                <AlertTriangle className="h-4 w-4" />
+                <p className="text-xs font-bold uppercase tracking-wider">Vincular personas detectadas</p>
+              </div>
+              <p className="text-[10px] text-amber-600 mb-2">No pudimos identificar a estas personas. Vincúlalas con un miembro del grupo y lo recordaremos para la próxima.</p>
+              <div className="space-y-2">
+                {unmappedPersons.map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-3 bg-white/50 p-2 rounded-xl border border-amber-200">
+                    <span className="text-xs font-bold text-amber-900 truncate flex-1">{p.name} ({formatMoney(p.amount, currency)})</span>
+                    <ArrowRight className="w-3 h-3 text-amber-400" />
+                    <Select onValueChange={(val) => saveMapping(p.name, val)}>
+                      <SelectTrigger className="h-8 text-[10px] w-[140px] rounded-lg border-amber-200">
+                        <SelectValue placeholder="Vincular a..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {members.map(m => (
+                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isPersonal ? (
             <div className="space-y-2">
