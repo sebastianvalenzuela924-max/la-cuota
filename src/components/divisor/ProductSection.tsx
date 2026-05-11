@@ -107,24 +107,24 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
           value={quantity}
           onChange={e => setQuantity(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-16 text-sm rounded-xl h-10 text-center"
+          className="w-14 text-sm rounded-xl h-10 text-center px-1"
           min={1}
           inputMode="numeric"
         />
-        <div className="relative flex-[0.8]">
+        <div className="relative flex-[1.2]">
           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold">
-            {currency === 'BRL' ? '$R' : '$CLP'}
+            {currency === 'BRL' ? '$R' : '$'}
           </span>
           <Input
             type="number"
-            placeholder=""
+            placeholder="Precio"
             value={price}
             onChange={e => {
               setPrice(e.target.value);
               setAddPriceMode('total');
             }}
             onKeyDown={handleKeyDown}
-            className="text-sm rounded-xl h-10 pl-10"
+            className="text-sm rounded-xl h-10 pl-7 pr-1"
             inputMode="decimal"
             step={currency === 'BRL' ? '0.01' : '1'}
           />
@@ -181,11 +181,11 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
                     value={editQuantity}
                     onChange={e => setEditQuantity(e.target.value)}
                     onKeyDown={handleEditKeyDown}
-                    className="text-sm h-8 w-16 text-center"
+                    className="text-sm h-8 w-14 text-center px-1"
                   />
                   <div className="relative flex-1">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold">
-                      {currency === 'BRL' ? '$R' : '$CLP'}
+                      {currency === 'BRL' ? '$R' : '$'}
                     </span>
                     <Input
                       type="number"
@@ -195,7 +195,7 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
                         setEditPriceMode('total');
                       }}
                       onKeyDown={handleEditKeyDown}
-                      className="text-sm h-8 pl-10"
+                      className="text-sm h-8 pl-7 pr-1"
                     />
                   </div>
                   <Button size="icon" onClick={handleUpdate} className="h-8 w-8 rounded-lg bg-green-500 hover:bg-green-600">
