@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useState, useEffect, useCallback } from 'react';
 import type { Product, Person, TipType, PersonTotal, BankData, Currency } from '@/lib/types';
-import { formatCurrency, PERSON_COLORS, getInitials, generateSummaryText, generateBankDetailsText, roundValue } from '@/lib/bill-utils';
+import { formatCurrency, PERSON_COLORS, getInitials, generateSummaryText, generateBankDetailsText, generateIndividualSummaryText, roundValue } from '@/lib/bill-utils';
 import { toast } from 'sonner';
 
 interface Props {
@@ -94,12 +94,15 @@ export default function SummarySection({ products, people, totals, tipType, tipV
     window.open(`https://wa.me/?text=${encodeURIComponent(summaryText)}`, '_blank');
   };
 
-  const handleWhatsAppBank = () => {
-    const text = generateBankDetailsText(bankData, currency);
-    if (!text) {
-      toast.error('No hay datos bancarios configurados');
-      return;
-    }
+  const handleIndividualWhatsApp = (person: Person, personTotal: PersonTotal) => {
+    const text = generateIndividualSummaryText(
+      person,
+      personTotal,
+      bankData,
+      currency,
+      targetCurrency,
+      showConversion ? exchangeRate : undefined
+    );
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -237,12 +240,21 @@ export default function SummarySection({ products, people, totals, tipType, tipV
                   {getInitials(person.name)}
                 </div>
                 <span className="font-semibold text-foreground text-sm flex-1">{person.name}</span>
-                  <div className="flex flex-col items-end">
+                  <div className="flex flex-col items-end gap-1">
                     <span className="font-bold text-foreground text-base leading-none">{fmt(pt.total)}</span>
                     {showConversion && (
-                      <span className="text-xs text-primary font-bold mt-1">~ {fmtTarget(pt.total)}</span>
+                      <span className="text-xs text-primary font-bold">~ {fmtTarget(pt.total)}</span>
                     )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 rounded-full ml-1 text-[hsl(142,70%,40%)] hover:text-[hsl(142,70%,35%)] hover:bg-[hsl(142,70%,40%)]/10 flex-shrink-0"
+                    onClick={() => handleIndividualWhatsApp(person, pt)}
+                    title={`Enviar mensaje a ${person.name}`}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
               </div>
               <div className="pl-10 space-y-0.5">
                 {pt.items.map((item, i) => (
@@ -264,25 +276,15 @@ export default function SummarySection({ products, people, totals, tipType, tipV
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" onClick={handleCopy} className="text-xs gap-1.5 rounded-xl font-semibold">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleCopy} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold">
           <Copy className="w-3.5 h-3.5" />
           Copiar Todo
         </Button>
-        <Button size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
+        <Button size="sm" onClick={handleWhatsApp} className="flex-1 text-xs gap-1.5 rounded-xl font-semibold bg-[hsl(142,70%,40%)] hover:bg-[hsl(142,70%,35%)] text-primary-foreground">
           <Share2 className="w-3.5 h-3.5" />
           WhatsApp Resumen
         </Button>
-        {!!(bankData.name || bankData.bank || bankData.rut) && (
-          <Button 
-            size="sm" 
-            onClick={handleWhatsAppBank} 
-            className="col-span-2 text-xs gap-1.5 rounded-xl font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            Enviar Datos Bancarios por WhatsApp
-          </Button>
-        )}
       </div>
     </section>
   );

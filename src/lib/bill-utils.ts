@@ -341,6 +341,11 @@ export function generateSummaryText(
     text += `\n`;
   }
 
+  const bankText = generateBankDetailsText(bankData, currency);
+  if (bankText) {
+    text += `\n${bankText}`;
+  }
+
   return text;
 }
 
@@ -363,5 +368,38 @@ export function generateBankDetailsText(
   if (bankData.rut) text += `*${labelRut}:* ${bankData.rut}\n`;
   if (bankData.email) text += `*${labelEmail}:* ${bankData.email}\n`;
   text += `━━━━━━━━━━━━━━━\n`;
+  return text;
+}
+
+export function generateIndividualSummaryText(
+  person: Person,
+  personTotal: PersonTotal,
+  bankData: Partial<BankData>,
+  currency: Currency = 'CLP',
+  targetCurrency: Currency = 'CLP',
+  conversionRate?: number
+): string {
+  const fmt = (n: number) => formatCurrency(n, currency);
+  const fmtConv = (n: number) => formatCurrency(n * (conversionRate || 1), targetCurrency);
+
+  let text = `👋 Hola *${person.name}*, tu parte en *La Cuota* es de *${fmt(personTotal.total)}*\n`;
+  if (conversionRate && conversionRate > 0) {
+    text += `(Aprox. ${fmtConv(personTotal.total)})\n`;
+  }
+  text += `\n📋 *Detalle de tu consumo:*\n`;
+  
+  for (const item of personTotal.items) {
+    if (item.tipAmount > 0) {
+      text += `• ${item.name} (${fmt(item.baseAmount)} + ${fmt(item.tipAmount)} propina): ${fmt(item.amount)}\n`;
+    } else {
+      text += `• ${item.name}: ${fmt(item.amount)}\n`;
+    }
+  }
+
+  const bankText = generateBankDetailsText(bankData, currency);
+  if (bankText) {
+    text += `\nPara transferir, aquí tienes los datos:\n\n${bankText}`;
+  }
+
   return text;
 }
