@@ -1,0 +1,17 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    # Se ejecuta cada 3 días a las 00:00 UTC
+    - cron: '0 0 */3 * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente para probar
+
+jobs:
+  ping_supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Sharing Supabase
+        run: |
+          curl -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/bill_sessions?select=count" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4"
