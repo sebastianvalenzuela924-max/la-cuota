@@ -571,6 +571,7 @@ export default function SaldamosGroupDetail({
 
           <div className="space-y-2">
             {filteredExpenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">No se encontraron gastos.</p> :
+              filteredExpenses.map(ex => (
                 <div key={ex.id} className="space-y-1">
                   <div 
                     className={`p-4 rounded-2xl border flex justify-between items-start transition-all cursor-pointer hover:border-violet-300 ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}
@@ -632,6 +633,7 @@ export default function SaldamosGroupDetail({
                     </div>
                   )}
                 </div>
+              ))
             }
           </div>
         </TabsContent>
