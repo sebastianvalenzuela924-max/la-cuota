@@ -380,7 +380,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         <div className="grid grid-cols-2 gap-3">
           {groups.map(g => {
             const style = getGroupStyle(g.id);
-            const emoji = getGroupEmoji(g.name) || style.emoji;
+            const emoji = getGroupEmoji(g.name) || ('emoji' in style ? style.emoji : '👋');
             const isRenaming = renamingId === g.id;
             return (
               <div

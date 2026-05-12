@@ -119,7 +119,7 @@ export default function SaldamosGroupDetail({
         }));
         setExpenses(mappedExpenses);
       }
-      if (c.data) setCategories(c.data);
+      if (c.data) setCategories(c.data as any);
     } catch (err: any) {
       console.error('Error loading group:', err);
       toast.error('Error al cargar datos: ' + (err.message || 'Error desconocido'));

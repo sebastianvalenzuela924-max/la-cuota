@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Users, X, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Person } from '@/lib/types';
@@ -159,7 +160,7 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
           className="flex-1 text-sm rounded-xl h-10"
         />
-        <Button size="icon" onClick={handleAdd} className="shrink-0 rounded-xl h-10 w-10">
+        <Button size="icon" onClick={() => handleAdd()} className="shrink-0 rounded-xl h-10 w-10">
           <Plus className="w-4 h-4" />
         </Button>
       </div>
