@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+// Force redeploy - Build verified locally
 import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
 import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import { Button } from '@/components/ui/button';
