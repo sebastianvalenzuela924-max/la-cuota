@@ -33,8 +33,23 @@ const TEMPLATES = [
   { emoji: '🎓',  label: 'Estudios',  name: 'Gastos compartidos', gradient: 'from-teal-500 to-cyan-600',     bg: 'bg-gradient-to-br from-teal-500 to-cyan-600' },
 ];
 
-// Deterministic gradient from group id
+const COLOR_PRESETS = [
+  { name: 'Azul',     gradient: 'from-blue-600 to-indigo-700' },
+  { name: 'Naranja',  gradient: 'from-orange-500 to-red-600' },
+  { name: 'Verde',    gradient: 'from-emerald-600 to-teal-700' },
+  { name: 'Rojo',     gradient: 'from-rose-600 to-pink-700' },
+  { name: 'Morado',   gradient: 'from-blue-600 to-blue-700' }, // Replaced violet with blue for consistency
+  { name: 'Cielo',    gradient: 'from-sky-500 to-blue-600' },
+  { name: 'Negro',    gradient: 'from-slate-700 to-slate-900' },
+  { name: 'Turquesa', gradient: 'from-cyan-500 to-blue-600' },
+];
+
+// Deterministic gradient from group id with local storage override
 function getGroupStyle(groupId: string) {
+  const savedColor = localStorage.getItem(`group_color_${groupId}`);
+  if (savedColor) {
+    return { bg: `bg-gradient-to-br ${savedColor}`, gradient: savedColor };
+  }
   const idx = parseInt(groupId.replace(/-/g, '').slice(0, 8), 16) % TEMPLATES.length;
   return TEMPLATES[idx];
 }
@@ -86,6 +101,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
+  const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0].gradient);
+  const [colorEditId, setColorEditId] = useState<string | null>(null);
 
   const load = async () => {
     if (!user) return;
@@ -195,6 +212,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const applyTemplate = (t: typeof TEMPLATES[0]) => {
     setSelectedTemplate(t);
     setName(t.name);
+    if (t.gradient) setSelectedColor(t.gradient);
   };
 
   const create = async () => {
@@ -221,6 +239,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     setCreating(false);
     toast.success(`Grupo "${name.trim()}" creado 🎉${validMembers.length > 0 ? ` con ${validMembers.length} persona${validMembers.length > 1 ? 's' : ''}` : ''}`);
     localStorage.setItem(`group_mode_${(newGroup as any).id}`, groupMode);
+    localStorage.setItem(`group_color_${(newGroup as any).id}`, selectedColor);
     setCreateOpen(false);
     setName('');
     setSelectedTemplate(null);
@@ -397,6 +416,9 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                             <DropdownMenuItem onClick={e => startRename(g, e)}>
                               <Pencil className="w-3.5 h-3.5 mr-2" /> Renombrar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={e => { e.stopPropagation(); setColorEditId(g.id); }}>
+                              <Scale className="w-3.5 h-3.5 mr-2" /> Cambiar color
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
                         )}
@@ -533,6 +555,21 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Lista de pagos sin deuda total.</p>
                   </div>
                 </button>
+              </div>
+            </div>
+
+            {/* Color Picker */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Color del grupo</Label>
+              <div className="flex flex-wrap gap-2 py-1">
+                {COLOR_PRESETS.map(c => (
+                  <button
+                    key={c.gradient}
+                    type="button"
+                    onClick={() => setSelectedColor(c.gradient)}
+                    className={`w-7 h-7 rounded-full bg-gradient-to-br ${c.gradient} transition-all ${selectedColor === c.gradient ? 'ring-2 ring-blue-600 ring-offset-2 scale-110' : 'opacity-60 hover:opacity-100'}`}
+                  />
+                ))}
               </div>
             </div>
 
@@ -836,6 +873,35 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               <Button onClick={() => setManagePeopleOpen(false)} className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-200 dark:shadow-none">Listo</Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Color Dialog */}
+      <Dialog open={!!colorEditId} onOpenChange={v => !v && setColorEditId(null)}>
+        <DialogContent className="rounded-2xl max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle>Cambiar color</DialogTitle>
+            <DialogDescription>Personaliza el fondo de tu grupo.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-3 py-4 justify-center">
+            {COLOR_PRESETS.map(c => (
+              <button
+                key={c.gradient}
+                type="button"
+                onClick={() => {
+                  if (colorEditId) {
+                    localStorage.setItem(`group_color_${colorEditId}`, c.gradient);
+                    setColorEditId(null);
+                    load(); // Refresh UI
+                  }
+                }}
+                className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} transition-all hover:scale-110 shadow-sm`}
+              />
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setColorEditId(null)} className="rounded-xl w-full">Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

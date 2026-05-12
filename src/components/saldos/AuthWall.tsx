@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Eye, EyeOff, Scale, ArrowRight } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Scale, ArrowRight, User } from 'lucide-react';
 
 export default function SaldamosAuthWall() {
   const { signIn, signUp } = useSaldamosAuth();
