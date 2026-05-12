@@ -76,9 +76,10 @@ export function ExpenseDialog({
   });
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
-  const [showFrequent, setShowFrequent] = useState(false);
+  const [showFrequent, setShowFrequent] = useState(true);
   const [tempMembers, setTempMembers] = useState<Member[]>([]);
   const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
+  const [peopleFilterTab, setPeopleFilterTab] = useState<'group' | 'friends'>('group');
 
   const allAvailableMembers = useMemo(() => {
     // Combine props members with locally added ones, avoiding duplicates
@@ -561,56 +562,85 @@ export function ExpenseDialog({
             </div>
           )}
 
-          {frequentPeople.length > 0 && (
-            <div className="space-y-2">
-              <button 
-                type="button"
-                onClick={() => setShowFrequent(!showFrequent)}
-                className="flex items-center justify-between w-full px-4 py-2 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-all"
-              >
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  <span>Ver mis amigos / grupos</span>
-                </div>
-                <ChevronRight className={`w-4 h-4 transition-transform ${showFrequent ? 'rotate-90' : ''}`} />
-              </button>
+          {/* NEW: People Selection Section (Always visible) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Seleccionar Personas</Label>
+              <div className="flex bg-muted p-0.5 rounded-lg">
+                <button 
+                  onClick={() => setPeopleFilterTab('group')}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${peopleFilterTab === 'group' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
+                >
+                  En el Grupo
+                </button>
+                <button 
+                  onClick={() => setPeopleFilterTab('friends')}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${peopleFilterTab === 'friends' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
+                >
+                  Mis Amigos
+                </button>
+              </div>
+            </div>
 
-              {showFrequent && (
-                <div className="p-3 bg-muted/30 rounded-2xl border border-dashed border-muted space-y-3 animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1">Grupos</Label>
-                    {Object.keys(peopleGroups).length > 0 && (
-                      <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[180px]">
+            <div className="p-3 bg-blue-500/5 rounded-2xl border border-blue-500/10 space-y-3">
+              {peopleFilterTab === 'group' ? (
+                <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar py-1">
+                  {allAvailableMembers.map(m => {
+                    const isSel = selected.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggle(m.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border shrink-0 ${
+                          isSel 
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                          isSel ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {isSel ? '✓' : m.name.charAt(0).toUpperCase()}
+                        </div>
+                        {m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {Object.keys(peopleGroups).length > 0 && (
+                    <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => setActiveGroupFilter(null)}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                          activeGroupFilter === null 
+                            ? 'bg-blue-600 border-blue-600 text-white' 
+                            : 'bg-muted/50 border-transparent text-muted-foreground'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      {Object.keys(peopleGroups).map(gn => (
                         <button
+                          key={gn}
                           type="button"
-                          onClick={() => setActiveGroupFilter(null)}
+                          onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
                           className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                            activeGroupFilter === null 
+                            activeGroupFilter === gn 
                               ? 'bg-blue-600 border-blue-600 text-white' 
-                              : 'bg-muted/50 border-transparent text-muted-foreground'
+                              : 'bg-blue-50 border-blue-100 text-blue-600'
                           }`}
                         >
-                          Todos
+                          {gn}
                         </button>
-                        {Object.keys(peopleGroups).map(gn => (
-                          <button
-                            key={gn}
-                            type="button"
-                            onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
-                            className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                              activeGroupFilter === gn 
-                                ? 'bg-blue-600 border-blue-600 text-white' 
-                                : 'bg-blue-50 border-blue-100 text-blue-600'
-                            }`}
-                          >
-                            {gn}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                   
-                  <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto no-scrollbar py-1">
+                  <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar py-1">
                     {frequentPeople
                       .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
                       .map(p => {
@@ -624,7 +654,7 @@ export function ExpenseDialog({
                             type="button"
                             disabled={addingFrequent === p}
                             onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border shrink-0 ${
                               isSelected 
                                 ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
                                 : isAlreadyIn
@@ -645,7 +675,7 @@ export function ExpenseDialog({
                 </div>
               )}
             </div>
-          )}
+          </div>
 
           {isPersonal ? (
             <div className="space-y-2">
@@ -664,11 +694,6 @@ export function ExpenseDialog({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Label>Participantes ({selected.size})</Label>
-                  <div className="flex gap-1">
-                    <button type="button" onClick={selectAll} className="text-[10px] font-bold text-blue-600 hover:underline">Todos</button>
-                    <span className="text-[10px] text-muted-foreground">/</span>
-                    <button type="button" onClick={selectNone} className="text-[10px] font-bold text-muted-foreground hover:text-red-500 hover:underline">Ninguno</button>
-                  </div>
                 </div>
                 <div className="flex gap-1">
                   <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] rounded-lg" onClick={() => setPasteOpen(true)}>
@@ -679,51 +704,53 @@ export function ExpenseDialog({
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-xl border bg-muted/30 p-2">
-                {eligible.map((m) => {
-                  const isSel = selected.has(m.id);
-                  return (
-                    <div key={m.id} className={`rounded-lg p-2 grid grid-cols-[1fr_auto_auto] items-center gap-2 ${isSel ? "bg-card shadow-sm" : "opacity-60"}`}>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Checkbox checked={isSel} onCheckedChange={() => toggle(m.id)} id={`c-${m.id}`} />
-                        <div className="flex items-center gap-1 min-w-0 flex-1">
-                          <Label htmlFor={`c-${m.id}`} className="text-xs truncate cursor-pointer font-medium">{m.name}</Label>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className={`h-6 w-6 rounded-lg shrink-0 ${isSel ? 'text-blue-600 hover:bg-blue-50' : 'text-muted-foreground/30'}`}
-                            onClick={(e) => { e.preventDefault(); assignAllToOne(m.id); }}
-                            disabled={!isSel}
-                            title="Pagó todo"
-                          >
-                            <HandCoins className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-2 min-h-[60px] flex flex-col justify-center">
+                {selected.size === 0 ? (
+                  <p className="text-[10px] text-muted-foreground text-center italic py-4">Selecciona personas arriba para asignar montos</p>
+                ) : (
+                  allAvailableMembers
+                    .filter(m => selected.has(m.id))
+                    .map((m) => {
+                      return (
+                        <div key={m.id} className="rounded-lg p-2 grid grid-cols-[1fr_auto_auto] items-center gap-2 bg-card shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Checkbox checked={true} onCheckedChange={() => toggle(m.id)} id={`c-${m.id}`} />
+                            <div className="flex items-center gap-1 min-w-0 flex-1">
+                              <Label htmlFor={`c-${m.id}`} className="text-xs truncate cursor-pointer font-medium">{m.name}</Label>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6 rounded-lg shrink-0 text-blue-600 hover:bg-blue-50"
+                                onClick={(e) => { e.preventDefault(); assignAllToOne(m.id); }}
+                                title="Pagó todo"
+                              >
+                                <HandCoins className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
 
-                      <div className="flex gap-1 justify-end">
-                        <Input
-                          type="number"
-                          disabled={!isSel}
-                          value={contribs[m.id] ?? ""}
-                          onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
-                          placeholder="Pagó"
-                          className="h-8 text-[10px] rounded-lg w-20"
-                        />
-                      </div>
-                      <div className="flex justify-end">
-                        <Input
-                          type="number"
-                          disabled={!isSel}
-                          value={owed[m.id] ?? ""}
-                          onChange={(e) => setOwed({ ...owed, [m.id]: e.target.value })}
-                          placeholder="Consumió"
-                          className="h-8 text-xs rounded-lg w-24"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div className="flex gap-1 justify-end">
+                            <Input
+                              type="number"
+                              value={contribs[m.id] ?? ""}
+                              onChange={(e) => setContribs({ ...contribs, [m.id]: e.target.value })}
+                              placeholder="Pagó"
+                              className="h-8 text-[10px] rounded-lg w-20"
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <Input
+                              type="number"
+                              value={owed[m.id] ?? ""}
+                              onChange={(e) => setOwed({ ...owed, [m.id]: e.target.value })}
+                              placeholder="Consumió"
+                              className="h-8 text-xs rounded-lg w-24"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
           )}
