@@ -844,25 +844,33 @@ export default function SaldamosGroupDetail({
                               const owesMe = iPaid && c.amount_owed > 0 && c.member_id !== myMemberId;
                               
                               return (
-                                <div key={c.member_id} className={`flex items-center justify-between p-2 rounded-xl text-xs ${c.is_settled ? 'bg-emerald-50/50' : 'bg-muted/30'}`}>
+                                <div key={c.member_id} className={`flex items-center justify-between p-2 rounded-xl text-xs ${
+                                  c.is_settled 
+                                    ? 'bg-emerald-500/10 border border-emerald-500/20' 
+                                    : 'bg-muted/30'
+                                }`}>
                                   <div className="flex items-center gap-2 min-w-0">
                                     <div className={`w-1.5 h-1.5 rounded-full ${isPayer ? 'bg-violet-500' : 'bg-muted-foreground/30'}`} />
                                     <span className={`truncate font-medium ${isMe ? 'text-violet-600 font-bold' : ''}`}>
                                       {m?.name || 'Desconocido'}
                                     </span>
-                                    {isPayer && <span className="text-[9px] bg-violet-100 text-violet-600 px-1 rounded uppercase font-bold">Pagó</span>}
+                                    {isPayer && <span className="text-[9px] bg-violet-500/15 text-violet-500 dark:text-violet-400 px-1 rounded uppercase font-bold">Pagó</span>}
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <div className="text-right tabular-nums">
-                                      {c.amount_paid > 0 && <p className="text-violet-600 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
-                                      {c.amount_owed > 0 && <p className={c.is_settled ? 'text-emerald-600 line-through' : 'text-red-500'}>-{formatMoney(c.amount_owed, group?.currency)}</p>}
+                                      {c.amount_paid > 0 && <p className="text-violet-500 dark:text-violet-400 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
+                                      {c.amount_owed > 0 && <p className={c.is_settled ? 'text-emerald-500 dark:text-emerald-400 line-through' : 'text-red-500 dark:text-red-400'}>-{formatMoney(c.amount_owed, group?.currency)}</p>}
                                     </div>
                                     
                                     {owesMe && (
                                       <Button
                                         size="sm"
                                         variant={c.is_settled ? "ghost" : "outline"}
-                                        className={`h-7 px-2 rounded-lg text-[10px] font-bold ${c.is_settled ? 'text-emerald-600' : 'text-amber-600 border-amber-200 bg-amber-50'}`}
+                                        className={`h-7 px-2 rounded-lg text-[10px] font-bold ${
+                                          c.is_settled 
+                                            ? 'text-emerald-500 dark:text-emerald-400' 
+                                            : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30'
+                                        }`}
                                         onClick={(e) => { e.stopPropagation(); toggleSettlement(c, c.is_settled, ex); }}
                                       >
                                         {c.is_settled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
@@ -870,7 +878,7 @@ export default function SaldamosGroupDetail({
                                       </Button>
                                     )}
                                     {!owesMe && c.amount_owed > 0 && c.is_settled && (
-                                      <div className="flex items-center text-emerald-600 gap-1 text-[10px] font-bold pr-1">
+                                      <div className="flex items-center text-emerald-500 dark:text-emerald-400 gap-1 text-[10px] font-bold pr-1">
                                         <CheckCircle2 className="w-3 h-3" />
                                         PAGADO
                                       </div>
