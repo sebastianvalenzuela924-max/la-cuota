@@ -104,6 +104,19 @@
   .card-shadow-lg {
     box-shadow: 0 4px 16px -4px hsl(215 20% 50% / 0.1), 0 2px 4px -2px hsl(215 20% 50% / 0.05);
   }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
 }
 
 @keyframes fadeInUp {

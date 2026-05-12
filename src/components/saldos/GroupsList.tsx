@@ -478,15 +478,15 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
 
       {/* Create Dialog */}
       <Dialog open={createOpen} onOpenChange={v => { setCreateOpen(v); if (!v) { setSelectedTemplate(null); setName(''); } }}>
-        <DialogContent className="rounded-2xl max-w-sm">
-          <DialogHeader>
+        <DialogContent className="rounded-2xl max-w-sm max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0 border-none shadow-2xl">
+          <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-500" /> Nuevo grupo
             </DialogTitle>
             <DialogDescription>Elige una plantilla o crea uno personalizado.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-1">
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
             {/* Templates grid */}
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Plantillas rápidas</p>
@@ -584,6 +584,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               </Select>
             </div>
 
+            <div className="space-y-4">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Personas del grupo <span className="font-normal text-muted-foreground/60">(opcional)</span>
               </Label>
@@ -689,7 +690,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="p-6 pt-2 bg-muted/20 gap-2 flex-row justify-end">
             <Button variant="ghost" onClick={() => setCreateOpen(false)} className="rounded-xl">Cancelar</Button>
             <Button
               onClick={create}
@@ -704,15 +705,15 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       </Dialog>
       {/* Manage People Dialog */}
       <Dialog open={managePeopleOpen} onOpenChange={setManagePeopleOpen}>
-        <DialogContent className="rounded-3xl max-w-sm p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 pb-12">
+        <DialogContent className="rounded-3xl max-w-sm p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] flex flex-col gap-0">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 pb-12 shrink-0">
             <DialogHeader className="text-white text-left">
               <DialogTitle className="text-xl font-black">Mis Personas</DialogTitle>
               <DialogDescription className="text-blue-100 opacity-80 text-xs">Organiza a tus amigos y crea grupos frecuentes.</DialogDescription>
             </DialogHeader>
           </div>
           
-          <div className="bg-background rounded-t-[32px] -mt-8 p-6 space-y-6 relative">
+          <div className="bg-background rounded-t-[32px] -mt-8 p-6 space-y-6 relative flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex bg-muted p-1 rounded-2xl">
               <button 
                 onClick={() => setActiveManageTab('people')}
