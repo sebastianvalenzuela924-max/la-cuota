@@ -649,48 +649,76 @@ export default function SaldamosGroupDetail({
               {/* Pending collections in tracker mode */}
               <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
                 <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Cobros Pendientes
+                  <HandCoins className="w-3.5 h-3.5" /> Cobros Pendientes
                 </h3>
-                {expenses.filter(ex => ex.track_payments).flatMap(ex => 
-                  ex.contributions.filter(c => !c.is_settled && c.amount_owed > 0 && ex.contributions.some(pc => pc.member_id === myMemberId && pc.amount_paid > 0))
-                ).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6 italic">No tienes cobros pendientes por ahora.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {expenses.filter(ex => ex.track_payments).map(ex => {
-                      const myContrib = ex.contributions.find(c => c.member_id === myMemberId);
-                      const iPaid = myContrib && myContrib.amount_paid > 0;
-                      if (!iPaid) return null;
-                      
-                      const pending = ex.contributions.filter(c => !c.is_settled && c.amount_owed > 0 && c.member_id !== myMemberId);
-                      if (pending.length === 0) return null;
+                {(() => {
+                  const items = expenses.filter(ex => ex.track_payments).map(ex => {
+                    const myContrib = ex.contributions.find(c => c.member_id === myMemberId);
+                    const iPaid = myContrib && myContrib.amount_paid > 0;
+                    if (!iPaid) return null;
+                    
+                    const pending = ex.contributions.filter(c => !c.is_settled && c.amount_owed > 0 && c.member_id !== myMemberId);
+                    if (pending.length === 0) return null;
 
-                      return (
-                        <div key={ex.id} className="space-y-2 pb-2 border-b border-border/50 last:border-0 last:pb-0">
-                          <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
-                          {pending.map(c => {
-                            const m = members.find(mem => mem.id === c.member_id);
-                            return (
-                              <div key={c.id} className="flex items-center justify-between bg-muted/30 p-2 rounded-xl">
-                                <span className="text-xs font-medium">{m?.name || 'Desconocido'}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold text-red-500">{fmt(c.amount_owed)}</span>
-                                  <Button 
-                                    size="sm" 
-                                    className="h-6 px-2 rounded-lg text-[9px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
-                                    onClick={() => toggleSettlement(c, false, ex)}
-                                  >
-                                    ¿PAGÓ?
-                                  </Button>
-                                </div>
+                    return (
+                      <div key={ex.id} className="space-y-2 pb-2 border-b border-border/50 last:border-0 last:pb-0">
+                        <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
+                        {pending.map(c => {
+                          const m = members.find(mem => mem.id === c.member_id);
+                          return (
+                            <div key={c.id} className="flex items-center justify-between bg-emerald-500/5 dark:bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/10">
+                              <span className="text-xs font-medium">{m?.name || 'Desconocido'}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{fmt(c.amount_owed)}</span>
+                                <Button 
+                                  size="sm" 
+                                  className="h-6 px-2 rounded-lg text-[9px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                                  onClick={() => toggleSettlement(c, false, ex)}
+                                >
+                                  ¿PAGÓ?
+                                </Button>
                               </div>
-                            );
-                          })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }).filter(Boolean);
+
+                  return items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6 italic">No tienes cobros pendientes.</p>
+                  ) : <div className="space-y-2">{items}</div>;
+                })()}
+              </div>
+
+              {/* Pending payments in tracker mode (What I owe others) */}
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-red-500" /> Pagos Pendientes (Tú debes)
+                </h3>
+                {(() => {
+                  const items = expenses.filter(ex => ex.track_payments).map(ex => {
+                    const myContrib = ex.contributions.find(c => c.member_id === myMemberId);
+                    if (!myContrib || myContrib.is_settled || myContrib.amount_owed === 0) return null;
+                    
+                    const payer = ex.contributions.find(c => c.amount_paid > 0);
+                    const payerName = members.find(m => m.id === payer?.member_id)?.name || 'alguien';
+
+                    return (
+                      <div key={ex.id} className="flex items-center justify-between bg-red-50 dark:bg-red-950/20 p-3 rounded-xl border border-red-100 dark:border-red-900/30">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
+                          <p className="text-[11px] font-medium text-foreground">Debes a <span className="font-bold text-red-500">{payerName}</span></p>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <span className="text-sm font-black text-red-600 dark:text-red-400 tabular-nums">{fmt(myContrib.amount_owed)}</span>
+                      </div>
+                    );
+                  }).filter(Boolean);
+
+                  return items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6 italic">¡Estás al día! No debes nada.</p>
+                  ) : <div className="space-y-2">{items}</div>;
+                })()}
               </div>
             </div>
           ) : (
@@ -845,35 +873,37 @@ export default function SaldamosGroupDetail({
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`p-2 rounded-xl shrink-0 ${
                           isSettlement ? 'bg-emerald-100 text-emerald-600' : 
-                          showYellow ? 'bg-amber-100 text-amber-600' :
+                          showYellow ? 'bg-emerald-100 text-emerald-600' :
                           'bg-violet-100 text-violet-600'
                         }`}>
-                          {isSettlement ? <HandCoins className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+                          {isSettlement ? <HandCoins className="w-4 h-4" /> : <Receipt className={`w-4 h-4 ${showYellow ? 'animate-bounce' : ''}`} />}
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-sm font-bold truncate pr-2">
                             {ex.description || (isSettlement ? 'Pago/Ajuste' : 'Gasto sin descripción')}
                           </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
-                              {new Date(ex.expense_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
-                            </span>
+                          <div className="flex items-center gap-2 mt-0.5 whitespace-nowrap overflow-hidden">
+                            <div className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded-lg border border-border/50">
+                              <span className="text-[10px] text-foreground font-black uppercase tracking-tighter">
+                                {new Date(ex.expense_date).getDate()}
+                              </span>
+                              <span className="text-[8px] text-muted-foreground font-bold uppercase">
+                                {new Date(ex.expense_date).toLocaleDateString('es-CL', { month: 'short' }).replace('.', '')}
+                              </span>
+                            </div>
                             {!isSettlement && ex.category_id && (
-                              <>
-                                <span className="text-[10px] text-muted-foreground/30">•</span>
-                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
-                                  {categories.find(c => c.id === ex.category_id)?.name}
-                                </span>
-                              </>
-                            )}
-                            {showYellow && (
-                              <span className="flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-100 px-1.5 py-0.5 rounded-full animate-pulse">
-                                COBRO PENDIENTE
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight truncate opacity-70">
+                                {categories.find(c => c.id === ex.category_id)?.name}
                               </span>
                             )}
-                            {allSettled && !isSettlement && !isSettlement && (
-                              <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                                SALDADO
+                            {showYellow && (
+                              <span className="flex items-center gap-1 text-[9px] text-emerald-700 font-black bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                COBRO
+                              </span>
+                            )}
+                            {allSettled && !isSettlement && (
+                              <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                                ✓
                               </span>
                             )}
                           </div>

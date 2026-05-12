@@ -248,12 +248,15 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {frequentPeople.length === 0 ? (
-            <div className="flex items-center gap-3 py-2 px-1">
+            <button 
+              onClick={() => setManagePeopleOpen(true)}
+              className="flex items-center gap-3 py-2 px-1 text-left w-full hover:bg-violet-100/50 dark:hover:bg-violet-900/20 rounded-2xl transition-colors"
+            >
               <div className="w-10 h-10 rounded-2xl border-2 border-dashed border-violet-200 dark:border-violet-900/40 flex items-center justify-center text-violet-300">
                 <Plus className="w-5 h-5" />
               </div>
               <p className="text-xs text-muted-foreground italic">Agrega amigos para armar grupos en segundos.</p>
-            </div>
+            </button>
           ) : (
             <>
               {frequentPeople.map(p => (
@@ -455,13 +458,13 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   onClick={() => setGroupMode('tracker')}
                   className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
                     groupMode === 'tracker'
-                      ? 'border-violet-500 bg-violet-50'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
                       : 'border-transparent bg-muted/40 hover:bg-muted/70'
                   }`}
                 >
-                  <HandCoins className="w-4 h-4 text-violet-600" />
+                  <HandCoins className={`w-4 h-4 ${groupMode === 'tracker' ? 'text-emerald-600' : 'text-muted-foreground'}`} />
                   <div className="text-center">
-                    <p className="text-[10px] font-bold uppercase leading-none">Solo Cobros</p>
+                    <p className={`text-[10px] font-bold uppercase leading-none ${groupMode === 'tracker' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>Solo Cobros</p>
                     <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Lista de pagos sin deuda total.</p>
                   </div>
                 </button>
