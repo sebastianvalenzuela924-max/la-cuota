@@ -465,7 +465,7 @@ export default function SaldamosGroupDetail({
 
       toast.success(!currentStatus ? 'Marcado como pagado y balance actualizado' : 'Marcado como pendiente');
 
-      // 🎉 Confetti if the entire expense is now fully settled
+      // 🎉 Confetti whenever marking as paid
       if (!currentStatus) {
         const updatedContribs = expense.contributions.map((c: any) =>
           c.id === contribution.id ? { ...c, is_settled: true } : c
@@ -475,12 +475,13 @@ export default function SaldamosGroupDetail({
           .every((c: any) => c.is_settled);
 
         if (allNowSettled) {
-          confetti({
-            particleCount: 120,
-            spread: 80,
-            origin: { y: 0.6 },
-            colors: ['#7c3aed', '#4f46e5', '#10b981', '#f59e0b', '#ec4899'],
-          });
+          // Big burst — all debts in this expense are settled!
+          confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#7c3aed', '#4f46e5', '#10b981', '#f59e0b', '#ec4899'] });
+          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#7c3aed', '#10b981'] }), 200);
+          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#ec4899', '#f59e0b'] }), 350);
+        } else {
+          // Small burst — one payment marked
+          confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#7c3aed', '#10b981', '#f59e0b'] });
         }
       }
 
