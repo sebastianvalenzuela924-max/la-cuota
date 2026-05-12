@@ -141,19 +141,25 @@ export default function SaldamosGroupDetail({
       const { data: sess } = await saldamosSupabase.auth.getSession();
       const user = sess.session?.user;
       
-      let userName = user?.email || 'Sistema/Anónimo';
+      let userName = user?.email || 'Sistema';
       if (!user && myMemberId) {
         const m = members.find(mem => mem.id === myMemberId);
         if (m) userName = m.name;
       }
 
-      await saldamosSupabase.from('group_activity' as any).insert({
+      const { error } = await saldamosSupabase.from('group_activity' as any).insert({
         group_id: groupId,
         user_id: user?.id || null,
         user_name: userName,
         action,
         details
       });
+      
+      if (error) {
+        console.error('Error inserting activity log:', error);
+      } else if (activeTab === 'actividad') {
+        loadActivities();
+      }
     } catch (err) {
       console.error('Error logging activity:', err);
     }
@@ -196,7 +202,7 @@ export default function SaldamosGroupDetail({
     setSavingMember(false);
     if (error) { toast.error(error.message); return; }
     toast.success(`${memberName.trim()} agregado`);
-    logActivity('MEMBER_ADDED', { name: memberName.trim() });
+    await logActivity('MEMBER_ADDED', { name: memberName.trim() });
     setMemberName('');
     setMemberOpen(false);
     load();
@@ -303,7 +309,7 @@ export default function SaldamosGroupDetail({
     if (cErr) { toast.error(cErr.message); return; }
 
     toast.success('✅ Consumos importados desde La Cuota');
-    logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
+    await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
     setImportOpen(false);
     setImportText('');
     setImportParsed(null);
@@ -330,7 +336,7 @@ export default function SaldamosGroupDetail({
     ]);
     setSavingPayment(false);
     toast.success(`Pago de ${fmt(amount)} registrado`);
-    logActivity('PAYMENT_REGISTERED', { from: fromName, to: toName, amount });
+    await logActivity('PAYMENT_REGISTERED', { from: fromName, to: toName, amount });
     setPayFrom(''); setPayTo(''); setPayAmount('');
     load();
   };
@@ -345,7 +351,7 @@ export default function SaldamosGroupDetail({
       toast.error(error.message);
     } else {
       toast.success('Gasto eliminado');
-      logActivity('EXPENSE_DELETED', { 
+      await logActivity('EXPENSE_DELETED', { 
         id, 
         description: expenseToDelete?.description || 'Gasto sin nombre',
         amount: expenseToDelete?.total_amount
@@ -921,8 +927,8 @@ export default function SaldamosGroupDetail({
         categories={categories} 
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
-        onSaved={(expense) => {
-          logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
+        onSaved={async (expense) => {
+          await logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
             id: expense.id, 
             description: expense.description,
             amount: expense.total_amount 
