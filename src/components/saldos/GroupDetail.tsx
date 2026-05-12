@@ -95,6 +95,7 @@ export default function SaldamosGroupDetail({
   const [showConverter, setShowConverter] = useState(false);
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
+  const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
   const load = async () => {
@@ -448,6 +449,23 @@ export default function SaldamosGroupDetail({
     if (!confirm('¿Seguro quieres borrar este gasto?')) return;
     
     const expenseToDelete = expenses.find(e => e.id === id);
+    
+    // Check if it's an auto-generated reconciliation and unsettle original contribution
+    if (expenseToDelete?.is_settlement && expenseToDelete.description.startsWith('Reconciliación: ')) {
+      const match = expenseToDelete.description.match(/Reconciliación: .*? → .*? \((.*)\)/);
+      if (match && match[1]) {
+        const originalDesc = match[1];
+        const originalExp = expenses.find(e => e.description === originalDesc && !e.is_settlement);
+        if (originalExp) {
+           const amount = expenseToDelete.total_amount;
+           const contrib = originalExp.contributions.find((c: any) => c.amount_owed === amount && c.is_settled);
+           if (contrib) {
+             await saldamosSupabase.from('expense_contributions').update({ is_settled: false }).eq('id', contrib.id);
+           }
+        }
+      }
+    }
+
     const { error } = await saldamosSupabase.from('expenses').delete().eq('id', id);
     
     if (error) {
@@ -489,62 +507,87 @@ export default function SaldamosGroupDetail({
 
   const toggleSettlement = async (contribution: any, currentStatus: boolean, expense: any) => {
     const contributionId = contribution.id;
-    const { error } = await saldamosSupabase
-      .from('expense_contributions')
-      .update({ is_settled: !currentStatus })
-      .eq('id', contributionId);
+    if (processingSettlements.has(contributionId)) return;
     
-    if (error) {
-      toast.error(error.message);
-    } else {
-      // If marking as paid, register a REAL settlement to update global balance
-      if (!currentStatus) {
-        const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
-        const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
-        const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
-        const payerId = payerContrib?.member_id || myMemberId;
+    setProcessingSettlements(prev => new Set(prev).add(contributionId));
+    
+    try {
+      const { error } = await saldamosSupabase
+        .from('expense_contributions')
+        .update({ is_settled: !currentStatus })
+        .eq('id', contributionId);
+      
+      if (error) {
+        toast.error(error.message);
+      } else {
+        // If marking as paid, register a REAL settlement to update global balance
+        if (!currentStatus) {
+          const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
+          const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
+          const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
+          const payerId = payerContrib?.member_id || myMemberId;
 
-        const { data: exp, error: expErr } = await saldamosSupabase
-          .from('expenses')
-          .insert({ 
-            group_id: groupId, 
-            description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
-            total_amount: contribution.amount_owed, 
-            is_settlement: true 
-          })
-          .select('id').single();
-        
-        if (!expErr && exp) {
-          await saldamosSupabase.from('expense_contributions').insert([
-            { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
-            { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
-          ]);
-        }
-      }
+          const { data: exp, error: expErr } = await saldamosSupabase
+            .from('expenses')
+            .insert({ 
+              group_id: groupId, 
+              description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
+              total_amount: contribution.amount_owed, 
+              is_settlement: true 
+            })
+            .select('id').single();
+          
+          if (!expErr && exp) {
+            await saldamosSupabase.from('expense_contributions').insert([
+              { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
+              { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
+            ]);
+          }
 
-      toast.success(!currentStatus ? 'Marcado como pagado y balance actualizado' : 'Marcado como pendiente');
+          toast.success('Marcado como pagado y balance actualizado');
 
-      // 🎉 Confetti whenever marking as paid
-      if (!currentStatus) {
-        const updatedContribs = expense.contributions.map((c: any) =>
-          c.id === contribution.id ? { ...c, is_settled: true } : c
-        );
-        const allNowSettled = updatedContribs
-          .filter((c: any) => c.amount_owed > 0)
-          .every((c: any) => c.is_settled);
+          // 🎉 Confetti whenever marking as paid
+          const updatedContribs = expense.contributions.map((c: any) =>
+            c.id === contribution.id ? { ...c, is_settled: true } : c
+          );
+          const allNowSettled = updatedContribs
+            .filter((c: any) => c.amount_owed > 0)
+            .every((c: any) => c.is_settled);
 
-        if (allNowSettled) {
-          // Big burst — all debts in this expense are settled!
-          confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#2563eb', '#1d4ed8', '#10b981', '#f59e0b', '#3b82f6'] });
-          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#2563eb', '#10b981'] }), 200);
-          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#1d4ed8', '#f59e0b'] }), 350);
+          if (allNowSettled) {
+            // Big burst — all debts in this expense are settled!
+            confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#2563eb', '#1d4ed8', '#10b981', '#f59e0b', '#3b82f6'] });
+            setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#2563eb', '#10b981'] }), 200);
+            setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#1d4ed8', '#f59e0b'] }), 350);
+          } else {
+            // Small burst — one payment marked
+            confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#2563eb', '#10b981', '#f59e0b'] });
+          }
         } else {
-          // Small burst — one payment marked
-          confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#2563eb', '#10b981', '#f59e0b'] });
+          // Un-toggling: delete the auto-generated settlement
+          const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
+          const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
+          const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
+          const desc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
+          
+          await saldamosSupabase
+            .from('expenses')
+            .delete()
+            .eq('group_id', groupId)
+            .eq('is_settlement', true)
+            .eq('description', desc);
+            
+          toast.success('Marcado como pendiente');
         }
-      }
 
-      load();
+        load();
+      }
+    } finally {
+      setProcessingSettlements(prev => {
+        const next = new Set(prev);
+        next.delete(contributionId);
+        return next;
+      });
     }
   };
 
@@ -602,14 +645,6 @@ export default function SaldamosGroupDetail({
           <ArrowLeft className="w-4 h-4 stroke-[3px]" /> Volver
         </button>
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {/* Add Expense — primary */}
-          <Button
-            size="sm"
-            className="rounded-xl h-8 px-3 text-[11px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0"
-            onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-          >
-            <Plus className="w-3.5 h-3.5" /> Gasto
-          </Button>
           {/* Import — secondary, small */}
           <Button
             size="sm"
@@ -654,7 +689,14 @@ export default function SaldamosGroupDetail({
             <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
               <Users className="w-3 h-3" /> {members?.length || 0} Miembros
             </span>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                className="rounded-xl h-7 px-3 text-[10px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0"
+                onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Gasto
+              </Button>
               <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
                 <SelectTrigger className="h-7 text-[10px] rounded-lg bg-blue-50 border-blue-100 text-blue-700 font-bold px-2 gap-1.5 min-w-[100px]">
                   <User className="w-3 h-3" />
@@ -723,10 +765,11 @@ export default function SaldamosGroupDetail({
                                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{fmt(c.amount_owed)}</span>
                                 <Button 
                                   size="sm" 
+                                  disabled={processingSettlements.has(c.id)}
                                   className="h-6 px-2 rounded-lg text-[9px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
                                   onClick={() => toggleSettlement(c, false, ex)}
                                 >
-                                  ¿PAGÓ?
+                                  {processingSettlements.has(c.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : '¿PAGÓ?'}
                                 </Button>
                               </div>
                             </div>
@@ -753,6 +796,8 @@ export default function SaldamosGroupDetail({
                     if (!myContrib || myContrib.is_settled || myContrib.amount_owed === 0) return null;
                     
                     const payer = ex.contributions.find(c => c.amount_paid > 0);
+                    if (payer?.member_id === myMemberId) return null; // Avoid owing yourself
+
                     const payerName = members.find(m => m.id === payer?.member_id)?.name || 'alguien';
 
                     return (
@@ -966,17 +1011,44 @@ export default function SaldamosGroupDetail({
                             {formatMoney(ex.total_amount, group?.currency)}
                           </p>
                           {myContrib && !isSettlement && (() => {
-                            const net = (myContrib.amount_paid || 0) - (myContrib.amount_owed || 0);
-                            if (net > 0.01) return (
-                              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
-                                +{formatMoney(net, group?.currency)} te deben
-                              </p>
-                            );
-                            if (net < -0.01) return (
-                              <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">
-                                {formatMoney(Math.abs(net), group?.currency)} debes
-                              </p>
-                            );
+                            const originalNet = (myContrib.amount_paid || 0) - (myContrib.amount_owed || 0);
+                            
+                            if (originalNet > 0.01) {
+                              // If I am the payer, calculate how much is still owed to me dynamically
+                              const remainingToCollect = ex.contributions
+                                .filter((c: any) => !c.is_settled && c.member_id !== myMemberId)
+                                .reduce((sum: number, c: any) => sum + (c.amount_owed || 0), 0);
+
+                              if (remainingToCollect > 0.01) {
+                                return (
+                                  <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                    +{formatMoney(remainingToCollect, group?.currency)} te deben
+                                  </p>
+                                );
+                              } else {
+                                return (
+                                  <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
+                                    ✓ saldado
+                                  </p>
+                                );
+                              }
+                            }
+                            
+                            if (originalNet < -0.01) {
+                              if (myContrib.is_settled) {
+                                return (
+                                  <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
+                                    ✓ saldado
+                                  </p>
+                                );
+                              }
+                              return (
+                                <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">
+                                  {formatMoney(Math.abs(originalNet), group?.currency)} debes
+                                </p>
+                              );
+                            }
+                            
                             return (
                               <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
                                 ✓ saldado
@@ -1024,6 +1096,7 @@ export default function SaldamosGroupDetail({
                                     {owesMe && (
                                       <Button
                                         size="sm"
+                                        disabled={processingSettlements.has(c.id)}
                                         variant={c.is_settled ? "ghost" : "outline"}
                                         className={`h-7 px-2 rounded-lg text-[10px] font-bold ${
                                           c.is_settled 
@@ -1032,7 +1105,7 @@ export default function SaldamosGroupDetail({
                                         }`}
                                         onClick={(e) => { e.stopPropagation(); toggleSettlement(c, c.is_settled, ex); }}
                                       >
-                                        {c.is_settled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
+                                        {processingSettlements.has(c.id) ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : (c.is_settled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null)}
                                         {c.is_settled ? 'PAGADO' : 'MARCAR PAGO'}
                                       </Button>
                                     )}
