@@ -13,12 +13,42 @@ interface Props {
 
 export default function PeopleSection({ people, onAdd, onRemove }: Props) {
   const [name, setName] = useState('');
+  const [frequentPeople] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('saldamos_frequent_people');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [peopleGroups] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('saldamos_people_groups');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
-  const handleAdd = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onAdd({ id: generateId(), name: trimmed, colorIndex: people.length % PERSON_COLORS.length });
-    setName('');
+  const handleAdd = (manualName?: string) => {
+    const finalName = (manualName || name).trim();
+    if (!finalName) return;
+    // Evitar duplicados por nombre
+    if (people.some(p => p.name.toLowerCase() === finalName.toLowerCase())) {
+      toast.error(`${finalName} ya está en la lista`);
+      return;
+    }
+    onAdd({ id: generateId(), name: finalName, colorIndex: people.length % PERSON_COLORS.length });
+    if (!manualName) setName('');
+  };
+
+  const addWholeGroup = (gn: string) => {
+    const members = peopleGroups[gn] || [];
+    let addedCount = 0;
+    members.forEach(m => {
+      if (!people.some(p => p.name.toLowerCase() === m.toLowerCase())) {
+        onAdd({ id: generateId(), name: m, colorIndex: (people.length + addedCount) % PERSON_COLORS.length });
+        addedCount++;
+      }
+    });
+    if (addedCount > 0) toast.success(`Se agregaron ${addedCount} personas de ${gn}`);
   };
 
   return (
@@ -29,6 +59,80 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
         </div>
         <h2 className="font-bold text-foreground">Personas</h2>
       </div>
+
+      {frequentPeople.length > 0 && (
+        <div className="mb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Tus Grupos</span>
+            <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[200px] pb-1">
+              {Object.keys(peopleGroups).map(gn => (
+                <button
+                  key={gn}
+                  onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
+                  className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                    activeGroup === gn 
+                      ? 'bg-emerald-600 border-emerald-600 text-white' 
+                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                  }`}
+                >
+                  {gn}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 p-3 rounded-2xl bg-muted/30 border border-dashed border-border/50">
+            {activeGroup ? (
+              <>
+                <button 
+                  onClick={() => addWholeGroup(activeGroup)}
+                  className="px-2 py-1 rounded-lg bg-emerald-500 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
+                >
+                  + Agregar Todo el Grupo {activeGroup}
+                </button>
+                {(peopleGroups[activeGroup] || []).map(p => {
+                  const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
+                  return (
+                    <button
+                      key={p}
+                      disabled={isAdded}
+                      onClick={() => handleAdd(p)}
+                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                        isAdded 
+                          ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
+                          : 'bg-background border-violet-200 text-violet-600 hover:border-violet-400'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+              </>
+            ) : (
+              frequentPeople.slice(0, 8).map(p => {
+                const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
+                return (
+                  <button
+                    key={p}
+                    disabled={isAdded}
+                    onClick={() => handleAdd(p)}
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                      isAdded 
+                        ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
+                        : 'bg-background border-violet-100 text-violet-600 hover:border-violet-300'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })
+            )}
+            {!activeGroup && frequentPeople.length > 8 && (
+              <span className="text-[10px] text-muted-foreground self-center italic px-1">...y {frequentPeople.length - 8} más</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4">
         <Input

@@ -70,6 +70,11 @@ export function ExpenseDialog({
     const saved = localStorage.getItem('saldamos_frequent_people');
     return saved ? JSON.parse(saved) : [];
   });
+  const [peopleGroups] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('saldamos_people_groups');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
 
   const eligible = useMemo(() => {
@@ -527,38 +532,71 @@ export function ExpenseDialog({
           {frequentPeople.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Tus Amigos (Toca para añadir)</Label>
-                <span className="text-[9px] text-violet-500 font-bold uppercase">Equipo</span>
-              </div>
-              <div className="flex flex-wrap gap-2 overflow-x-auto no-scrollbar pb-1">
-                {frequentPeople.map(p => {
-                  const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
-                  const isAlreadyIn = !!member;
-                  const isSelected = member ? selected.has(member.id) : false;
-                  
-                  return (
+                <Label className="text-[10px] font-black text-violet-600 uppercase tracking-widest px-1">Tus Amigos</Label>
+                {Object.keys(peopleGroups).length > 0 && (
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[200px]">
                     <button
-                      key={p}
                       type="button"
-                      disabled={addingFrequent === p}
-                      onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
-                        isSelected 
-                          ? 'bg-violet-600 border-violet-600 text-white shadow-md' 
-                          : isAlreadyIn
-                            ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
-                            : 'bg-white dark:bg-card border-violet-100 dark:border-violet-900 text-foreground hover:border-violet-300'
+                      onClick={() => setActiveGroupFilter(null)}
+                      className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                        activeGroupFilter === null 
+                          ? 'bg-violet-600 border-violet-600 text-white' 
+                          : 'bg-muted/50 border-transparent text-muted-foreground'
                       }`}
                     >
-                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-600'
-                      }`}>
-                        {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
-                      </div>
-                      {p}
+                      Todos
                     </button>
-                  );
-                })}
+                    {Object.keys(peopleGroups).map(gn => (
+                      <button
+                        key={gn}
+                        type="button"
+                        onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                          activeGroupFilter === gn 
+                            ? 'bg-emerald-600 border-emerald-600 text-white' 
+                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                        }`}
+                      >
+                        {gn}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 py-1">
+                {frequentPeople
+                  .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
+                  .map(p => {
+                    const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
+                    const isAlreadyIn = !!member;
+                    const isSelected = member ? selected.has(member.id) : false;
+                    
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        disabled={addingFrequent === p}
+                        onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
+                          isSelected 
+                            ? 'bg-violet-600 border-violet-600 text-white shadow-md' 
+                            : isAlreadyIn
+                              ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
+                              : 'bg-white dark:bg-card border-violet-100 dark:border-violet-900 text-foreground hover:border-violet-300'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-600'
+                        }`}>
+                          {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
+                        </div>
+                        {p}
+                      </button>
+                    );
+                  })}
+                {activeGroupFilter && frequentPeople.filter(p => (peopleGroups[activeGroupFilter] || []).includes(p)).length === 0 && (
+                  <p className="text-[10px] text-muted-foreground italic px-2">No hay personas en este grupo.</p>
+                )}
               </div>
             </div>
           )}
