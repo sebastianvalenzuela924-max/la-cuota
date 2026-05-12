@@ -698,7 +698,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               disabled={creating || !name.trim()}
               className="rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white"
             >
-              {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedTemplate?.emoji + ' ')}
+              {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedTemplate ? selectedTemplate.emoji + ' ' : '')}
               Crear grupo
             </Button>
           </DialogFooter>
