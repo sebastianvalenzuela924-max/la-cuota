@@ -551,9 +551,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 </button>
               </div>
             </div>
-          </div>
 
-          <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setCreateOpen(false)} className="rounded-xl">Cancelar</Button>
             <Button
               onClick={create}
