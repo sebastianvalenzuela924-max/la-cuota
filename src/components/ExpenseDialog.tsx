@@ -526,8 +526,11 @@ export function ExpenseDialog({
 
           {frequentPeople.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Añadir de Mis Personas</Label>
-              <div className="flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Tus Amigos (Toca para añadir)</Label>
+                <span className="text-[9px] text-violet-500 font-bold uppercase">Equipo</span>
+              </div>
+              <div className="flex flex-wrap gap-2 overflow-x-auto no-scrollbar pb-1">
                 {frequentPeople.map(p => {
                   const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
                   const isAlreadyIn = !!member;
@@ -539,15 +542,19 @@ export function ExpenseDialog({
                       type="button"
                       disabled={addingFrequent === p}
                       onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
                         isSelected 
-                          ? 'bg-violet-600 border-violet-600 text-white' 
+                          ? 'bg-violet-600 border-violet-600 text-white shadow-md' 
                           : isAlreadyIn
-                            ? 'bg-violet-500/10 border-violet-500/20 text-violet-600'
-                            : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
+                            ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
+                            : 'bg-white dark:bg-card border-violet-100 dark:border-violet-900 text-foreground hover:border-violet-300'
                       }`}
                     >
-                      {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓ ' : '+ ')}
+                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-600'
+                      }`}>
+                        {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
+                      </div>
                       {p}
                     </button>
                   );
