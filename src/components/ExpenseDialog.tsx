@@ -38,7 +38,7 @@ type Props = {
   currency: string;
   categories: Category[];
   existing: ExpenseWithCategory | null;
-  onSaved: () => void;
+  onSaved: (expense?: any) => void;
   onMembersChanged?: () => Promise<void> | void;
   onCategoriesChanged: () => Promise<void> | void;
   initialImportText?: string | null;
@@ -281,7 +281,11 @@ export function ExpenseDialog({
       return;
     }
     toast.success(existing ? "Gasto actualizado" : "Gasto guardado");
-    onSaved();
+    onSaved({
+      id: expenseId,
+      description: description.trim(),
+      total_amount: totalNum
+    });
     onOpenChange(false);
   };
 

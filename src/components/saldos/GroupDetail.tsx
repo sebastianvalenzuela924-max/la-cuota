@@ -140,10 +140,17 @@ export default function SaldamosGroupDetail({
     try {
       const { data: sess } = await saldamosSupabase.auth.getSession();
       const user = sess.session?.user;
+      
+      let userName = user?.email || 'Sistema/Anónimo';
+      if (!user && myMemberId) {
+        const m = members.find(mem => mem.id === myMemberId);
+        if (m) userName = m.name;
+      }
+
       await saldamosSupabase.from('group_activity' as any).insert({
         group_id: groupId,
         user_id: user?.id || null,
-        user_name: user?.email || 'Sistema/Anónimo',
+        user_name: userName,
         action,
         details
       });
@@ -330,11 +337,19 @@ export default function SaldamosGroupDetail({
 
   const deleteExpense = async (id: string) => {
     if (!confirm('¿Seguro quieres borrar este gasto?')) return;
+    
+    const expenseToDelete = expenses.find(e => e.id === id);
     const { error } = await saldamosSupabase.from('expenses').delete().eq('id', id);
-    if (error) toast.error(error.message);
-    else {
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
       toast.success('Gasto eliminado');
-      logActivity('EXPENSE_DELETED', { id });
+      logActivity('EXPENSE_DELETED', { 
+        id, 
+        description: expenseToDelete?.description || 'Gasto sin nombre',
+        amount: expenseToDelete?.total_amount
+      });
       load();
     }
   };
@@ -879,15 +894,15 @@ export default function SaldamosGroupDetail({
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground">
                       <span className="font-bold">{a.user_name.split('@')[0]}</span>{' '}
-                      {a.action === 'EXPENSE_ADDED' && 'añadió un gasto'}
-                      {a.action === 'EXPENSE_UPDATED' && 'editó un gasto'}
-                      {a.action === 'EXPENSE_DELETED' && 'eliminó un gasto'}
+                      {a.action === 'EXPENSE_ADDED' && `añadió el gasto "${a.details?.description || 'sin nombre'}"`}
+                      {a.action === 'EXPENSE_UPDATED' && `editó el gasto "${a.details?.description || 'sin nombre'}"`}
+                      {a.action === 'EXPENSE_DELETED' && `eliminó el gasto "${a.details?.description || 'sin nombre'}"`}
                       {a.action === 'MEMBER_ADDED' && `agregó a ${a.details?.name || 'alguien'}`}
                       {a.action === 'PAYMENT_REGISTERED' && `registró un pago de ${a.details?.from} a ${a.details?.to}`}
-                      {a.action === 'EXPENSE_IMPORTED' && `importó ${a.details?.count} consumos`}
+                      {a.action === 'EXPENSE_IMPORTED' && `importó ${a.details?.count} consumos por ${formatMoney(a.details?.total || 0, currency)}`}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(a.created_at).toLocaleString()}
+                      {new Date(a.created_at).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>
@@ -906,8 +921,12 @@ export default function SaldamosGroupDetail({
         categories={categories} 
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
-        onSaved={() => {
-          logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { description: 'Gasto guardado/actualizado' });
+        onSaved={(expense) => {
+          logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
+            id: expense.id, 
+            description: expense.description,
+            amount: expense.total_amount 
+          });
           load();
         }} 
         onCategoriesChanged={load} 
