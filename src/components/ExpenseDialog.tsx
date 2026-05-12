@@ -363,7 +363,9 @@ export function ExpenseDialog({
           disableForReducedMotion: true
         });
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error("Confetti error", e);
+    }
 
     onSaved({
       id: expenseId,
@@ -600,29 +602,33 @@ export function ExpenseDialog({
             </div>
           )}
 
-          {/* NEW: People Selection Section (Always visible) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Seleccionar Personas</Label>
-              <div className="flex bg-muted p-0.5 rounded-lg">
+          {/* NEW: People Selection Section */}
+          <div className="space-y-3 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between px-1">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Users className="w-3 h-3" /> Participantes
+              </Label>
+              <div className="flex bg-muted/60 p-1 rounded-xl shadow-inner border border-border/50">
                 <button 
+                  type="button"
                   onClick={() => setPeopleFilterTab('group')}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${peopleFilterTab === 'group' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
+                  className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'group' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   En el Grupo
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setPeopleFilterTab('friends')}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${peopleFilterTab === 'friends' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
+                  className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'friends' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Mis Amigos
                 </button>
               </div>
             </div>
 
-            <div className="p-3 bg-blue-500/5 rounded-2xl border border-blue-500/10 space-y-3">
+            <div className="bg-slate-50/50 dark:bg-background/20 rounded-2xl border p-3 shadow-inner">
               {peopleFilterTab === 'group' ? (
-                <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar py-1">
+                <div className="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto no-scrollbar pr-1">
                   {allAvailableMembers.map(m => {
                     const isSel = selected.has(m.id);
                     return (
@@ -630,13 +636,13 @@ export function ExpenseDialog({
                         key={m.id}
                         type="button"
                         onClick={() => toggle(m.id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border shrink-0 ${
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
                           isSel 
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
-                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20' 
+                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-slate-700 dark:text-slate-300 hover:border-blue-300'
                         }`}
                       >
-                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
                           isSel ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
                         }`}>
                           {isSel ? '✓' : m.name.charAt(0).toUpperCase()}
@@ -649,14 +655,14 @@ export function ExpenseDialog({
               ) : (
                 <div className="space-y-3">
                   {Object.keys(peopleGroups).length > 0 && (
-                    <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                       <button
                         type="button"
                         onClick={() => setActiveGroupFilter(null)}
-                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all whitespace-nowrap shadow-sm border ${
                           activeGroupFilter === null 
-                            ? 'bg-blue-600 border-blue-600 text-white' 
-                            : 'bg-muted/50 border-transparent text-muted-foreground'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
+                            : 'bg-white dark:bg-card border-border text-muted-foreground hover:bg-muted/50'
                         }`}
                       >
                         Todos
@@ -666,10 +672,10 @@ export function ExpenseDialog({
                           key={gn}
                           type="button"
                           onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
-                          className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all whitespace-nowrap shadow-sm border ${
                             activeGroupFilter === gn 
-                              ? 'bg-blue-600 border-blue-600 text-white' 
-                              : 'bg-blue-50 border-blue-100 text-blue-600'
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
+                              : 'bg-blue-50/80 border-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800'
                           }`}
                         >
                           {gn}
@@ -678,7 +684,7 @@ export function ExpenseDialog({
                     </div>
                   )}
                   
-                  <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar py-1">
+                  <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto no-scrollbar pr-1">
                     {frequentPeople
                       .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
                       .map(p => {
@@ -692,20 +698,24 @@ export function ExpenseDialog({
                             type="button"
                             disabled={addingFrequent === p}
                             onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border shrink-0 ${
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border text-left truncate ${
                               isSelected 
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20' 
                                 : isAlreadyIn
-                                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 hover:bg-blue-500/20'
-                                  : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                                  ? 'bg-blue-50/50 border-blue-200 text-blue-700 hover:bg-blue-50'
+                                  : 'bg-white dark:bg-card border-slate-200 text-slate-700 hover:border-blue-300'
                             }`}
                           >
-                            <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
-                              isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
+                            <div className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-[10px] font-black ${
+                              isSelected 
+                                ? 'bg-white/20 text-white' 
+                                : isAlreadyIn
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-slate-100 text-slate-400'
                             }`}>
-                              {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
+                              {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : (isAlreadyIn ? p.charAt(0).toUpperCase() : '+'))}
                             </div>
-                            {p}
+                            <span className="truncate">{p}</span>
                           </button>
                         );
                       })}
