@@ -152,10 +152,18 @@ export function ExpenseDialog({
       setTotal("");
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
+      const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
       const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
-      setTrackPayments(isFootball);
+      
+      setTrackPayments(groupMode === 'tracker' || isFootball);
       setPersonalPayer("");
-      setSelected(new Set(members.map((m) => m.id)));
+      
+      if (groupMode === 'tracker') {
+        setSelected(new Set());
+      } else {
+        setSelected(new Set(members.map((m) => m.id)));
+      }
+      
       const map: Record<string, string> = {};
       members.forEach((m) => (map[m.id] = ""));
       setContribs(map);
