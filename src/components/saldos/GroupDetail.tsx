@@ -118,17 +118,41 @@ export default function SaldamosGroupDetail({
     }
   };
 
+  const LOCAL_KEY = `saldamos_activity_${groupId}`;
+
   const loadActivities = async () => {
     try {
       setLoadingActivities(true);
-      const { data, error } = await saldamosSupabase
-        .from('group_activity' as any)
-        .select('*')
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      setActivities(data || []);
+      
+      // Always load from localStorage first (always works, no RLS issues)
+      let localLogs: any[] = [];
+      try {
+        const stored = localStorage.getItem(LOCAL_KEY);
+        if (stored) localLogs = JSON.parse(stored);
+      } catch { /* ignore parse errors */ }
+
+      // Try to also fetch from Supabase (may fail due to RLS)
+      let supabaseLogs: any[] = [];
+      try {
+        const { data } = await saldamosSupabase
+          .from('group_activity' as any)
+          .select('*')
+          .eq('group_id', groupId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (data) supabaseLogs = data;
+      } catch { /* ignore — RLS or network issue */ }
+
+      // Merge: deduplicate by id, prefer localStorage for freshness
+      const allById = new Map<string, any>();
+      supabaseLogs.forEach(a => allById.set(a.id, a));
+      localLogs.forEach(a => allById.set(a.id, a)); // local wins on conflict
+      
+      const merged = Array.from(allById.values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 50);
+      
+      setActivities(merged);
     } catch (err) {
       console.error('Error loading activities:', err);
     } finally {
@@ -141,25 +165,44 @@ export default function SaldamosGroupDetail({
       const { data: sess } = await saldamosSupabase.auth.getSession();
       const user = sess.session?.user;
       
-      let userName = user?.email || 'Sistema';
+      let userName = user?.email || 'Sin nombre';
       if (!user && myMemberId) {
         const m = members.find(mem => mem.id === myMemberId);
         if (m) userName = m.name;
       }
 
-      const { error } = await saldamosSupabase.from('group_activity' as any).insert({
+      const entry = {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        group_id: groupId,
+        user_id: user?.id || null,
+        user_name: userName,
+        action,
+        details,
+        created_at: new Date().toISOString(),
+      };
+
+      // Save to localStorage immediately (always works)
+      try {
+        const stored = localStorage.getItem(LOCAL_KEY);
+        const existing: any[] = stored ? JSON.parse(stored) : [];
+        existing.unshift(entry);
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(existing.slice(0, 100)));
+      } catch { /* ignore storage errors */ }
+
+      // Update UI immediately without waiting for network
+      setActivities(prev => [entry, ...prev].slice(0, 50));
+
+      // Also try to persist to Supabase (may silently fail due to RLS)
+      saldamosSupabase.from('group_activity' as any).insert({
         group_id: groupId,
         user_id: user?.id || null,
         user_name: userName,
         action,
         details
+      }).then(({ error }) => {
+        if (error) console.warn('Could not persist activity to Supabase (RLS?):', error.message);
       });
-      
-      if (error) {
-        console.error('Error inserting activity log:', error);
-      } else if (activeTab === 'actividad') {
-        loadActivities();
-      }
+
     } catch (err) {
       console.error('Error logging activity:', err);
     }
