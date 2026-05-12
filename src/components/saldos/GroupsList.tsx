@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles, Users, Scale, HandCoins } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
@@ -64,6 +64,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [currency, setCurrency] = useState('CLP');
   const [creating, setCreating] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [groupMode, setGroupMode] = useState<'balance' | 'tracker'>('balance');
   const [memberInputs, setMemberInputs] = useState<string[]>(['', '']);
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -154,6 +155,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     
     setCreating(false);
     toast.success(`Grupo "${name.trim()}" creado 🎉${validMembers.length > 0 ? ` con ${validMembers.length} persona${validMembers.length > 1 ? 's' : ''}` : ''}`);
+    localStorage.setItem(`group_mode_${(newGroup as any).id}`, groupMode);
     setCreateOpen(false);
     setName('');
     setSelectedTemplate(null);
@@ -279,6 +281,10 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
 
                 <div className="relative z-10 p-4 flex flex-col gap-2 min-h-[110px]" onClick={() => {
                   localStorage.setItem(`group_emoji_${g.id}`, emoji);
+                  // Default to balance if not set
+                  if (!localStorage.getItem(`group_mode_${g.id}`)) {
+                    localStorage.setItem(`group_mode_${g.id}`, 'balance');
+                  }
                   onSelectGroup(g.id);
                 }}>
                   {/* Top row: emoji + menu */}
@@ -396,6 +402,43 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 autoFocus
                 className="rounded-xl"
               />
+            </div>
+
+            {/* Mode Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Modo de grupo</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGroupMode('balance')}
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
+                    groupMode === 'balance'
+                      ? 'border-violet-500 bg-violet-50'
+                      : 'border-transparent bg-muted/40 hover:bg-muted/70'
+                  }`}
+                >
+                  <Scale className="w-4 h-4 text-violet-600" />
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold uppercase leading-none">Con Balance</p>
+                    <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Deudas acumuladas entre todos.</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupMode('tracker')}
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
+                    groupMode === 'tracker'
+                      ? 'border-violet-500 bg-violet-50'
+                      : 'border-transparent bg-muted/40 hover:bg-muted/70'
+                  }`}
+                >
+                  <HandCoins className="w-4 h-4 text-violet-600" />
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold uppercase leading-none">Solo Cobros</p>
+                    <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Lista de pagos sin deuda total.</p>
+                  </div>
+                </button>
+              </div>
             </div>
 
             {/* Currency */}

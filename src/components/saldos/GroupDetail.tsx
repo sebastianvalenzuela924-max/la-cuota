@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
-  MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy
+  MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy,
+  Clock, Scale
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -84,6 +85,7 @@ export default function SaldamosGroupDetail({
   });
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
+  const groupMode = localStorage.getItem(`group_mode_${groupId}`) || 'balance';
 
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
@@ -620,7 +622,7 @@ export default function SaldamosGroupDetail({
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
           <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
-            <LayoutDashboard className="w-3.5 h-3.5" /> Balances
+            <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
           </TabsTrigger>
           <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
@@ -634,42 +636,103 @@ export default function SaldamosGroupDetail({
         </TabsList>
 
         <TabsContent value="balances" className="space-y-4 pt-4">
-          {isFootball && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl shrink-0">⚽</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Modo Partido</p>
-                <p className="text-[10px] text-emerald-600/80 dark:text-emerald-500/60 leading-tight">Enfócate en quién ya pagó su cuota del partido.</p>
-              </div>
-            </div>
-          )}
-          <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-            {members.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
-            ) : currentBalances.map(b => (
-              <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <span className="text-sm font-medium">{b.name}</span>
-                <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                  {b.balance > 0.01 ? '+' : ''}{fmt(b.balance)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {currentSettlements.length > 0 && (
-            <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
-              <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quién paga a quién</h3>
-              {currentSettlements.map((s, i) => (
-                <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
-                  <div className="flex items-center gap-2 text-sm truncate mr-2">
-                    <span className="font-semibold text-red-500 truncate">{s.fromName}</span>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="font-semibold text-emerald-600 truncate">{s.toName}</span>
-                  </div>
-                  <span className="font-bold text-sm tabular-nums shrink-0">{fmt(s.amount)}</span>
+          {groupMode === 'tracker' ? (
+            <div className="space-y-4">
+              <div className="bg-violet-500/10 border border-violet-500/20 p-3 rounded-2xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center text-xl shrink-0">📋</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-violet-700 dark:text-violet-400">Modo Cobros</p>
+                  <p className="text-[10px] text-violet-600/80 dark:text-violet-500/60 leading-tight">Control individual de cada gasto sin balance total.</p>
                 </div>
-              ))}
+              </div>
+
+              {/* Pending collections in tracker mode */}
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Cobros Pendientes
+                </h3>
+                {expenses.filter(ex => ex.track_payments).flatMap(ex => 
+                  ex.contributions.filter(c => !c.is_settled && c.amount_owed > 0 && ex.contributions.some(pc => pc.member_id === myMemberId && pc.amount_paid > 0))
+                ).length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6 italic">No tienes cobros pendientes por ahora.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {expenses.filter(ex => ex.track_payments).map(ex => {
+                      const myContrib = ex.contributions.find(c => c.member_id === myMemberId);
+                      const iPaid = myContrib && myContrib.amount_paid > 0;
+                      if (!iPaid) return null;
+                      
+                      const pending = ex.contributions.filter(c => !c.is_settled && c.amount_owed > 0 && c.member_id !== myMemberId);
+                      if (pending.length === 0) return null;
+
+                      return (
+                        <div key={ex.id} className="space-y-2 pb-2 border-b border-border/50 last:border-0 last:pb-0">
+                          <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
+                          {pending.map(c => {
+                            const m = members.find(mem => mem.id === c.member_id);
+                            return (
+                              <div key={c.id} className="flex items-center justify-between bg-muted/30 p-2 rounded-xl">
+                                <span className="text-xs font-medium">{m?.name || 'Desconocido'}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-red-500">{fmt(c.amount_owed)}</span>
+                                  <Button 
+                                    size="sm" 
+                                    className="h-6 px-2 rounded-lg text-[9px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                                    onClick={() => toggleSettlement(c, false, ex)}
+                                  >
+                                    ¿PAGÓ?
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
+          ) : (
+            <>
+              {isFootball && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl shrink-0">⚽</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Modo Partido</p>
+                    <p className="text-[10px] text-emerald-600/80 dark:text-emerald-500/60 leading-tight">Enfócate en quién ya pagó su cuota del partido.</p>
+                  </div>
+                </div>
+              )}
+              <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
+                {members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
+                ) : currentBalances.map(b => (
+                  <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                    <span className="text-sm font-medium">{b.name}</span>
+                    <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      {b.balance > 0.01 ? '+' : ''}{fmt(b.balance)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {currentSettlements.length > 0 && (
+                <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
+                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quién paga a quién</h3>
+                  {currentSettlements.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
+                      <div className="flex items-center gap-2 text-sm truncate mr-2">
+                        <span className="font-semibold text-red-500 truncate">{s.fromName}</span>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-semibold text-emerald-600 truncate">{s.toName}</span>
+                      </div>
+                      <span className="font-bold text-sm tabular-nums shrink-0">{fmt(s.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
