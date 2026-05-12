@@ -25,9 +25,9 @@ const CURRENCIES = ['CLP', 'ARS', 'USD', 'EUR', 'BRL', 'UYU', 'MXN', 'COP'];
 const TEMPLATES = [
   { emoji: '❤️',  label: 'Pareja',    name: 'Gastos de pareja',   gradient: 'from-pink-500 to-rose-600',     bg: 'bg-gradient-to-br from-pink-500 to-rose-600' },
   { emoji: '🏠',  label: 'Hogar',     name: 'Gastos del hogar',   gradient: 'from-amber-500 to-orange-600',  bg: 'bg-gradient-to-br from-amber-500 to-orange-600' },
-  { emoji: '⚽',  label: 'Fútbol',    name: 'Fútbol',             gradient: 'from-green-500 to-emerald-600', bg: 'bg-gradient-to-br from-green-500 to-emerald-600' },
-  { emoji: '✈️',  label: 'Viaje',     name: 'Viaje 2025',         gradient: 'from-sky-500 to-indigo-600',    bg: 'bg-gradient-to-br from-sky-500 to-indigo-600' },
-  { emoji: '🎉',  label: 'Evento',    name: 'Evento especial',    gradient: 'from-violet-500 to-purple-700', bg: 'bg-gradient-to-br from-violet-500 to-purple-700' },
+  { emoji: '⚽',  label: 'Fútbol',    name: 'Fútbol',             gradient: 'from-blue-500 to-indigo-600',   bg: 'bg-gradient-to-br from-blue-500 to-indigo-600' },
+  { emoji: '✈️',  label: 'Viaje',     name: 'Viaje 2025',         gradient: 'from-sky-500 to-blue-700',      bg: 'bg-gradient-to-br from-sky-500 to-blue-700' },
+  { emoji: '🎉',  label: 'Evento',    name: 'Evento especial',    gradient: 'from-blue-600 to-slate-800',    bg: 'bg-gradient-to-br from-blue-600 to-slate-800' },
   { emoji: '🍕',  label: 'Salidas',   name: 'Salidas y comidas',  gradient: 'from-orange-400 to-red-500',    bg: 'bg-gradient-to-br from-orange-400 to-red-500' },
   { emoji: '💼',  label: 'Trabajo',   name: 'Gastos del trabajo', gradient: 'from-slate-500 to-gray-700',    bg: 'bg-gradient-to-br from-slate-500 to-gray-700' },
   { emoji: '🎓',  label: 'Estudios',  name: 'Gastos compartidos', gradient: 'from-teal-500 to-cyan-600',     bg: 'bg-gradient-to-br from-teal-500 to-cyan-600' },
@@ -272,10 +272,10 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       </div>
 
       {/* Mis Personas - Rediseñado Premium */}
-      <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-3xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
+      <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-950/20 rounded-3xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-white shadow-lg shadow-violet-200 dark:shadow-none">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
               <Users className="w-4 h-4" />
             </div>
             <div>
@@ -287,7 +287,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
             size="sm" 
             variant="ghost" 
             onClick={() => setManagePeopleOpen(true)}
-            className="h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-600"
+            className="h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600"
           >
             Gestionar
           </Button>
@@ -297,9 +297,9 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
           {frequentPeople.length === 0 ? (
             <button 
               onClick={() => setManagePeopleOpen(true)}
-              className="flex items-center gap-3 py-2 px-1 text-left w-full hover:bg-violet-100/50 dark:hover:bg-violet-900/20 rounded-2xl transition-colors"
+              className="flex items-center gap-3 py-2 px-1 text-left w-full hover:bg-blue-100/50 dark:hover:bg-blue-900/20 rounded-2xl transition-colors"
             >
-              <div className="w-10 h-10 rounded-2xl border-2 border-dashed border-violet-200 dark:border-violet-900/40 flex items-center justify-center text-violet-300">
+              <div className="w-10 h-10 rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900/40 flex items-center justify-center text-blue-300">
                 <Plus className="w-5 h-5" />
               </div>
               <p className="text-xs text-muted-foreground italic">Agrega amigos para armar grupos en segundos.</p>
@@ -308,7 +308,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
             <>
               {frequentPeople.map(p => (
                 <div key={p} className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-card border border-violet-100 dark:border-violet-800 shadow-sm flex items-center justify-center text-lg font-black text-violet-600">
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-card border border-blue-100 dark:border-blue-800 shadow-sm flex items-center justify-center text-lg font-black text-blue-600">
                     {p.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-[10px] font-bold text-foreground max-w-[60px] truncate">{p}</span>
@@ -318,7 +318,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 onClick={() => setManagePeopleOpen(true)}
                 className="flex flex-col items-center gap-1.5 shrink-0"
               >
-                <div className="w-12 h-12 rounded-2xl border-2 border-dashed border-violet-200 dark:border-violet-800 flex items-center justify-center text-violet-400 hover:bg-violet-50 transition-colors">
+                <div className="w-12 h-12 rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 transition-colors">
                   <Plus className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold text-muted-foreground">Más</span>
@@ -331,11 +331,11 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
       ) : groups.length === 0 ? (
-        <div className="text-center py-12 rounded-2xl border border-dashed border-violet-200 bg-violet-50/30">
+        <div className="text-center py-12 rounded-2xl border border-dashed border-blue-200 bg-blue-50/30">
           <div className="text-5xl mb-3">👋</div>
           <p className="text-sm font-semibold text-foreground mb-1">¡Crea tu primer grupo!</p>
           <p className="text-xs text-muted-foreground mb-4">Viajes, pareja, amigos, hogar…<br/>Todo en un mismo lugar.</p>
-          <Button size="sm" className="rounded-xl bg-violet-600 text-white text-xs" onClick={() => setCreateOpen(true)}>
+          <Button size="sm" className="rounded-xl bg-blue-600 text-white text-xs" onClick={() => setCreateOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Crear grupo
           </Button>
         </div>
@@ -425,13 +425,13 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
 
           {/* Quick add card */}
           <div
-            className="rounded-2xl border-2 border-dashed border-violet-200 flex flex-col items-center justify-center gap-1.5 min-h-[110px] cursor-pointer hover:border-violet-400 hover:bg-violet-50/50 transition-all active:scale-[0.97]"
+            className="rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center gap-1.5 min-h-[110px] cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all active:scale-[0.97]"
             onClick={() => setCreateOpen(true)}
           >
-            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-              <Plus className="w-4 h-4 text-violet-600" />
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+              <Plus className="w-4 h-4 text-blue-600" />
             </div>
-            <p className="text-xs font-semibold text-violet-600">Nuevo grupo</p>
+            <p className="text-xs font-semibold text-blue-600">Nuevo grupo</p>
           </div>
         </div>
       )}
@@ -441,7 +441,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         <DialogContent className="rounded-2xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-violet-500" /> Nuevo grupo
+              <Sparkles className="w-4 h-4 text-blue-500" /> Nuevo grupo
             </DialogTitle>
             <DialogDescription>Elige una plantilla o crea uno personalizado.</DialogDescription>
           </DialogHeader>
@@ -505,13 +505,13 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   onClick={() => setGroupMode('tracker')}
                   className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
                     groupMode === 'tracker'
-                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
                       : 'border-transparent bg-muted/40 hover:bg-muted/70'
                   }`}
                 >
-                  <HandCoins className={`w-4 h-4 ${groupMode === 'tracker' ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                  <HandCoins className={`w-4 h-4 ${groupMode === 'tracker' ? 'text-blue-600' : 'text-muted-foreground'}`} />
                   <div className="text-center">
-                    <p className={`text-[10px] font-bold uppercase leading-none ${groupMode === 'tracker' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>Solo Cobros</p>
+                    <p className={`text-[10px] font-bold uppercase leading-none ${groupMode === 'tracker' ? 'text-blue-700 dark:text-blue-400' : ''}`}>Solo Cobros</p>
                     <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Lista de pagos sin deuda total.</p>
                   </div>
                 </button>
@@ -537,7 +537,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               {frequentPeople.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">Tus Amigos</p>
+                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Tus Amigos</p>
                     {Object.keys(peopleGroups).length > 0 && (
                       <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[150px]">
                         {Object.keys(peopleGroups).map(gn => (
@@ -561,7 +561,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                                 });
                               }
                             }}
-                            className="px-1.5 py-0.5 rounded-lg border border-violet-200 text-[8px] font-bold text-violet-600 bg-violet-50 whitespace-nowrap"
+                            className="px-1.5 py-0.5 rounded-lg border border-blue-200 text-[8px] font-bold text-blue-600 bg-blue-50 whitespace-nowrap"
                           >
                             + {gn}
                           </button>
@@ -579,11 +579,11 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                           onClick={() => togglePersonInGroup(p)}
                           className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-[11px] font-bold transition-all border ${
                             isSelected 
-                              ? 'bg-violet-600 border-violet-600 text-white shadow-md scale-95' 
-                              : 'bg-white dark:bg-card border-violet-100 dark:border-violet-900 text-foreground hover:border-violet-300'
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-95' 
+                              : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
                           }`}
                         >
-                          <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-600'}`}>
+                          <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>
                             {isSelected ? '✓' : p.charAt(0).toUpperCase()}
                           </div>
                           {p}
@@ -726,7 +726,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     placeholder="Nuevo grupo (ej: Fútbol)"
                     className="rounded-2xl h-12 border-muted"
                   />
-                  <Button onClick={addGroup} className="rounded-2xl h-12 w-12 p-0 bg-emerald-600 shrink-0">
+                  <Button onClick={addGroup} className="rounded-2xl h-12 w-12 p-0 bg-blue-600 shrink-0">
                     <Plus className="w-5 h-5 text-white" />
                   </Button>
                 </div>
@@ -739,10 +739,10 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   ) : (
                     Object.keys(peopleGroups).map(gn => (
                       <div key={gn} className="space-y-2">
-                        <div className="flex items-center justify-between bg-emerald-500/5 p-3 rounded-2xl border border-emerald-500/10">
+                        <div className="flex items-center justify-between bg-blue-500/5 p-3 rounded-2xl border border-blue-500/10">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-emerald-700">{gn}</span>
-                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-lg font-bold">
+                            <span className="text-sm font-black text-blue-700">{gn}</span>
+                            <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-lg font-bold">
                               {peopleGroups[gn].length}
                             </span>
                           </div>
@@ -750,7 +750,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                             <Button 
                               size="sm" 
                               variant="ghost" 
-                              className={`h-8 rounded-xl text-[10px] font-bold ${editingGroup === gn ? 'bg-emerald-100 text-emerald-700' : 'text-muted-foreground'}`}
+                              className={`h-8 rounded-xl text-[10px] font-bold ${editingGroup === gn ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}
                               onClick={() => setEditingGroup(editingGroup === gn ? null : gn)}
                             >
                               {editingGroup === gn ? 'Cerrar' : 'Editar'}
@@ -771,8 +771,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                                   onClick={() => togglePersonInGroupList(gn, p)}
                                   className={`flex items-center gap-2 p-2 rounded-xl text-[11px] font-bold transition-all ${
                                     inGroup 
-                                      ? 'bg-emerald-500 text-white shadow-sm' 
-                                      : 'bg-background text-muted-foreground hover:border-emerald-200 border border-transparent'
+                                      ? 'bg-blue-600 text-white shadow-sm' 
+                                      : 'bg-background text-muted-foreground hover:border-blue-200 border border-transparent'
                                   }`}
                                 >
                                   <div className={`w-4 h-4 rounded flex items-center justify-center ${inGroup ? 'bg-white/20' : 'bg-muted'}`}>

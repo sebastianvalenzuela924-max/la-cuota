@@ -568,8 +568,8 @@ export function ExpenseDialog({
                             onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
                             className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
                               activeGroupFilter === gn 
-                                ? 'bg-emerald-600 border-emerald-600 text-white' 
-                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                ? 'bg-blue-600 border-blue-600 text-white' 
+                                : 'bg-blue-50 border-blue-100 text-blue-600'
                             }`}
                           >
                             {gn}

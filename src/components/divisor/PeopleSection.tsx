@@ -86,8 +86,8 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
                       onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
                       className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
                         activeGroup === gn 
-                          ? 'bg-emerald-600 border-emerald-600 text-white' 
-                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                          ? 'bg-blue-600 border-blue-600 text-white' 
+                          : 'bg-blue-50 border-blue-100 text-blue-600'
                       }`}
                     >
                       {gn}
@@ -101,7 +101,7 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
                   <>
                     <button 
                       onClick={() => addWholeGroup(activeGroup)}
-                      className="px-2 py-1 rounded-lg bg-emerald-500 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
+                      className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
                     >
                       + Agregar Todo el Grupo {activeGroup}
                     </button>
