@@ -515,15 +515,49 @@ export default function SaldamosGroupDetail({
 
   return (
     <div className="space-y-6 animate-fade-in-up pb-10">
-      {/* Top Nav Bar - Adjusted top to account for main header */}
-      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-violet-600 transition-colors">
+      {/* Top Nav Bar */}
+      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40 gap-2">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-violet-600 transition-colors shrink-0">
           <ArrowLeft className="w-4 h-4 stroke-[3px]" /> Volver
         </button>
-        <Button size="sm" variant="default" className="rounded-xl h-9 px-3 text-xs gap-2 bg-violet-600 text-white shadow-sm hover:bg-violet-700" onClick={() => setMemberOpen(true)}>
-          <UserPlus className="w-4 h-4" />
-          <span className="hidden sm:inline">Agregar Persona</span>
-        </Button>
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {/* Add Expense — primary */}
+          <Button
+            size="sm"
+            className="rounded-xl h-8 px-3 text-[11px] gap-1.5 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-sm shrink-0"
+            onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+          >
+            <Plus className="w-3.5 h-3.5" /> Gasto
+          </Button>
+          {/* Import — secondary, small */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 border-violet-200 text-violet-600 hover:bg-violet-50 shrink-0"
+            onClick={handleImportClick}
+          >
+            <Sparkles className="w-3 h-3" /> Importar
+          </Button>
+          {/* Add member */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 shrink-0"
+            onClick={() => setMemberOpen(true)}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Persona</span>
+          </Button>
+          {/* Share */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="rounded-xl h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-violet-600"
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* Hero Section */}
@@ -553,72 +587,20 @@ export default function SaldamosGroupDetail({
             </div>
           </div>
         </div>
-
-        {/* Primary Actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="rounded-2xl h-14 text-sm font-bold gap-3 border-violet-100 bg-violet-50/30 hover:bg-violet-50 hover:border-violet-200 transition-all shadow-sm" 
-            onClick={handleImportClick}
-          >
-            <Sparkles className="w-5 h-5 text-violet-600" />
-            Importar
-          </Button>
-          <Button 
-            size="lg" 
-            className="rounded-2xl h-14 text-sm font-bold gap-3 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all active:scale-[0.98]" 
-            onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-          >
-            <Plus className="w-5 h-5" />
-            Añadir Gasto
-          </Button>
-        </div>
-        {/* Secondary actions row — compact, all in one line */}
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="flex-1 h-8 rounded-xl text-[10px] gap-1.5 text-muted-foreground hover:text-violet-600 border border-dashed border-border"
-            onClick={() => setShareOpen(true)}
-          >
-            <Share2 className="w-3 h-3" />
-            Compartir
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="flex-1 h-8 rounded-xl text-[10px] gap-1 border border-dashed border-border text-violet-600 hover:bg-violet-50"
-            onClick={toggleExpandAll}
-          >
-            {expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0 ? 'Contraer todo' : 'Expandir todo'}
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`flex-1 h-8 rounded-xl text-[10px] gap-1.5 border border-dashed ${
-              showConverter ? 'bg-violet-100 text-violet-700 border-violet-200' : 'text-muted-foreground border-border hover:text-violet-600'
-            }`}
-            onClick={() => setShowConverter(!showConverter)}
-          >
-            <HandCoins className="w-3 h-3" />
-            {showConverter ? 'Ocultar conv.' : 'Moneda'}
-          </Button>
-        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/50 p-1 h-11">
-          <TabsTrigger value="balances" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+        <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
+          <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
             <LayoutDashboard className="w-3.5 h-3.5" /> Balances
           </TabsTrigger>
-          <TabsTrigger value="historial" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+          <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
           </TabsTrigger>
-          <TabsTrigger value="mi-actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <User className="w-3.5 h-3.5" /> Mi Historial
+          <TabsTrigger value="mi-actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
+            <User className="w-3.5 h-3.5" /> Mi Hist.
           </TabsTrigger>
-          <TabsTrigger value="actividad" className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+          <TabsTrigger value="actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
             <Sparkles className="w-3.5 h-3.5" /> Actividad
           </TabsTrigger>
         </TabsList>

@@ -64,6 +64,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [currency, setCurrency] = useState('CLP');
   const [creating, setCreating] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [memberInputs, setMemberInputs] = useState<string[]>(['', '']);
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -94,15 +95,27 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     const { data: sess } = await saldamosSupabase.auth.getSession();
     const uid = sess.session?.user?.id;
     if (!uid) { setCreating(false); toast.error('Sesión expirada.'); return; }
-    const { error } = await saldamosSupabase
+    const { error, data: newGroup } = await saldamosSupabase
       .from('groups')
-      .insert({ name: name.trim(), currency, owner_id: uid });
+      .insert({ name: name.trim(), currency, owner_id: uid })
+      .select('id')
+      .single();
+    if (error || !newGroup) { setCreating(false); toast.error(error?.message ?? 'Error'); return; }
+    
+    // Add members
+    const validMembers = memberInputs.map(m => m.trim()).filter(Boolean);
+    if (validMembers.length > 0) {
+      await saldamosSupabase.from('group_members').insert(
+        validMembers.map(memberName => ({ group_id: (newGroup as any).id, name: memberName }))
+      );
+    }
+    
     setCreating(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Grupo "${name.trim()}" creado 🎉`);
+    toast.success(`Grupo "${name.trim()}" creado 🎉${validMembers.length > 0 ? ` con ${validMembers.length} persona${validMembers.length > 1 ? 's' : ''}` : ''}`);
     setCreateOpen(false);
     setName('');
     setSelectedTemplate(null);
+    setMemberInputs(['', '']);
     load();
   };
 
@@ -322,6 +335,51 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Members */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Personas del grupo <span className="font-normal text-muted-foreground/60">(opcional)</span>
+              </Label>
+              <div className="space-y-1.5">
+                {memberInputs.map((val, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <Input
+                      value={val}
+                      onChange={e => {
+                        const next = [...memberInputs];
+                        next[idx] = e.target.value;
+                        setMemberInputs(next);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setMemberInputs(prev => [...prev, '']);
+                        }
+                      }}
+                      placeholder={idx === 0 ? 'Nombre (ej: Juan)' : idx === 1 ? 'Nombre (ej: María)' : 'Otro nombre...'}
+                      className="rounded-xl text-sm flex-1"
+                    />
+                    {memberInputs.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setMemberInputs(prev => prev.filter((_, i) => i !== idx))}
+                        className="w-7 h-7 rounded-lg bg-muted/60 hover:bg-red-50 flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors shrink-0"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setMemberInputs(prev => [...prev, ''])}
+                  className="w-full h-7 rounded-xl border border-dashed border-border text-[11px] text-muted-foreground hover:text-violet-600 hover:border-violet-300 transition-colors flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Añadir otra persona
+                </button>
+              </div>
             </div>
           </div>
 
