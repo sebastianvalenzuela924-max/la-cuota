@@ -553,7 +553,7 @@ export function ExpenseDialog({
             </div>
           )}
 
-          {!isPersonal && (
+          {!isPersonal && groupMode !== 'tracker' && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
               <div className="flex items-start gap-2">
                 <HandCoins className="mt-0.5 h-4 w-4 text-amber-600" />
