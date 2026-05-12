@@ -21,9 +21,9 @@ export type SaldamosDatabase = {
         Relationships: [];
       };
       expense_contributions: {
-        Row: { id: string; expense_id: string; member_id: string; amount_paid: number; amount_owed: number; created_at: string };
-        Insert: { expense_id: string; member_id: string; amount_paid?: number; amount_owed?: number; created_at?: string };
-        Update: { amount_paid?: number; amount_owed?: number };
+        Row: { id: string; expense_id: string; member_id: string; amount_paid: number; amount_owed: number; is_settled: boolean; created_at: string };
+        Insert: { expense_id: string; member_id: string; amount_paid?: number; amount_owed?: number; is_settled?: boolean; created_at?: string };
+        Update: { amount_paid?: number; amount_owed?: number; is_settled?: boolean };
         Relationships: [];
       };
       group_collaborators: {

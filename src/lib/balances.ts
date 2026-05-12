@@ -9,7 +9,7 @@ export type ExpenseWithContribs = {
   created_at?: string;
   is_settlement: boolean;
   is_personal?: boolean;
-  contributions: { member_id: string; amount_paid: number; amount_owed: number }[];
+  contributions: { id?: string; member_id: string; amount_paid: number; amount_owed: number; is_settled?: boolean }[];
 };
 
 export type Balance = { memberId: string; name: string; balance: number };

@@ -93,7 +93,7 @@ export default function SaldamosGroupDetail({
       const [g, m, e, c] = await Promise.all([
         saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
         saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
-        saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(member_id, amount_paid, amount_owed)').eq('group_id', groupId).order('expense_date', { ascending: false }),
+        saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(id, member_id, amount_paid, amount_owed, is_settled)').eq('group_id', groupId).order('expense_date', { ascending: false }),
         saldamosSupabase.from('expense_categories' as any).select('id, name, is_default').eq('group_id', groupId),
       ]);
       
@@ -102,15 +102,14 @@ export default function SaldamosGroupDetail({
       
       setGroup(g.data ?? null);
       setMembers(m.data ?? []);
-      setExpenses((e.data ?? []).map((ex: any) => ({
-        ...ex,
-        contributions: (ex.expense_contributions ?? []).map((c: any) => ({
-          member_id: c.member_id,
-          amount_paid: Number(c.amount_paid || 0),
-          amount_owed: Number(c.amount_owed || 0),
-        })),
-      })));
-      setCategories(c.data ?? []);
+      if (e.data) {
+        const mappedExpenses = e.data.map((ex: any) => ({
+          ...ex,
+          contributions: ex.expense_contributions || []
+        }));
+        setExpenses(mappedExpenses);
+      }
+      if (c.data) setCategories(c.data);
     } catch (err: any) {
       console.error('Error loading group:', err);
       toast.error('Error al cargar datos: ' + (err.message || 'Error desconocido'));
@@ -352,6 +351,26 @@ export default function SaldamosGroupDetail({
       setExpandedExpenses(new Set());
     } else {
       setExpandedExpenses(new Set(filteredExpenses.map(ex => ex.id)));
+    }
+  };
+
+  const toggleSettlement = async (contributionId: string, currentStatus: boolean) => {
+    const { error } = await saldamosSupabase
+      .from('expense_contributions')
+      .update({ is_settled: !currentStatus })
+      .eq('id', contributionId);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(!currentStatus ? 'Marcado como pagado' : 'Marcado como pendiente');
+      // Update local state without full reload
+      setExpenses(prev => prev.map(ex => ({
+        ...ex,
+        contributions: ex.contributions?.map((c: any) => 
+          c.id === contributionId ? { ...c, is_settled: !currentStatus } : c
+        )
+      })));
     }
   };
 
@@ -614,93 +633,164 @@ export default function SaldamosGroupDetail({
           </div>
 
           <div className="space-y-2">
-            {filteredExpenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-10">No se encontraron gastos.</p> :
-              filteredExpenses.map(ex => (
-                <div key={ex.id} className="space-y-1">
-                  <div 
-                    className={`p-4 rounded-2xl border flex justify-between items-start transition-all cursor-pointer hover:border-violet-300 ${ex.is_settlement ? 'bg-emerald-50 border-emerald-100' : ex.is_personal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}
-                    onClick={() => toggleExpand(ex.id)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <p className="font-bold text-sm break-words leading-tight">{ex.description}</p>
-                        {ex.is_personal && <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold uppercase">Personal</span>}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">{new Date(ex.expense_date).toLocaleDateString()} · {ex.is_settlement ? 'Saldado' : (ex.contributions?.length || 0) + ' personas'}</p>
-                      
-                      {myMemberId && myMemberId !== 'none' && !ex.is_settlement && ex.contributions && (
-                        <div className="mt-1.5 flex gap-2">
-                          {(() => {
-                            const myC = ex.contributions.find((c: any) => c.member_id === myMemberId);
-                            if (!myC) return null;
-                            return (
-                              <div className="flex gap-2 text-[10px] font-bold px-2 py-0.5 bg-violet-50 text-violet-600 rounded-lg border border-violet-100">
-                                <span>Tú: {fmt(myC.amount_paid)} <span className="text-[8px] opacity-60 uppercase">Pagado</span></span>
-                                <span className="opacity-30">|</span>
-                                <span>{fmt(myC.amount_owed)} <span className="text-[8px] opacity-60 uppercase">Consumido</span></span>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="text-sm font-bold tabular-nums leading-none mb-0.5">{fmt(ex.total_amount)}</p>
-                        <p className="text-[9px] text-muted-foreground leading-none">{ex.is_settlement ? 'Pago' : 'Total'}</p>
-                      </div>
-                      <div className="flex items-center justify-center w-6">
-                        <ArrowRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedExpenses.has(ex.id) ? 'rotate-90' : ''}`} />
-                      </div>
-                    </div>
-                  </div>
+            {filteredExpenses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 italic">No se encontraron gastos.</p>
+            ) : (
+              filteredExpenses.map((ex) => {
+                const isExpanded = expandedExpenses.has(ex.id);
+                const isSettlement = ex.is_settlement;
+                
+                // My relation with this expense
+                const myContrib = ex.contributions?.find((c: any) => c.member_id === myMemberId);
+                const iPaid = (myContrib?.amount_paid || 0) > (myContrib?.amount_owed || 0);
+                const iOwe = (myContrib?.amount_owed || 0) > (myContrib?.amount_paid || 0);
+                
+                // Pending payments detection
+                const hasPendingCollections = iPaid && ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled && c.member_id !== myMemberId);
+                const hasPendingDebt = iOwe && myContrib && !myContrib.is_settled;
+                
+                const showYellow = hasPendingCollections;
+                const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled);
 
-                  {expandedExpenses.has(ex.id) && (
-                    <div className="mx-2 p-3 bg-muted/30 border border-t-0 rounded-b-xl space-y-2 animate-in slide-in-from-top-1 duration-200">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Detalle por persona</p>
-                      <div className="space-y-1.5">
-                        {ex.contributions.map((c: any) => {
-                          const mName = members.find(m => m.id === c.member_id)?.name || 'Desconocido';
-                          return (
-                            <div key={c.member_id} className="flex items-center justify-between text-[11px]">
-                              <span className="font-medium">{mName}</span>
-                              <div className="flex gap-3 text-right tabular-nums">
-                                <span className={c.amount_paid > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/60'}>
-                                  Aportó: {fmt(c.amount_paid)}
+                return (
+                  <div 
+                    key={ex.id} 
+                    className={`group relative rounded-2xl border transition-all duration-300 ${
+                      isExpanded ? 'bg-card shadow-lg ring-1 ring-primary/10' : 
+                      showYellow ? 'bg-amber-50/50 border-amber-200' :
+                      'bg-card/50 hover:bg-card hover:shadow-md'
+                    }`}
+                  >
+                    <div 
+                      className="flex items-center justify-between p-4 cursor-pointer"
+                      onClick={() => toggleExpand(ex.id)}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`p-2 rounded-xl shrink-0 ${
+                          isSettlement ? 'bg-emerald-100 text-emerald-600' : 
+                          showYellow ? 'bg-amber-100 text-amber-600' :
+                          'bg-violet-100 text-violet-600'
+                        }`}>
+                          {isSettlement ? <HandCoins className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold truncate pr-2">
+                            {ex.description || (isSettlement ? 'Pago/Ajuste' : 'Gasto sin descripción')}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
+                              {new Date(ex.expense_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                            </span>
+                            {!isSettlement && ex.category_id && (
+                              <>
+                                <span className="text-[10px] text-muted-foreground/30">•</span>
+                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
+                                  {categories.find(c => c.id === ex.category_id)?.name}
                                 </span>
-                                <span className={c.amount_owed > 0 ? 'text-violet-600 font-bold' : 'text-muted-foreground/60'}>
-                                  Consumió: {fmt(c.amount_owed)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                              </>
+                            )}
+                            {showYellow && (
+                              <span className="flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-100 px-1.5 py-0.5 rounded-full animate-pulse">
+                                COBRO PENDIENTE
+                              </span>
+                            )}
+                            {allSettled && !isSettlement && !isSettlement && (
+                              <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                                SALDADO
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="pt-2 mt-2 border-t border-border/40 flex justify-end gap-2">
-                        {!ex.is_settlement && (
+                      <div className="flex items-center gap-3">
+                        <div className="text-right shrink-0">
+                          <p className={`text-sm font-black tabular-nums ${isSettlement ? 'text-emerald-600' : ''}`}>
+                            {formatMoney(ex.total_amount, group?.currency)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground font-medium tabular-nums mt-0.5">
+                            {ex.contributions?.length || 0} pers.
+                          </p>
+                        </div>
+                        <ArrowRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 border-t mt-2 pt-4 border-dashed">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Distribución y Pagos</p>
+                          <div className="space-y-1.5">
+                            {ex.contributions?.map((c: any) => {
+                              const m = members.find(mem => mem.id === c.member_id);
+                              const isMe = c.member_id === myMemberId;
+                              const isPayer = c.amount_paid > 0;
+                              const owesMe = iPaid && c.amount_owed > 0 && c.member_id !== myMemberId;
+                              
+                              return (
+                                <div key={c.member_id} className={`flex items-center justify-between p-2 rounded-xl text-xs ${c.is_settled ? 'bg-emerald-50/50' : 'bg-muted/30'}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${isPayer ? 'bg-violet-500' : 'bg-muted-foreground/30'}`} />
+                                    <span className={`truncate font-medium ${isMe ? 'text-violet-600 font-bold' : ''}`}>
+                                      {m?.name || 'Desconocido'}
+                                    </span>
+                                    {isPayer && <span className="text-[9px] bg-violet-100 text-violet-600 px-1 rounded uppercase font-bold">Pagó</span>}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="text-right tabular-nums">
+                                      {c.amount_paid > 0 && <p className="text-violet-600 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
+                                      {c.amount_owed > 0 && <p className={c.is_settled ? 'text-emerald-600 line-through' : 'text-red-500'}>-{formatMoney(c.amount_owed, group?.currency)}</p>}
+                                    </div>
+                                    
+                                    {owesMe && (
+                                      <Button
+                                        size="sm"
+                                        variant={c.is_settled ? "ghost" : "outline"}
+                                        className={`h-7 px-2 rounded-lg text-[10px] font-bold ${c.is_settled ? 'text-emerald-600' : 'text-amber-600 border-amber-200 bg-amber-50'}`}
+                                        onClick={(e) => { e.stopPropagation(); toggleSettlement(c.id, c.is_settled); }}
+                                      >
+                                        {c.is_settled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
+                                        {c.is_settled ? 'PAGADO' : 'MARCAR PAGO'}
+                                      </Button>
+                                    )}
+                                    {!owesMe && c.amount_owed > 0 && c.is_settled && (
+                                      <div className="flex items-center text-emerald-600 gap-1 text-[10px] font-bold pr-1">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        PAGADO
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 mt-2 border-t border-border/40 flex justify-end gap-2">
+                          {!ex.is_settlement && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 rounded-lg text-[10px] gap-1.5 hover:bg-violet-100 hover:text-violet-700" 
+                              onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}
+                            >
+                              <Pencil className="w-3 h-3" /> Editar
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-8 rounded-lg text-[10px] gap-1.5 hover:bg-violet-100 hover:text-violet-700" 
-                            onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}
+                            className="h-8 rounded-lg text-[10px] gap-1.5 text-red-500 hover:bg-red-50 hover:text-red-600" 
+                            onClick={(e) => { e.stopPropagation(); deleteExpense(ex.id); }}
                           >
-                            <Pencil className="w-3 h-3" /> Editar
+                            <Trash2 className="w-3 h-3" /> Eliminar
                           </Button>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 rounded-lg text-[10px] gap-1.5 text-red-500 hover:bg-red-50 hover:text-red-600" 
-                          onClick={(e) => { e.stopPropagation(); deleteExpense(ex.id); }}
-                        >
-                          <Trash2 className="w-3 h-3" /> Eliminar
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            }
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </TabsContent>
 
