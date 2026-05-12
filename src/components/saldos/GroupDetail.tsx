@@ -535,12 +535,12 @@ export default function SaldamosGroupDetail({
 
         if (allNowSettled) {
           // Big burst — all debts in this expense are settled!
-          confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#7c3aed', '#4f46e5', '#10b981', '#f59e0b', '#ec4899'] });
-          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#7c3aed', '#10b981'] }), 200);
-          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#ec4899', '#f59e0b'] }), 350);
+          confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#2563eb', '#1d4ed8', '#10b981', '#f59e0b', '#3b82f6'] });
+          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#2563eb', '#10b981'] }), 200);
+          setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#1d4ed8', '#f59e0b'] }), 350);
         } else {
           // Small burst — one payment marked
-          confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#7c3aed', '#10b981', '#f59e0b'] });
+          confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#2563eb', '#10b981', '#f59e0b'] });
         }
       }
 
