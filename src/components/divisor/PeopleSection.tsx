@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Users, X } from 'lucide-react';
+import { Plus, Users, X, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Person } from '@/lib/types';
@@ -26,6 +26,7 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
     } catch { return {}; }
   });
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [showFrequent, setShowFrequent] = useState(false);
 
   const handleAdd = (manualName?: string) => {
     const finalName = (manualName || name).trim();
@@ -61,76 +62,92 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
       </div>
 
       {frequentPeople.length > 0 && (
-        <div className="mb-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Tus Grupos</span>
-            <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[200px] pb-1">
-              {Object.keys(peopleGroups).map(gn => (
-                <button
-                  key={gn}
-                  onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
-                  className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                    activeGroup === gn 
-                      ? 'bg-emerald-600 border-emerald-600 text-white' 
-                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-                  }`}
-                >
-                  {gn}
-                </button>
-              ))}
+        <div className="mb-4 space-y-2">
+          <button 
+            type="button"
+            onClick={() => setShowFrequent(!showFrequent)}
+            className="flex items-center justify-between w-full px-4 py-2 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>Ver mis amigos / grupos</span>
             </div>
-          </div>
+            <ChevronRight className={`w-4 h-4 transition-transform ${showFrequent ? 'rotate-90' : ''}`} />
+          </button>
 
-          <div className="flex flex-wrap gap-1.5 p-3 rounded-2xl bg-muted/30 border border-dashed border-border/50">
-            {activeGroup ? (
-              <>
-                <button 
-                  onClick={() => addWholeGroup(activeGroup)}
-                  className="px-2 py-1 rounded-lg bg-emerald-500 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
-                >
-                  + Agregar Todo el Grupo {activeGroup}
-                </button>
-                {(peopleGroups[activeGroup] || []).map(p => {
-                  const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
-                  return (
+          {showFrequent && (
+            <div className="p-3 bg-muted/30 rounded-2xl border border-dashed border-muted space-y-3 animate-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1">Grupos</span>
+                <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[180px] pb-1">
+                  {Object.keys(peopleGroups).map(gn => (
                     <button
-                      key={p}
-                      disabled={isAdded}
-                      onClick={() => handleAdd(p)}
-                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
-                        isAdded 
-                          ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
-                          : 'bg-background border-violet-200 text-violet-600 hover:border-violet-400'
+                      key={gn}
+                      onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
+                      className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                        activeGroup === gn 
+                          ? 'bg-emerald-600 border-emerald-600 text-white' 
+                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
                       }`}
                     >
-                      {p}
+                      {gn}
                     </button>
-                  );
-                })}
-              </>
-            ) : (
-              frequentPeople.slice(0, 8).map(p => {
-                const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
-                return (
-                  <button
-                    key={p}
-                    disabled={isAdded}
-                    onClick={() => handleAdd(p)}
-                    className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
-                      isAdded 
-                        ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
-                        : 'bg-background border-violet-100 text-violet-600 hover:border-violet-300'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })
-            )}
-            {!activeGroup && frequentPeople.length > 8 && (
-              <span className="text-[10px] text-muted-foreground self-center italic px-1">...y {frequentPeople.length - 8} más</span>
-            )}
-          </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 py-1">
+                {activeGroup ? (
+                  <>
+                    <button 
+                      onClick={() => addWholeGroup(activeGroup)}
+                      className="px-2 py-1 rounded-lg bg-emerald-500 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
+                    >
+                      + Agregar Todo el Grupo {activeGroup}
+                    </button>
+                    {(peopleGroups[activeGroup] || []).map(p => {
+                      const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
+                      return (
+                        <button
+                          key={p}
+                          disabled={isAdded}
+                          onClick={() => handleAdd(p)}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                            isAdded 
+                              ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
+                              : 'bg-background border-blue-200 text-blue-600 hover:border-blue-400'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </>
+                ) : (
+                  frequentPeople.slice(0, 12).map(p => {
+                    const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
+                    return (
+                      <button
+                        key={p}
+                        disabled={isAdded}
+                        onClick={() => handleAdd(p)}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                          isAdded 
+                            ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
+                            : 'bg-background border-blue-100 text-blue-600 hover:border-blue-300'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })
+                )}
+                {!activeGroup && frequentPeople.length > 12 && (
+                  <span className="text-[10px] text-muted-foreground self-center italic px-1">...y {frequentPeople.length - 12} más</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

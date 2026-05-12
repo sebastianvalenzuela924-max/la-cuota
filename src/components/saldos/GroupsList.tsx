@@ -650,10 +650,10 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       {/* Manage People Dialog */}
       <Dialog open={managePeopleOpen} onOpenChange={setManagePeopleOpen}>
         <DialogContent className="rounded-3xl max-w-sm p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-gradient-to-br from-violet-600 to-indigo-700 p-6 pb-12">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 pb-12">
             <DialogHeader className="text-white text-left">
               <DialogTitle className="text-xl font-black">Mis Personas</DialogTitle>
-              <DialogDescription className="text-violet-100 opacity-80 text-xs">Organiza a tus amigos y crea grupos frecuentes.</DialogDescription>
+              <DialogDescription className="text-blue-100 opacity-80 text-xs">Organiza a tus amigos y crea grupos frecuentes.</DialogDescription>
             </DialogHeader>
           </div>
           
@@ -661,13 +661,13 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
             <div className="flex bg-muted p-1 rounded-2xl">
               <button 
                 onClick={() => setActiveManageTab('people')}
-                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'people' ? 'bg-background shadow-sm text-violet-600' : 'text-muted-foreground'}`}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'people' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
               >
                 Personas
               </button>
               <button 
                 onClick={() => setActiveManageTab('groups')}
-                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'groups' ? 'bg-background shadow-sm text-violet-600' : 'text-muted-foreground'}`}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'groups' ? 'bg-background shadow-sm text-blue-600' : 'text-muted-foreground'}`}
               >
                 Grupos
               </button>
@@ -683,7 +683,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     placeholder="Nombre (ej: Carlos)"
                     className="rounded-2xl h-12 border-muted"
                   />
-                  <Button onClick={addFrequentPerson} className="rounded-2xl h-12 w-12 p-0 bg-violet-600 shrink-0">
+                  <Button onClick={addFrequentPerson} className="rounded-2xl h-12 w-12 p-0 bg-blue-600 shrink-0">
                     <Plus className="w-5 h-5 text-white" />
                   </Button>
                 </div>
@@ -698,9 +698,9 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     </div>
                   ) : (
                     frequentPeople.map(p => (
-                      <div key={p} className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-transparent hover:border-violet-100 transition-all">
+                      <div key={p} className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-transparent hover:border-blue-100 transition-all">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-black">
+                          <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-black">
                             {p.charAt(0).toUpperCase()}
                           </div>
                           <span className="text-sm font-bold text-foreground">{p}</span>
@@ -792,7 +792,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
             )}
             
             <DialogFooter className="pt-2">
-              <Button onClick={() => setManagePeopleOpen(false)} className="w-full rounded-2xl h-12 bg-violet-600 text-white font-black text-sm shadow-lg shadow-violet-200 dark:shadow-none">Listo</Button>
+              <Button onClick={() => setManagePeopleOpen(false)} className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-200 dark:shadow-none">Listo</Button>
             </DialogFooter>
           </div>
         </DialogContent>

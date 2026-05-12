@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
@@ -76,6 +76,7 @@ export function ExpenseDialog({
   });
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
+  const [showFrequent, setShowFrequent] = useState(false);
 
   const eligible = useMemo(() => {
     if (existing) {
@@ -531,73 +532,87 @@ export function ExpenseDialog({
 
           {frequentPeople.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-black text-violet-600 uppercase tracking-widest px-1">Tus Amigos</Label>
-                {Object.keys(peopleGroups).length > 0 && (
-                  <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[200px]">
-                    <button
-                      type="button"
-                      onClick={() => setActiveGroupFilter(null)}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                        activeGroupFilter === null 
-                          ? 'bg-violet-600 border-violet-600 text-white' 
-                          : 'bg-muted/50 border-transparent text-muted-foreground'
-                      }`}
-                    >
-                      Todos
-                    </button>
-                    {Object.keys(peopleGroups).map(gn => (
-                      <button
-                        key={gn}
-                        type="button"
-                        onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
-                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                          activeGroupFilter === gn 
-                            ? 'bg-emerald-600 border-emerald-600 text-white' 
-                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-                        }`}
-                      >
-                        {gn}
-                      </button>
-                    ))}
+              <button 
+                type="button"
+                onClick={() => setShowFrequent(!showFrequent)}
+                className="flex items-center justify-between w-full px-4 py-2 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span>Ver mis amigos / grupos</span>
+                </div>
+                <ChevronRight className={`w-4 h-4 transition-transform ${showFrequent ? 'rotate-90' : ''}`} />
+              </button>
+
+              {showFrequent && (
+                <div className="p-3 bg-muted/30 rounded-2xl border border-dashed border-muted space-y-3 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1">Grupos</Label>
+                    {Object.keys(peopleGroups).length > 0 && (
+                      <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[180px]">
+                        <button
+                          type="button"
+                          onClick={() => setActiveGroupFilter(null)}
+                          className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                            activeGroupFilter === null 
+                              ? 'bg-blue-600 border-blue-600 text-white' 
+                              : 'bg-muted/50 border-transparent text-muted-foreground'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                        {Object.keys(peopleGroups).map(gn => (
+                          <button
+                            key={gn}
+                            type="button"
+                            onClick={() => setActiveGroupFilter(activeGroupFilter === gn ? null : gn)}
+                            className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                              activeGroupFilter === gn 
+                                ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                            }`}
+                          >
+                            {gn}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 py-1">
-                {frequentPeople
-                  .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
-                  .map(p => {
-                    const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
-                    const isAlreadyIn = !!member;
-                    const isSelected = member ? selected.has(member.id) : false;
-                    
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        disabled={addingFrequent === p}
-                        onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
-                          isSelected 
-                            ? 'bg-violet-600 border-violet-600 text-white shadow-md' 
-                            : isAlreadyIn
-                              ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
-                              : 'bg-white dark:bg-card border-violet-100 dark:border-violet-900 text-foreground hover:border-violet-300'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
-                          isSelected ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-600'
-                        }`}>
-                          {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
-                        </div>
-                        {p}
-                      </button>
-                    );
-                  })}
-                {activeGroupFilter && frequentPeople.filter(p => (peopleGroups[activeGroupFilter] || []).includes(p)).length === 0 && (
-                  <p className="text-[10px] text-muted-foreground italic px-2">No hay personas en este grupo.</p>
-                )}
-              </div>
+                  
+                  <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto no-scrollbar py-1">
+                    {frequentPeople
+                      .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
+                      .map(p => {
+                        const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
+                        const isAlreadyIn = !!member;
+                        const isSelected = member ? selected.has(member.id) : false;
+                        
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={addingFrequent === p}
+                            onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-[11px] font-bold transition-all border shrink-0 ${
+                              isSelected 
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                                : isAlreadyIn
+                                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 hover:bg-blue-500/20'
+                                  : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                              isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : p.charAt(0).toUpperCase())}
+                            </div>
+                            {p}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -619,7 +634,7 @@ export function ExpenseDialog({
                 <div className="flex items-center gap-2">
                   <Label>Participantes ({selected.size})</Label>
                   <div className="flex gap-1">
-                    <button type="button" onClick={selectAll} className="text-[10px] font-bold text-violet-600 hover:underline">Todos</button>
+                    <button type="button" onClick={selectAll} className="text-[10px] font-bold text-blue-600 hover:underline">Todos</button>
                     <span className="text-[10px] text-muted-foreground">/</span>
                     <button type="button" onClick={selectNone} className="text-[10px] font-bold text-muted-foreground hover:text-red-500 hover:underline">Ninguno</button>
                   </div>
@@ -645,7 +660,7 @@ export function ExpenseDialog({
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className={`h-6 w-6 rounded-lg shrink-0 ${isSel ? 'text-violet-600 hover:bg-violet-50' : 'text-muted-foreground/30'}`}
+                            className={`h-6 w-6 rounded-lg shrink-0 ${isSel ? 'text-blue-600 hover:bg-blue-50' : 'text-muted-foreground/30'}`}
                             onClick={(e) => { e.preventDefault(); assignAllToOne(m.id); }}
                             disabled={!isSel}
                             title="Pagó todo"
@@ -685,7 +700,7 @@ export function ExpenseDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white rounded-xl" onClick={save} disabled={saving}>
+          <Button className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl" onClick={save} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar
           </Button>
         </DialogFooter>
