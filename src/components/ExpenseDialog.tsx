@@ -21,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
 import { Textarea } from "@/components/ui/textarea";
+import confetti from "canvas-confetti";
 
 type Member = { id: string; name: string; joined_at: string };
 type ExpenseWithCategory = ExpenseWithContribs & { category_id: string | null; is_personal?: boolean };
@@ -346,6 +347,24 @@ export function ExpenseDialog({
       return;
     }
     toast.success(existing ? "Gasto actualizado" : "Gasto guardado");
+
+    // 🎉 Confetti fun animation!
+    try {
+      const btn = document.getElementById('save-expense-btn');
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        const x = (rect.left + rect.width / 2) / window.innerWidth;
+        const y = (rect.top + rect.height / 2) / window.innerHeight;
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { x, y },
+          colors: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+          disableForReducedMotion: true
+        });
+      }
+    } catch(e) {}
+
     onSaved({
       id: expenseId,
       description: description.trim(),
@@ -400,28 +419,24 @@ export function ExpenseDialog({
         className="max-h-[90vh] overflow-y-auto sm:max-w-2xl rounded-2xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader>
-          <DialogTitle>{existing ? "Editar gasto" : "Nuevo gasto"}</DialogTitle>
-          <DialogDescription>
-            Ingresá manualmente cuánto aportó y cuánto consumió cada uno.
+        <DialogHeader className="text-center pb-2">
+          <DialogTitle className="text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent flex justify-center items-center gap-2">
+            <PartyPopper className="w-6 h-6 text-blue-500" />
+            {existing ? "Editando gasto" : "¡Nuevo Gasto!"}
+          </DialogTitle>
+          <DialogDescription className="text-center text-xs">
+            {existing ? "Vamos a ajustar los detalles." : "¿En qué se fue la plata esta vez? 💸"}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="desc">Descripción</Label>
-            <Input
-              id="desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej: Cena del sábado"
-              className="rounded-xl"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="total">Monto total ({currency})</Label>
+        <div className="space-y-6">
+          <div className="flex flex-col items-center justify-center space-y-2 bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <Label htmlFor="total" className="text-blue-600 font-bold uppercase tracking-widest text-[10px] z-10">
+              ¿Cuánto dolió? ({currency})
+            </Label>
+            <div className="relative w-full max-w-[220px] z-10">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-blue-600/30">$</span>
               <Input
                 id="total"
                 type="number"
@@ -429,36 +444,71 @@ export function ExpenseDialog({
                 value={total}
                 onChange={(e) => setTotal(e.target.value)}
                 placeholder="0"
-                className="rounded-xl"
+                className="rounded-2xl text-4xl font-black text-center h-16 pl-10 border-blue-200 bg-white/80 shadow-inner focus-visible:ring-blue-400 focus-visible:ring-offset-2 transition-all"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date">Fecha</Label>
-              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl" />
             </div>
           </div>
 
-          {groupMode !== 'tracker' && (
-            <div className="space-y-2">
-              <Label>Categoría</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <CategoryPicker
-                    groupId={groupId}
-                    categories={categories}
-                    value={categoryId}
-                    onChange={setCategoryId}
-                    onCategoriesChanged={onCategoriesChanged}
-                  />
-                </div>
-                <div className="flex gap-1">
-                  <Input 
-                    placeholder="Nueva..." 
-                    className="w-24 text-[10px] h-10 rounded-xl"
-                    id="new-cat-input"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const val = (e.currentTarget as HTMLInputElement).value;
+          <div className="space-y-3">
+             <Label htmlFor="desc" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1 flex items-center gap-1.5">
+               <Sparkles className="w-3 h-3 text-amber-500" /> ¿Qué compramos?
+             </Label>
+             <Input
+               id="desc"
+               value={description}
+               onChange={(e) => setDescription(e.target.value)}
+               placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
+               className="rounded-xl h-12 text-sm font-medium shadow-sm bg-white"
+             />
+          </div>
+
+          <div className="grid grid-cols-[1fr_120px] gap-3">
+            {groupMode !== 'tracker' ? (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Categoría</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <CategoryPicker
+                      groupId={groupId}
+                      categories={categories}
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      onCategoriesChanged={onCategoriesChanged}
+                    />
+                  </div>
+                  <div className="flex gap-1">
+                    <Input 
+                      placeholder="Nueva..." 
+                      className="w-20 text-[10px] h-10 rounded-xl"
+                      id="new-cat-input"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.currentTarget as HTMLInputElement).value;
+                          if (val.trim()) {
+                            (async () => {
+                              const { data, error } = await saldamosSupabase
+                                .from("expense_categories" as any)
+                                .insert({ group_id: groupId, name: val.trim(), is_default: false })
+                                .select("id")
+                                .single();
+                              if (!error) {
+                                await onCategoriesChanged();
+                                setCategoryId((data as any).id);
+                                (document.getElementById('new-cat-input') as HTMLInputElement).value = '';
+                                toast.success(`Categoría "${val}" creada`);
+                              }
+                            })();
+                          }
+                        }
+                      }}
+                    />
+                    <Button 
+                      size="icon" 
+                      variant="outline" 
+                      className="h-10 w-10 rounded-xl shrink-0 border-dashed"
+                      onClick={() => {
+                        const input = document.getElementById('new-cat-input') as HTMLInputElement;
+                        const val = input.value;
                         if (val.trim()) {
                           (async () => {
                             const { data, error } = await saldamosSupabase
@@ -469,44 +519,26 @@ export function ExpenseDialog({
                             if (!error) {
                               await onCategoriesChanged();
                               setCategoryId((data as any).id);
-                              (document.getElementById('new-cat-input') as HTMLInputElement).value = '';
+                              input.value = '';
                               toast.success(`Categoría "${val}" creada`);
                             }
                           })();
                         }
-                      }
-                    }}
-                  />
-                  <Button 
-                    size="icon" 
-                    variant="outline" 
-                    className="h-10 w-10 rounded-xl shrink-0"
-                    onClick={() => {
-                      const input = document.getElementById('new-cat-input') as HTMLInputElement;
-                      const val = input.value;
-                      if (val.trim()) {
-                        (async () => {
-                          const { data, error } = await saldamosSupabase
-                            .from("expense_categories" as any)
-                            .insert({ group_id: groupId, name: val.trim(), is_default: false })
-                            .select("id")
-                            .single();
-                          if (!error) {
-                            await onCategoriesChanged();
-                            setCategoryId((data as any).id);
-                            input.value = '';
-                            toast.success(`Categoría "${val}" creada`);
-                          }
-                        })();
-                      }
-                    }}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
+            ) : <div />}
+            <div className="space-y-1.5">
+              <Label htmlFor="date" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">¿Cuándo?</Label>
+              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl h-10 text-[10px] text-muted-foreground bg-muted/20 border-border/50" />
             </div>
-          )}
+          </div>
+
+
 
           {groupMode !== 'tracker' && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
@@ -756,10 +788,16 @@ export function ExpenseDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl" onClick={save} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" className="rounded-xl w-full sm:w-auto" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button 
+            id="save-expense-btn"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl w-full sm:w-auto shadow-lg hover:shadow-blue-500/25 transition-all active:scale-95" 
+            onClick={save} 
+            disabled={saving}
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} 
+            Guardar Gasto
           </Button>
         </DialogFooter>
       </DialogContent>
