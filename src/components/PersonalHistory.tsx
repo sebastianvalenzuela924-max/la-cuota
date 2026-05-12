@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Receipt, Tag, User, HandCoins, Filter, Search } from "lucide-react";
+import { Receipt, Tag, User, HandCoins, Filter, Search, ArrowRight } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,11 +24,12 @@ type Props = {
   currency: string;
   selectedId?: string | null;
   onSelectedIdChange?: (id: string) => void;
+  onViewDetail?: (id: string) => void;
 };
 
 const SETTLEMENT_LABEL = "Pagos / Saldos";
 
-export function PersonalHistory({ members, expenses, categories, currency, selectedId: propSelectedId, onSelectedIdChange }: Props) {
+export function PersonalHistory({ members, expenses, categories, currency, selectedId: propSelectedId, onSelectedIdChange, onViewDetail }: Props) {
   const [localSelectedId, setLocalSelectedId] = useState<string>("");
   const selectedId = propSelectedId !== undefined ? propSelectedId || "" : localSelectedId;
 
@@ -250,20 +251,44 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
             <CardContent className="space-y-2">
               {filteredRows.length === 0 ? <p className="text-xs text-muted-foreground py-4 text-center">Sin gastos registrados.</p> : 
                 filteredRows.map(r => (
-                  <div key={r.expense.id} className={`p-3 rounded-xl border flex justify-between items-center ${r.isSettlement ? 'bg-emerald-50 border-emerald-100' : r.isPersonal ? 'bg-violet-50 border-violet-100' : 'bg-card'}`}>
-                    <div>
-                      <p className="text-xs font-semibold truncate max-w-[150px]">{r.isSettlement ? (r.settlementDirection === 'sent' ? `Pagaste a ${r.counterpartyName}` : `${r.counterpartyName} te pagó`) : r.expense.description}</p>
-                      <p className="text-[10px] text-muted-foreground">{new Date(r.expense.expense_date).toLocaleDateString()}</p>
-                    </div>
-                    <div className="text-right space-y-0.5">
-                      <div className="flex flex-col items-end">
-                        <p className={`text-xs font-bold tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                          {fmt(r.paid)} <span className="text-[8px] opacity-60 font-medium">APORTASTE</span>
+                  <div 
+                    key={r.expense.id} 
+                    className={`p-3 rounded-xl border flex justify-between items-center transition-all active:scale-[0.98] cursor-pointer hover:shadow-md ${
+                      r.isSettlement ? 'bg-emerald-50 border-emerald-100' : 
+                      r.isPersonal ? 'bg-violet-50 border-violet-100' : 
+                      'bg-card hover:border-violet-200'
+                    }`}
+                    onClick={() => onViewDetail?.(r.expense.id)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2 rounded-lg shrink-0 ${
+                        r.isSettlement ? 'bg-emerald-100 text-emerald-600' : 
+                        r.isPersonal ? 'bg-violet-100 text-violet-600' : 
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        <Receipt className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate max-w-[150px]">
+                          {r.isSettlement ? (r.settlementDirection === 'sent' ? `Pagaste a ${r.counterpartyName}` : `${r.counterpartyName} te pagó`) : r.expense.description}
                         </p>
-                        <p className={`text-xs font-bold tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
-                          {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] opacity-60 font-medium">CONSUMISTE</span>
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(r.expense.expense_date).toLocaleDateString()}
                         </p>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right space-y-0.5">
+                        <div className="flex flex-col items-end">
+                          <p className={`text-[10px] font-bold tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                            {fmt(r.paid)} <span className="text-[8px] opacity-60 font-medium">APORTASTE</span>
+                          </p>
+                          <p className={`text-[10px] font-bold tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
+                            {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] opacity-60 font-medium">CONSUMISTE</span>
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-3 h-3 text-muted-foreground/40" />
                     </div>
                   </div>
                 ))

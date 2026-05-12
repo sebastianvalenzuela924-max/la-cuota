@@ -346,6 +346,15 @@ export default function SaldamosGroupDetail({
     setExpandedExpenses(next);
   };
 
+  const handleViewDetail = (id: string) => {
+    setActiveTab('historial');
+    setExpandedExpenses(prev => new Set(prev).add(id));
+    setTimeout(() => {
+      const el = document.getElementById(`expense-${id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+  };
+
   const toggleExpandAll = () => {
     if (expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0) {
       setExpandedExpenses(new Set());
@@ -675,6 +684,7 @@ export default function SaldamosGroupDetail({
                 return (
                   <div 
                     key={ex.id} 
+                    id={`expense-${ex.id}`}
                     className={`group relative rounded-2xl border transition-all duration-300 ${
                       isExpanded ? 'bg-card shadow-lg ring-1 ring-primary/10' : 
                       showYellow ? 'bg-amber-50/50 border-amber-200' :
@@ -723,11 +733,25 @@ export default function SaldamosGroupDetail({
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="text-right shrink-0">
+                        <div className="text-right shrink-0 flex flex-col items-end">
                           <p className={`text-sm font-black tabular-nums ${isSettlement ? 'text-emerald-600' : ''}`}>
                             {formatMoney(ex.total_amount, group?.currency)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground font-medium tabular-nums mt-0.5">
+                          {myContrib && !isSettlement && (
+                            <div className="flex flex-col items-end -mt-0.5">
+                              {myContrib.amount_paid > 0 && (
+                                <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                  Pagaste {formatMoney(myContrib.amount_paid, group?.currency)}
+                                </p>
+                              )}
+                              {myContrib.amount_owed > 0 && (
+                                <p className="text-[9px] font-bold text-violet-600 uppercase tracking-tighter">
+                                  Consumiste {formatMoney(myContrib.amount_owed, group?.currency)}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-[9px] text-muted-foreground font-medium tabular-nums mt-0.5 uppercase">
                             {ex.contributions?.length || 0} pers.
                           </p>
                         </div>
@@ -822,6 +846,7 @@ export default function SaldamosGroupDetail({
             currency={currency} 
             selectedId={myMemberId}
             onSelectedIdChange={handleSetIdentity}
+            onViewDetail={handleViewDetail}
           />
         </TabsContent>
 
