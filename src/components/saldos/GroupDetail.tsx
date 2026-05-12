@@ -510,15 +510,37 @@ export default function SaldamosGroupDetail({
             Añadir Gasto
           </Button>
         </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="w-full rounded-xl text-xs gap-2 text-muted-foreground hover:text-violet-600 border border-dashed border-border"
-          onClick={() => setShareOpen(true)}
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          Invitar amigos / Compartir grupo
-        </Button>
+        {/* Secondary actions row — compact, all in one line */}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="flex-1 h-8 rounded-xl text-[10px] gap-1.5 text-muted-foreground hover:text-violet-600 border border-dashed border-border"
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 className="w-3 h-3" />
+            Compartir
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex-1 h-8 rounded-xl text-[10px] gap-1 border border-dashed border-border text-violet-600 hover:bg-violet-50"
+            onClick={toggleExpandAll}
+          >
+            {expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0 ? 'Contraer todo' : 'Expandir todo'}
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`flex-1 h-8 rounded-xl text-[10px] gap-1.5 border border-dashed ${
+              showConverter ? 'bg-violet-100 text-violet-700 border-violet-200' : 'text-muted-foreground border-border hover:text-violet-600'
+            }`}
+            onClick={() => setShowConverter(!showConverter)}
+          >
+            <HandCoins className="w-3 h-3" />
+            {showConverter ? 'Ocultar conv.' : 'Moneda'}
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -591,27 +613,6 @@ export default function SaldamosGroupDetail({
         </TabsContent>
 
         <TabsContent value="historial" className="space-y-4 pt-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-7 text-[10px] rounded-lg gap-1 text-violet-600 hover:bg-violet-50"
-                onClick={toggleExpandAll}
-              >
-                {expandedExpenses.size >= filteredExpenses.length && filteredExpenses.length > 0 ? 'Contraer todo' : 'Expandir todo'}
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
-                onClick={() => setShowConverter(!showConverter)}
-              >
-                <HandCoins className="w-3 h-3" />
-                {showConverter ? 'Ocultar conversor' : 'Ver en otra moneda'}
-              </Button>
-            </div>
-          </div>
 
           {showConverter && (
             <CurrencyConverter 
