@@ -450,9 +450,21 @@ export function ExpenseDialog({
           </div>
 
           <div className="space-y-3">
-             <Label htmlFor="desc" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1 flex items-center gap-1.5">
-               <Sparkles className="w-3 h-3 text-amber-500" /> ¿Qué compramos?
-             </Label>
+             <div className="flex items-center justify-between px-1">
+               <Label htmlFor="desc" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                 <Sparkles className="w-3 h-3 text-amber-500" /> ¿Qué compramos?
+               </Label>
+               <div className="flex items-center gap-1">
+                 <Label htmlFor="date" className="text-[9px] font-bold text-muted-foreground/60 uppercase">Fecha:</Label>
+                 <Input 
+                   id="date" 
+                   type="date" 
+                   value={date} 
+                   onChange={(e) => setDate(e.target.value)} 
+                   className="h-6 w-[105px] text-[10px] font-medium px-2 py-0 border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-muted-foreground shadow-none cursor-pointer rounded-md transition-colors" 
+                 />
+               </div>
+             </div>
              <Input
                id="desc"
                value={description}
@@ -462,26 +474,25 @@ export function ExpenseDialog({
              />
           </div>
 
-          <div className="grid grid-cols-[1fr_120px] gap-3">
-            {groupMode !== 'tracker' ? (
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Categoría</Label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <CategoryPicker
-                      groupId={groupId}
-                      categories={categories}
-                      value={categoryId}
-                      onChange={setCategoryId}
-                      onCategoriesChanged={onCategoriesChanged}
-                    />
-                  </div>
-                  <div className="flex gap-1">
-                    <Input 
-                      placeholder="Nueva..." 
-                      className="w-20 text-[10px] h-10 rounded-xl"
-                      id="new-cat-input"
-                      onKeyDown={(e) => {
+          {groupMode !== 'tracker' && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Categoría</Label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <CategoryPicker
+                    groupId={groupId}
+                    categories={categories}
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    onCategoriesChanged={onCategoriesChanged}
+                  />
+                </div>
+                <div className="flex gap-1">
+                  <Input 
+                    placeholder="Nueva..." 
+                    className="w-20 text-[10px] h-10 rounded-xl"
+                    id="new-cat-input"
+                    onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const val = (e.currentTarget as HTMLInputElement).value;
                           if (val.trim()) {
@@ -531,12 +542,7 @@ export function ExpenseDialog({
                   </div>
                 </div>
               </div>
-            ) : <div />}
-            <div className="space-y-1.5">
-              <Label htmlFor="date" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">¿Cuándo?</Label>
-              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl h-10 text-[10px] text-muted-foreground bg-muted/20 border-border/50" />
-            </div>
-          </div>
+          )}
 
 
 
