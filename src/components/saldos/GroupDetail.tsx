@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import confetti from 'canvas-confetti';
 import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -463,7 +464,27 @@ export default function SaldamosGroupDetail({
       }
 
       toast.success(!currentStatus ? 'Marcado como pagado y balance actualizado' : 'Marcado como pendiente');
-      load(); // Reload to refresh everything correctly
+
+      // 🎉 Confetti if the entire expense is now fully settled
+      if (!currentStatus) {
+        const updatedContribs = expense.contributions.map((c: any) =>
+          c.id === contribution.id ? { ...c, is_settled: true } : c
+        );
+        const allNowSettled = updatedContribs
+          .filter((c: any) => c.amount_owed > 0)
+          .every((c: any) => c.is_settled);
+
+        if (allNowSettled) {
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#7c3aed', '#4f46e5', '#10b981', '#f59e0b', '#ec4899'],
+          });
+        }
+      }
+
+      load();
     }
   };
 

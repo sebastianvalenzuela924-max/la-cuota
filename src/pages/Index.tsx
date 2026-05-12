@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Receipt, Scale, Scissors, Trash2, RefreshCw } from 'lucide-react';
+import { Receipt, Scale, Scissors, Trash2, Moon, Sun } from 'lucide-react';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue, generateSummaryText } from '@/lib/bill-utils';
 import ReceiptScanner from '@/components/divisor/ReceiptScanner';
@@ -20,10 +20,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useNavigate } from 'react-router-dom';
 import { Copy, CheckCircle2, Download } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { useDarkMode } from '@/hooks/useDarkMode';
 
 export default function Index() {
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
+  const { isDark, toggle: toggleDark } = useDarkMode();
   const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -278,7 +280,19 @@ export default function Index() {
           <div className="flex-1"></div>
           
           <div className="flex flex-col items-end gap-2">
-            <CurrencySelector currency={currency} onChange={setCurrency} />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleDark}
+                className="w-9 h-9 rounded-2xl flex items-center justify-center bg-accent hover:bg-accent/80 transition-all active:scale-95 shadow-sm"
+                title={isDark ? 'Modo claro' : 'Modo oscuro'}
+              >
+                {isDark
+                  ? <Sun className="w-4 h-4 text-amber-400" />
+                  : <Moon className="w-4 h-4 text-slate-600" />
+                }
+              </button>
+              <CurrencySelector currency={currency} onChange={setCurrency} />
+            </div>
             <Button 
               onClick={handleShare} 
               disabled={sharing || products.length === 0}
