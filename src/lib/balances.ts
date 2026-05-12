@@ -9,6 +9,7 @@ export type ExpenseWithContribs = {
   created_at?: string;
   is_settlement: boolean;
   is_personal?: boolean;
+  track_payments?: boolean;
   contributions: { id?: string; member_id: string; amount_paid: number; amount_owed: number; is_settled?: boolean }[];
 };
 

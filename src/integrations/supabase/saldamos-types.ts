@@ -15,9 +15,9 @@ export type SaldamosDatabase = {
         Relationships: [];
       };
       expenses: {
-        Row: { id: string; group_id: string; description: string; total_amount: number; expense_date: string; is_settlement: boolean; is_personal: boolean; category_id: string | null; created_at: string; updated_at: string };
-        Insert: { group_id: string; description: string; total_amount: number; expense_date?: string; is_settlement?: boolean; is_personal?: boolean; category_id?: string | null; created_at?: string; updated_at?: string };
-        Update: { description?: string; total_amount?: number; expense_date?: string; is_settlement?: boolean; category_id?: string | null; updated_at?: string };
+        Row: { id: string; group_id: string; description: string; total_amount: number; expense_date: string; is_settlement: boolean; is_personal: boolean; category_id: string | null; track_payments: boolean; created_at: string; updated_at: string };
+        Insert: { group_id: string; description: string; total_amount: number; expense_date?: string; is_settlement?: boolean; is_personal?: boolean; category_id?: string | null; track_payments?: boolean; created_at?: string; updated_at?: string };
+        Update: { description?: string; total_amount?: number; expense_date?: string; is_settlement?: boolean; category_id?: string | null; track_payments?: boolean; updated_at?: string };
         Relationships: [];
       };
       expense_contributions: {

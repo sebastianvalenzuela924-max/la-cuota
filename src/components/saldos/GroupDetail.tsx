@@ -93,7 +93,7 @@ export default function SaldamosGroupDetail({
       const [g, m, e, c] = await Promise.all([
         saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
         saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
-        saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, created_at, expense_contributions(id, member_id, amount_paid, amount_owed, is_settled)').eq('group_id', groupId).order('expense_date', { ascending: false }),
+        saldamosSupabase.from('expenses').select('id, description, total_amount, expense_date, is_settlement, is_personal, category_id, track_payments, created_at, expense_contributions(id, member_id, amount_paid, amount_owed, is_settled)').eq('group_id', groupId).order('expense_date', { ascending: false }),
         saldamosSupabase.from('expense_categories' as any).select('id, name, is_default').eq('group_id', groupId),
       ]);
       
@@ -354,7 +354,8 @@ export default function SaldamosGroupDetail({
     }
   };
 
-  const toggleSettlement = async (contributionId: string, currentStatus: boolean) => {
+  const toggleSettlement = async (contribution: any, currentStatus: boolean, expense: any) => {
+    const contributionId = contribution.id;
     const { error } = await saldamosSupabase
       .from('expense_contributions')
       .update({ is_settled: !currentStatus })
@@ -363,14 +364,33 @@ export default function SaldamosGroupDetail({
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success(!currentStatus ? 'Marcado como pagado' : 'Marcado como pendiente');
-      // Update local state without full reload
-      setExpenses(prev => prev.map(ex => ({
-        ...ex,
-        contributions: ex.contributions?.map((c: any) => 
-          c.id === contributionId ? { ...c, is_settled: !currentStatus } : c
-        )
-      })));
+      // If marking as paid, register a REAL settlement to update global balance
+      if (!currentStatus) {
+        const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
+        const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
+        const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
+        const payerId = payerContrib?.member_id || myMemberId;
+
+        const { data: exp, error: expErr } = await saldamosSupabase
+          .from('expenses')
+          .insert({ 
+            group_id: groupId, 
+            description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
+            total_amount: contribution.amount_owed, 
+            is_settlement: true 
+          })
+          .select('id').single();
+        
+        if (!expErr && exp) {
+          await saldamosSupabase.from('expense_contributions').insert([
+            { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
+            { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
+          ]);
+        }
+      }
+
+      toast.success(!currentStatus ? 'Marcado como pagado y balance actualizado' : 'Marcado como pendiente');
+      load(); // Reload to refresh everything correctly
     }
   };
 
@@ -649,7 +669,7 @@ export default function SaldamosGroupDetail({
                 const hasPendingCollections = iPaid && ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled && c.member_id !== myMemberId);
                 const hasPendingDebt = iOwe && myContrib && !myContrib.is_settled;
                 
-                const showYellow = hasPendingCollections;
+                const showYellow = ex.track_payments && hasPendingCollections;
                 const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled);
 
                 return (
@@ -746,7 +766,7 @@ export default function SaldamosGroupDetail({
                                         size="sm"
                                         variant={c.is_settled ? "ghost" : "outline"}
                                         className={`h-7 px-2 rounded-lg text-[10px] font-bold ${c.is_settled ? 'text-emerald-600' : 'text-amber-600 border-amber-200 bg-amber-50'}`}
-                                        onClick={(e) => { e.stopPropagation(); toggleSettlement(c.id, c.is_settled); }}
+                                        onClick={(e) => { e.stopPropagation(); toggleSettlement(c, c.is_settled, ex); }}
                                       >
                                         {c.is_settled ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
                                         {c.is_settled ? 'PAGADO' : 'MARCAR PAGO'}

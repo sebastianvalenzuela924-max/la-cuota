@@ -58,6 +58,7 @@ export function ExpenseDialog({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
+  const [trackPayments, setTrackPayments] = useState(false);
   const [personalPayer, setPersonalPayer] = useState<string>("");
   const [unmappedPersons, setUnmatchedPersons] = useState<any[]>([]);
   const [manualMappings, setManualMappings] = useState<Record<string, string>>(() => {
@@ -86,6 +87,7 @@ export function ExpenseDialog({
       setDate(new Date(existing.expense_date).toISOString().slice(0, 10));
       setCategoryId(existing.category_id ?? defaultCat?.id ?? null);
       setIsPersonal(!!existing.is_personal);
+      setTrackPayments(!!existing.track_payments);
       const sel = new Set(existing.contributions.map((c) => c.member_id));
       setSelected(sel);
       const paidMap: Record<string, string> = {};
@@ -140,6 +142,7 @@ export function ExpenseDialog({
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
       setIsPersonal(false);
+      setTrackPayments(false);
       setPersonalPayer("");
       setSelected(new Set(members.map((m) => m.id)));
       const map: Record<string, string> = {};
@@ -211,6 +214,7 @@ export function ExpenseDialog({
           expense_date: isoDate,
           category_id: finalCategoryId,
           is_personal: isPersonal,
+          track_payments: trackPayments,
         })
         .eq("id", existing.id);
       if (error) {
@@ -229,6 +233,7 @@ export function ExpenseDialog({
           expense_date: isoDate,
           category_id: finalCategoryId,
           is_personal: isPersonal,
+          track_payments: trackPayments,
         })
         .select("id")
         .single();
@@ -423,6 +428,19 @@ export function ExpenseDialog({
             </div>
             <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
           </div>
+
+          {!isPersonal && (
+            <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
+              <div className="flex items-start gap-2">
+                <HandCoins className="mt-0.5 h-4 w-4 text-amber-600" />
+                <div>
+                  <Label htmlFor="track-switch" className="cursor-pointer font-medium text-amber-900">Controlar cobros</Label>
+                  <p className="text-[10px] text-amber-700">Resalta el gasto si te deben dinero y permite marcar quién ya pagó.</p>
+                </div>
+              </div>
+              <Switch id="track-switch" checked={trackPayments} onCheckedChange={(v) => setTrackPayments(!!v)} />
+            </div>
+          )}
           
           {unmappedPersons.length > 0 && (
             <div className="space-y-3 p-4 rounded-2xl bg-amber-50 border border-amber-100 animate-in fade-in zoom-in duration-300">
