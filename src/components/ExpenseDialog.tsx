@@ -77,18 +77,28 @@ export function ExpenseDialog({
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(false);
+  const [tempMembers, setTempMembers] = useState<Member[]>([]);
   const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
+
+  const allAvailableMembers = useMemo(() => {
+    // Combine props members with locally added ones, avoiding duplicates
+    const combined = [...members];
+    tempMembers.forEach(tm => {
+      if (!combined.some(m => m.id === tm.id)) combined.push(tm);
+    });
+    return combined;
+  }, [members, tempMembers]);
 
   const eligible = useMemo(() => {
     if (existing) {
       const existingIds = new Set(existing.contributions.map((c) => c.member_id));
       const exDate = new Date(existing.expense_date).getTime();
-      return members.filter(
+      return allAvailableMembers.filter(
         (m) => existingIds.has(m.id) || new Date(m.joined_at).getTime() <= exDate,
       );
     }
-    return members;
-  }, [members, existing]);
+    return allAvailableMembers;
+  }, [allAvailableMembers, existing]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,6 +163,7 @@ export function ExpenseDialog({
       setTotal("");
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
+      setTempMembers([]);
       const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
       const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
       
@@ -197,13 +208,17 @@ export function ExpenseDialog({
       
       if (error) throw error;
       
+      const newMember = data as any;
       toast.success(`${name} agregado al grupo`);
-      if (onMembersChanged) await onMembersChanged();
+      
+      // Update local members immediately so they appear in the UI
+      setTempMembers(prev => [...prev, newMember]);
       
       // Auto-select in the expense
-      if (data) {
-        setSelected(prev => new Set(prev).add((data as any).id));
-      }
+      setSelected(prev => new Set(prev).add(newMember.id));
+      
+      // Refresh parent in background
+      if (onMembersChanged) onMembersChanged();
     } catch (err: any) {
       toast.error('Error al agregar: ' + err.message);
     } finally {
@@ -599,7 +614,7 @@ export function ExpenseDialog({
                     {frequentPeople
                       .filter(p => !activeGroupFilter || (peopleGroups[activeGroupFilter] || []).includes(p))
                       .map(p => {
-                        const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
+                        const member = allAvailableMembers.find(m => m.name.toLowerCase() === p.toLowerCase());
                         const isAlreadyIn = !!member;
                         const isSelected = member ? selected.has(member.id) : false;
                         
@@ -641,7 +656,7 @@ export function ExpenseDialog({
                 onChange={(e) => setPersonalPayer(e.target.value)}
               >
                 <option value="">Elegí una persona...</option>
-                {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {allAvailableMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
           ) : (
