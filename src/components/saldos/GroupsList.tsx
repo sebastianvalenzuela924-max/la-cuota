@@ -84,6 +84,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [newGroupName, setNewGroupName] = useState('');
   const [activeManageTab, setActiveManageTab] = useState<'people' | 'groups'>('people');
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [renameGroupValue, setRenameGroupValue] = useState('');
 
   const load = async () => {
     if (!user) return;
@@ -150,11 +152,27 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   };
 
   const deletePersonGroup = (groupName: string) => {
+    if (!confirm(`¿Borrar el grupo "${groupName}"?`)) return;
     const next = { ...peopleGroups };
     delete next[groupName];
     setPeopleGroups(next);
     localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
     toast.success('Grupo eliminado');
+  };
+
+  const renamePersonGroup = (oldName: string) => {
+    if (!renameGroupValue.trim() || renameGroupValue === oldName) {
+      setRenamingGroup(null);
+      return;
+    }
+    const next = { ...peopleGroups };
+    next[renameGroupValue.trim()] = next[oldName];
+    delete next[oldName];
+    setPeopleGroups(next);
+    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
+    setRenamingGroup(null);
+    setEditingGroup(renameGroupValue.trim());
+    toast.success('Grupo renombrado');
   };
 
   const togglePersonInGroup = (personName: string) => {
@@ -260,7 +278,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            className="rounded-xl text-xs gap-1.5 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-md shadow-violet-200 hover:shadow-violet-300 transition-all"
+            className="rounded-xl text-xs gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md shadow-blue-200 hover:shadow-blue-300 transition-all"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="w-3.5 h-3.5" /> Nuevo grupo
@@ -457,7 +475,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     onClick={() => applyTemplate(t)}
                     className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
                       selectedTemplate?.label === t.label
-                        ? 'border-violet-500 bg-violet-50 scale-95'
+                        ? 'border-blue-500 bg-blue-50 scale-95'
                         : 'border-transparent bg-muted/40 hover:bg-muted/70'
                     }`}
                   >
@@ -490,11 +508,11 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   onClick={() => setGroupMode('balance')}
                   className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
                     groupMode === 'balance'
-                      ? 'border-violet-500 bg-violet-50'
+                      ? 'border-blue-500 bg-blue-50'
                       : 'border-transparent bg-muted/40 hover:bg-muted/70'
                   }`}
                 >
-                  <Scale className="w-4 h-4 text-violet-600" />
+                  <Scale className="w-4 h-4 text-blue-600" />
                   <div className="text-center">
                     <p className="text-[10px] font-bold uppercase leading-none">Con Balance</p>
                     <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Deudas acumuladas entre todos.</p>
@@ -740,20 +758,43 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                     Object.keys(peopleGroups).map(gn => (
                       <div key={gn} className="space-y-2">
                         <div className="flex items-center justify-between bg-blue-500/5 p-3 rounded-2xl border border-blue-500/10">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-blue-700">{gn}</span>
-                            <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-lg font-bold">
-                              {peopleGroups[gn].length}
-                            </span>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {renamingGroup === gn ? (
+                              <Input 
+                                value={renameGroupValue}
+                                onChange={e => setRenameGroupValue(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && renamePersonGroup(gn)}
+                                className="h-7 text-sm font-black py-0 px-2 rounded-lg border-blue-200"
+                                autoFocus
+                                onBlur={() => setRenamingGroup(null)}
+                              />
+                            ) : (
+                              <>
+                                <span className="text-sm font-black text-blue-700 truncate">{gn}</span>
+                                <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-lg font-bold shrink-0">
+                                  {peopleGroups[gn].length}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <div className="flex items-center gap-1">
+                            {renamingGroup !== gn && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-8 w-8 rounded-xl p-0 text-muted-foreground hover:text-blue-600"
+                                onClick={() => { setRenamingGroup(gn); setRenameGroupValue(gn); }}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            )}
                             <Button 
                               size="sm" 
                               variant="ghost" 
                               className={`h-8 rounded-xl text-[10px] font-bold ${editingGroup === gn ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}
                               onClick={() => setEditingGroup(editingGroup === gn ? null : gn)}
                             >
-                              {editingGroup === gn ? 'Cerrar' : 'Editar'}
+                              {editingGroup === gn ? 'Cerrar' : 'Personas'}
                             </Button>
                             <button onClick={() => deletePersonGroup(gn)} className="p-2 text-muted-foreground hover:text-red-500">
                               <Trash2 className="w-3.5 h-3.5" />
