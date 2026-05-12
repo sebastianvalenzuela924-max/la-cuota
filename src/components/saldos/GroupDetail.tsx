@@ -57,6 +57,7 @@ export default function SaldamosGroupDetail({
 
   const [memberOpen, setMemberOpen] = useState(false);
   const [memberName, setMemberName] = useState('');
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [savingMember, setSavingMember] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
@@ -250,14 +251,64 @@ export default function SaldamosGroupDetail({
   const addMember = async () => {
     if (!memberName.trim()) return;
     setSavingMember(true);
-    const { error } = await saldamosSupabase.from('group_members').insert({ group_id: groupId, name: memberName.trim() });
+    
+    if (editingMemberId) {
+      // Update existing
+      const { error } = await saldamosSupabase
+        .from('group_members')
+        .update({ name: memberName.trim() })
+        .eq('id', editingMemberId);
+      
+      if (error) { toast.error(error.message); setSavingMember(false); return; }
+      toast.success('Nombre actualizado');
+      await logActivity('MEMBER_UPDATED', { name: memberName.trim() });
+    } else {
+      // Add new
+      const { error } = await saldamosSupabase
+        .from('group_members')
+        .insert({ group_id: groupId, name: memberName.trim() });
+      
+      if (error) { toast.error(error.message); setSavingMember(false); return; }
+      toast.success(`${memberName.trim()} agregado`);
+      await logActivity('MEMBER_ADDED', { name: memberName.trim() });
+    }
+    
     setSavingMember(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`${memberName.trim()} agregado`);
-    await logActivity('MEMBER_ADDED', { name: memberName.trim() });
     setMemberName('');
+    setEditingMemberId(null);
     setMemberOpen(false);
     load();
+  };
+
+  const deleteMember = async (id: string, name: string) => {
+    // Check if member has expenses
+    const hasExpenses = expenses.some(ex => ex.contributions.some((c: any) => c.member_id === id));
+    if (hasExpenses) {
+      toast.error(`No puedes eliminar a ${name} porque tiene gastos asociados.`, {
+        description: "Primero elimina o edita los gastos donde participa."
+      });
+      return;
+    }
+
+    if (!confirm(`¿Seguro que quieres eliminar a ${name} del grupo?`)) return;
+
+    setSavingMember(true);
+    const { error } = await saldamosSupabase
+      .from('group_members')
+      .delete()
+      .eq('id', id);
+    
+    setSavingMember(false);
+    if (error) { toast.error(error.message); return; }
+    
+    toast.success(`${name} eliminado del grupo`);
+    await logActivity('MEMBER_DELETED', { name });
+    load();
+  };
+
+  const startEditMember = (m: any) => {
+    setEditingMemberId(m.id);
+    setMemberName(m.name);
   };
 
   const filteredExpenses = useMemo(() => {
@@ -547,14 +598,14 @@ export default function SaldamosGroupDetail({
     <div className="space-y-6 animate-fade-in-up pb-10">
       {/* Top Nav Bar */}
       <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40 gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-violet-600 transition-colors shrink-0">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-blue-600 transition-colors shrink-0">
           <ArrowLeft className="w-4 h-4 stroke-[3px]" /> Volver
         </button>
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {/* Add Expense — primary */}
           <Button
             size="sm"
-            className="rounded-xl h-8 px-3 text-[11px] gap-1.5 bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-sm shrink-0"
+            className="rounded-xl h-8 px-3 text-[11px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0"
             onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
           >
             <Plus className="w-3.5 h-3.5" /> Gasto
@@ -563,7 +614,7 @@ export default function SaldamosGroupDetail({
           <Button
             size="sm"
             variant="outline"
-            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 border-violet-200 text-violet-600 hover:bg-violet-50 shrink-0"
+            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 border-blue-200 text-blue-600 hover:bg-blue-50 shrink-0"
             onClick={handleImportClick}
           >
             <Sparkles className="w-3 h-3" /> Importar
@@ -605,7 +656,7 @@ export default function SaldamosGroupDetail({
             </span>
             <div className="ml-auto">
               <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
-                <SelectTrigger className="h-7 text-[10px] rounded-lg bg-violet-50 border-violet-100 text-violet-700 font-bold px-2 gap-1.5 min-w-[100px]">
+                <SelectTrigger className="h-7 text-[10px] rounded-lg bg-blue-50 border-blue-100 text-blue-700 font-bold px-2 gap-1.5 min-w-[100px]">
                   <User className="w-3 h-3" />
                   <SelectValue placeholder="¿Quién eres tú?" />
                 </SelectTrigger>
@@ -621,16 +672,16 @@ export default function SaldamosGroupDetail({
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
-          <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
           </TabsTrigger>
-          <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
           </TabsTrigger>
-          <TabsTrigger value="mi-actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="mi-actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <User className="w-3.5 h-3.5" /> Mi Hist.
           </TabsTrigger>
-          <TabsTrigger value="actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-violet-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <Sparkles className="w-3.5 h-3.5" /> Actividad
           </TabsTrigger>
         </TabsList>
@@ -638,11 +689,11 @@ export default function SaldamosGroupDetail({
         <TabsContent value="balances" className="space-y-4 pt-4">
           {groupMode === 'tracker' ? (
             <div className="space-y-4">
-              <div className="bg-violet-500/10 border border-violet-500/20 p-3 rounded-2xl flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center text-xl shrink-0">📋</div>
+              <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-2xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl shrink-0">📋</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-violet-700 dark:text-violet-400">Modo Cobros</p>
-                  <p className="text-[10px] text-violet-600/80 dark:text-violet-500/60 leading-tight">Control individual de cada gasto sin balance total.</p>
+                  <p className="text-xs font-bold text-blue-700 dark:text-blue-400">Modo Cobros</p>
+                  <p className="text-[10px] text-blue-600/80 dark:text-blue-500/60 leading-tight">Control individual de cada gasto sin balance total.</p>
                 </div>
               </div>
 
@@ -779,7 +830,7 @@ export default function SaldamosGroupDetail({
             </div>
             <div className="flex gap-2">
               <Input type="number" placeholder="Monto" value={payAmount} onChange={e => setPayAmount(e.target.value)} className="rounded-xl text-sm h-9" />
-              <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl px-4 bg-violet-600 text-white">
+              <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl px-4 bg-blue-600 text-white">
                 {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Saldar'}
               </Button>
             </div>
@@ -1003,7 +1054,7 @@ export default function SaldamosGroupDetail({
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              className="h-8 rounded-lg text-[10px] gap-1.5 hover:bg-violet-100 hover:text-violet-700" 
+                              className="h-8 rounded-lg text-[10px] gap-1.5 hover:bg-blue-100 hover:text-blue-700" 
                               onClick={(e) => { e.stopPropagation(); setSelectedExpense(ex); setExpenseOpen(true); }}
                             >
                               <Pencil className="w-3 h-3" /> Editar
@@ -1101,47 +1152,106 @@ export default function SaldamosGroupDetail({
         onCategoriesChanged={load} 
       />
 
-      {/* Add Member Dialog */}
-      <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader><DialogTitle>Nueva persona</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            {frequentPeople.length > 0 && (
+      {/* Manage Members Dialog */}
+      <Dialog open={memberOpen} onOpenChange={(v) => { setMemberOpen(v); if(!v) { setEditingMemberId(null); setMemberName(''); } }}>
+        <DialogContent className="rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingMemberId ? 'Editar persona' : 'Personas del grupo'}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-2">
+            {/* Existing Members List */}
+            {!editingMemberId && (
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Mis Personas Frecuentes</Label>
-                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
-                  {frequentPeople.map(p => {
-                    const alreadyIn = members.some(m => m.name.toLowerCase() === p.toLowerCase());
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        disabled={alreadyIn}
-                        onClick={() => setMemberName(p)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                          alreadyIn 
-                            ? 'opacity-40 bg-muted cursor-not-allowed' 
-                            : 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
-                        }`}
-                      >
-                        {alreadyIn ? '✓ ' : '+ '}{p}
-                      </button>
-                    );
-                  })}
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">En el grupo ({members.length})</Label>
+                <div className="space-y-1.5">
+                  {members.map(m => (
+                    <div key={m.id} className="flex items-center justify-between p-2 rounded-xl bg-muted/30 border border-transparent hover:border-blue-100 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-black">
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-bold text-foreground">{m.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-100"
+                          onClick={() => startEditMember(m)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50"
+                          onClick={() => deleteMember(m.id, m.name)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="h-px bg-border/50 my-2" />
               </div>
             )}
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Nuevo nombre</Label>
-              <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" autoFocus />
+
+            <div className="space-y-4">
+              {editingMemberId ? (
+                <div className="space-y-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-100 animate-in zoom-in-95">
+                  <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest px-1">Editar nombre</Label>
+                  <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Nuevo nombre" className="rounded-xl border-blue-200" autoFocus />
+                  <div className="flex gap-2 pt-2">
+                    <Button variant="ghost" className="flex-1 rounded-xl" onClick={() => { setEditingMemberId(null); setMemberName(''); }}>Cancelar</Button>
+                    <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="flex-1 rounded-xl bg-blue-600 text-white">Guardar</Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="h-px bg-border/50 my-2" />
+                  
+                  {frequentPeople.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Agregar de mis frecuentes</Label>
+                      <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                        {frequentPeople.map(p => {
+                          const alreadyIn = members.some(m => m.name.toLowerCase() === p.toLowerCase());
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              disabled={alreadyIn}
+                              onClick={() => setMemberName(p)}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                alreadyIn 
+                                  ? 'opacity-40 bg-muted cursor-not-allowed' 
+                                  : 'bg-blue-500/10 border-blue-500/20 text-blue-600 hover:bg-blue-500/20'
+                              }`}
+                            >
+                              {alreadyIn ? '✓ ' : '+ '}{p}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Agregar manualmente</Label>
+                    <div className="flex gap-2">
+                      <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" />
+                      <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="rounded-xl bg-blue-600 text-white px-6">
+                        {savingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" className="rounded-xl" onClick={() => setMemberOpen(false)}>Cancelar</Button>
-            <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="rounded-xl bg-violet-600 text-white">
-              {savingMember && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Agregar
-            </Button>
+            {!editingMemberId && <Button variant="ghost" className="w-full rounded-xl" onClick={() => setMemberOpen(false)}>Cerrar</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
