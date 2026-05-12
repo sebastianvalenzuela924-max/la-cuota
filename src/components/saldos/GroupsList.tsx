@@ -74,8 +74,15 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     const saved = localStorage.getItem('saldamos_frequent_people');
     return saved ? JSON.parse(saved) : [];
   });
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('saldamos_people_groups');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [managePeopleOpen, setManagePeopleOpen] = useState(false);
   const [newFrequentName, setNewFrequentName] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [activeManageTab, setActiveManageTab] = useState<'people' | 'groups'>('people');
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
 
   const load = async () => {
     if (!user) return;
@@ -107,7 +114,46 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   };
 
   const removeFrequentPerson = (name: string) => {
-    setFrequentPeople(prev => prev.filter(p => p !== name));
+    const next = frequentPeople.filter(p => p !== name);
+    setFrequentPeople(next);
+    localStorage.setItem('saldamos_frequent_people', JSON.stringify(next));
+    
+    // Also remove from any groups
+    const nextGroups = { ...peopleGroups };
+    Object.keys(nextGroups).forEach(g => {
+      nextGroups[g] = nextGroups[g].filter(p => p !== name);
+    });
+    setPeopleGroups(nextGroups);
+    localStorage.setItem('saldamos_people_groups', JSON.stringify(nextGroups));
+  };
+
+  const addGroup = () => {
+    if (!newGroupName.trim() || peopleGroups[newGroupName.trim()]) return;
+    const next = { ...peopleGroups, [newGroupName.trim()]: [] };
+    setPeopleGroups(next);
+    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
+    setNewGroupName('');
+    toast.success(`Grupo "${newGroupName}" creado`);
+  };
+
+  const togglePersonInGroupList = (groupName: string, personName: string) => {
+    const next = { ...peopleGroups };
+    const group = [...next[groupName]];
+    if (group.includes(personName)) {
+      next[groupName] = group.filter(p => p !== personName);
+    } else {
+      next[groupName] = [...group, personName];
+    }
+    setPeopleGroups(next);
+    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
+  };
+
+  const deleteGroup = (groupName: string) => {
+    const next = { ...peopleGroups };
+    delete next[groupName];
+    setPeopleGroups(next);
+    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
+    toast.success('Grupo eliminado');
   };
 
   const togglePersonInGroup = (personName: string) => {
@@ -488,8 +534,40 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
               
               {/* Frequent people picker - Rediseñado visual */}
               {frequentPeople.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">Tus Amigos (Toca para añadir)</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">Tus Amigos</p>
+                    {Object.keys(peopleGroups).length > 0 && (
+                      <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[150px]">
+                        {Object.keys(peopleGroups).map(gn => (
+                          <button
+                            key={gn}
+                            type="button"
+                            onClick={() => {
+                              const members = peopleGroups[gn];
+                              const allSelected = members.every(m => memberInputs.some(mi => mi.trim() === m));
+                              if (allSelected) {
+                                // Deselect all of this group
+                                setMemberInputs(prev => {
+                                  const filtered = prev.filter(p => !members.includes(p.trim()));
+                                  return filtered.length < 2 ? [...filtered, ...Array(2 - filtered.length).fill('')] : filtered;
+                                });
+                              } else {
+                                // Add all of this group
+                                setMemberInputs(prev => {
+                                  const existing = prev.filter(p => p.trim() && !members.includes(p.trim()));
+                                  return [...existing, ...members];
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded-lg border border-violet-200 text-[8px] font-bold text-violet-600 bg-violet-50 whitespace-nowrap"
+                          >
+                            + {gn}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2 py-1">
                     {frequentPeople.map(p => {
                       const isSelected = memberInputs.some(m => m.trim() === p);
@@ -570,48 +648,152 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       </Dialog>
       {/* Manage People Dialog */}
       <Dialog open={managePeopleOpen} onOpenChange={setManagePeopleOpen}>
-        <DialogContent className="rounded-2xl max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Mis Personas Frecuentes</DialogTitle>
-            <DialogDescription>Guarda los nombres de tus amigos para agregarlos rápido a cualquier grupo.</DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-2">
-            <div className="flex gap-2">
-              <Input 
-                value={newFrequentName}
-                onChange={e => setNewFrequentName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addFrequentPerson()}
-                placeholder="Nombre de la persona"
-                className="rounded-xl h-10"
-              />
-              <Button onClick={addFrequentPerson} size="sm" className="rounded-xl h-10 bg-violet-600">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
-              {frequentPeople.length === 0 ? (
-                <p className="text-center py-8 text-sm text-muted-foreground italic">Aún no has guardado a nadie.</p>
-              ) : (
-                frequentPeople.map(p => (
-                  <div key={p} className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border/50 group">
-                    <span className="text-sm font-bold text-foreground">{p}</span>
-                    <button 
-                      onClick={() => removeFrequentPerson(p)}
-                      className="text-muted-foreground hover:text-red-500 transition-colors p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+        <DialogContent className="rounded-3xl max-w-sm p-0 overflow-hidden border-none shadow-2xl">
+          <div className="bg-gradient-to-br from-violet-600 to-indigo-700 p-6 pb-12">
+            <DialogHeader className="text-white text-left">
+              <DialogTitle className="text-xl font-black">Mis Personas</DialogTitle>
+              <DialogDescription className="text-violet-100 opacity-80 text-xs">Organiza a tus amigos y crea grupos frecuentes.</DialogDescription>
+            </DialogHeader>
           </div>
           
-          <DialogFooter>
-            <Button onClick={() => setManagePeopleOpen(false)} className="w-full rounded-xl bg-violet-600">Listo</Button>
-          </DialogFooter>
+          <div className="bg-background rounded-t-[32px] -mt-8 p-6 space-y-6 relative">
+            <div className="flex bg-muted p-1 rounded-2xl">
+              <button 
+                onClick={() => setActiveManageTab('people')}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'people' ? 'bg-background shadow-sm text-violet-600' : 'text-muted-foreground'}`}
+              >
+                Personas
+              </button>
+              <button 
+                onClick={() => setActiveManageTab('groups')}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeManageTab === 'groups' ? 'bg-background shadow-sm text-violet-600' : 'text-muted-foreground'}`}
+              >
+                Grupos
+              </button>
+            </div>
+
+            {activeManageTab === 'people' ? (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input 
+                    value={newFrequentName}
+                    onChange={e => setNewFrequentName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addFrequentPerson()}
+                    placeholder="Nombre (ej: Carlos)"
+                    className="rounded-2xl h-12 border-muted"
+                  />
+                  <Button onClick={addFrequentPerson} className="rounded-2xl h-12 w-12 p-0 bg-violet-600 shrink-0">
+                    <Plus className="w-5 h-5 text-white" />
+                  </Button>
+                </div>
+
+                <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                  {frequentPeople.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                        <Users className="w-8 h-8 text-muted-foreground/30" />
+                      </div>
+                      <p className="text-sm text-muted-foreground italic">Aún no has guardado a nadie.</p>
+                    </div>
+                  ) : (
+                    frequentPeople.map(p => (
+                      <div key={p} className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-transparent hover:border-violet-100 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-black">
+                            {p.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-foreground">{p}</span>
+                        </div>
+                        <button 
+                          onClick={() => removeFrequentPerson(p)}
+                          className="text-muted-foreground hover:text-red-500 transition-colors p-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input 
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addGroup()}
+                    placeholder="Nuevo grupo (ej: Fútbol)"
+                    className="rounded-2xl h-12 border-muted"
+                  />
+                  <Button onClick={addGroup} className="rounded-2xl h-12 w-12 p-0 bg-emerald-600 shrink-0">
+                    <Plus className="w-5 h-5 text-white" />
+                  </Button>
+                </div>
+
+                <div className="max-h-[300px] overflow-y-auto pr-1 space-y-3 custom-scrollbar">
+                  {Object.keys(peopleGroups).length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-sm text-muted-foreground italic">Crea un grupo para agrupar personas.</p>
+                    </div>
+                  ) : (
+                    Object.keys(peopleGroups).map(gn => (
+                      <div key={gn} className="space-y-2">
+                        <div className="flex items-center justify-between bg-emerald-500/5 p-3 rounded-2xl border border-emerald-500/10">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-black text-emerald-700">{gn}</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-lg font-bold">
+                              {peopleGroups[gn].length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className={`h-8 rounded-xl text-[10px] font-bold ${editingGroup === gn ? 'bg-emerald-100 text-emerald-700' : 'text-muted-foreground'}`}
+                              onClick={() => setEditingGroup(editingGroup === gn ? null : gn)}
+                            >
+                              {editingGroup === gn ? 'Cerrar' : 'Editar'}
+                            </Button>
+                            <button onClick={() => deleteGroup(gn)} className="p-2 text-muted-foreground hover:text-red-500">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {editingGroup === gn && (
+                          <div className="bg-muted/30 p-3 rounded-2xl border border-dashed border-muted grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95 duration-200">
+                            {frequentPeople.map(p => {
+                              const inGroup = peopleGroups[gn].includes(p);
+                              return (
+                                <button
+                                  key={p}
+                                  onClick={() => togglePersonInGroupList(gn, p)}
+                                  className={`flex items-center gap-2 p-2 rounded-xl text-[11px] font-bold transition-all ${
+                                    inGroup 
+                                      ? 'bg-emerald-500 text-white shadow-sm' 
+                                      : 'bg-background text-muted-foreground hover:border-emerald-200 border border-transparent'
+                                  }`}
+                                >
+                                  <div className={`w-4 h-4 rounded flex items-center justify-center ${inGroup ? 'bg-white/20' : 'bg-muted'}`}>
+                                    {inGroup ? '✓' : ''}
+                                  </div>
+                                  {p}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter className="pt-2">
+              <Button onClick={() => setManagePeopleOpen(false)} className="w-full rounded-2xl h-12 bg-violet-600 text-white font-black text-sm shadow-lg shadow-violet-200 dark:shadow-none">Listo</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
