@@ -167,23 +167,39 @@ export function ExpenseDialog({
 
   const distributeEvenly = () => {
     if (!totalNum || selected.size === 0) return;
-    const share = totalNum / selected.size;
+    const share = Math.floor((totalNum / selected.size) * 100) / 100;
+    let remainderCents = Math.round((totalNum - (share * selected.size)) * 100);
     const next = { ...contribs };
-    selected.forEach((id) => (next[id] = share.toFixed(0)));
+    Array.from(selected).forEach((id, idx) => {
+      let amount = share;
+      if (remainderCents > 0) {
+        amount += 0.01;
+        remainderCents -= 1;
+      }
+      next[id] = amount.toFixed(2);
+    });
     setContribs(next);
   };
 
   const distributeOwedEvenly = () => {
     if (!totalNum || selected.size === 0) return;
-    const share = totalNum / selected.size;
+    const share = Math.floor((totalNum / selected.size) * 100) / 100;
+    let remainderCents = Math.round((totalNum - (share * selected.size)) * 100);
     const next = { ...owed };
-    selected.forEach((id) => (next[id] = share.toFixed(0)));
+    Array.from(selected).forEach((id, idx) => {
+      let amount = share;
+      if (remainderCents > 0) {
+        amount += 0.01;
+        remainderCents -= 1;
+      }
+      next[id] = amount.toFixed(2);
+    });
     setOwed(next);
   };
 
   const assignAllToOne = (id: string) => {
     const next: Record<string, string> = {};
-    selected.forEach((mid) => (next[mid] = mid === id ? totalNum.toFixed(0) : "0"));
+    selected.forEach((mid) => (next[mid] = mid === id ? totalNum.toFixed(2) : "0"));
     setContribs(next);
   };
 

@@ -453,10 +453,10 @@ export default function SaldamosGroupDetail({
     <div className="space-y-6 animate-fade-in-up pb-10">
       {/* Top Nav Bar - Adjusted top to account for main header */}
       <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Volver
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-violet-600 transition-colors">
+          <ArrowLeft className="w-4 h-4 stroke-[3px]" /> Volver
         </button>
-        <Button size="sm" variant="ghost" className="rounded-xl h-9 px-3 text-xs gap-2 text-muted-foreground hover:text-violet-600" onClick={() => setMemberOpen(true)}>
+        <Button size="sm" variant="default" className="rounded-xl h-9 px-3 text-xs gap-2 bg-violet-600 text-white shadow-sm hover:bg-violet-700" onClick={() => setMemberOpen(true)}>
           <UserPlus className="w-4 h-4" />
           <span className="hidden sm:inline">Agregar Persona</span>
         </Button>

@@ -280,11 +280,11 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                     <div className="flex items-center gap-3">
                       <div className="text-right space-y-0.5">
                         <div className="flex flex-col items-end">
-                          <p className={`text-[10px] font-bold tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                            {fmt(r.paid)} <span className="text-[8px] opacity-60 font-medium">APORTASTE</span>
+                          <p className={`text-[10px] font-black tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                            {fmt(r.paid)} <span className="text-[8px] font-black">APORTASTE</span>
                           </p>
-                          <p className={`text-[10px] font-bold tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
-                            {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] opacity-60 font-medium">CONSUMISTE</span>
+                          <p className={`text-[10px] font-black tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
+                            {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] font-black">CONSUMISTE</span>
                           </p>
                         </div>
                       </div>
