@@ -148,7 +148,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
   };
 
-  const deleteGroup = (groupName: string) => {
+  const deletePersonGroup = (groupName: string) => {
     const next = { ...peopleGroups };
     delete next[groupName];
     setPeopleGroups(next);
@@ -754,7 +754,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                             >
                               {editingGroup === gn ? 'Cerrar' : 'Editar'}
                             </Button>
-                            <button onClick={() => deleteGroup(gn)} className="p-2 text-muted-foreground hover:text-red-500">
+                            <button onClick={() => deletePersonGroup(gn)} className="p-2 text-muted-foreground hover:text-red-500">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
