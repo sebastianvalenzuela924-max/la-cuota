@@ -66,6 +66,11 @@ export function ExpenseDialog({
       return JSON.parse(localStorage.getItem(`saldamos_mappings_${groupId}`) || '{}');
     } catch { return {}; }
   });
+  const [frequentPeople] = useState<string[]>(() => {
+    const saved = localStorage.getItem('saldamos_frequent_people');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
 
   const eligible = useMemo(() => {
     if (existing) {
@@ -141,8 +146,8 @@ export function ExpenseDialog({
       setTotal("");
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
-      setIsPersonal(false);
-      setTrackPayments(false);
+      const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
+      setTrackPayments(isFootball);
       setPersonalPayer("");
       setSelected(new Set(members.map((m) => m.id)));
       const map: Record<string, string> = {};
@@ -150,7 +155,7 @@ export function ExpenseDialog({
       setContribs(map);
       setOwed({ ...map });
     }
-  }, [open, existing, initialImportText]);
+  }, [open, existing, initialImportText, members, groupId]);
 
   const totalNum = Number(total) || 0;
   const sumContribs = Array.from(selected).reduce((s, id) => s + (Number(contribs[id]) || 0), 0);
@@ -164,6 +169,35 @@ export function ExpenseDialog({
     else next.add(id);
     setSelected(next);
   };
+
+  const addFrequentToGroup = async (name: string) => {
+    if (addingFrequent) return;
+    setAddingFrequent(name);
+    try {
+      const { data, error } = await saldamosSupabase
+        .from('group_members')
+        .insert({ group_id: groupId, name: name.trim() })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      toast.success(`${name} agregado al grupo`);
+      if (onMembersChanged) await onMembersChanged();
+      
+      // Auto-select in the expense
+      if (data) {
+        setSelected(prev => new Set(prev).add((data as any).id));
+      }
+    } catch (err: any) {
+      toast.error('Error al agregar: ' + err.message);
+    } finally {
+      setAddingFrequent(null);
+    }
+  };
+
+  const selectAll = () => setSelected(new Set(members.map(m => m.id)));
+  const selectNone = () => setSelected(new Set());
 
   const distributeEvenly = () => {
     if (!totalNum || selected.size === 0) return;
@@ -490,6 +524,38 @@ export function ExpenseDialog({
             </div>
           )}
 
+          {frequentPeople.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Añadir de Mis Personas</Label>
+              <div className="flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                {frequentPeople.map(p => {
+                  const member = members.find(m => m.name.toLowerCase() === p.toLowerCase());
+                  const isAlreadyIn = !!member;
+                  const isSelected = member ? selected.has(member.id) : false;
+                  
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={addingFrequent === p}
+                      onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
+                        isSelected 
+                          ? 'bg-violet-600 border-violet-600 text-white' 
+                          : isAlreadyIn
+                            ? 'bg-violet-500/10 border-violet-500/20 text-violet-600'
+                            : 'bg-muted/50 border-transparent text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓ ' : '+ ')}
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {isPersonal ? (
             <div className="space-y-2">
               <Label>¿De quién es este gasto?</Label>
@@ -505,7 +571,14 @@ export function ExpenseDialog({
           ) : (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>Participantes y montos</Label>
+                <div className="flex items-center gap-2">
+                  <Label>Participantes ({selected.size})</Label>
+                  <div className="flex gap-1">
+                    <button type="button" onClick={selectAll} className="text-[10px] font-bold text-violet-600 hover:underline">Todos</button>
+                    <span className="text-[10px] text-muted-foreground">/</span>
+                    <button type="button" onClick={selectNone} className="text-[10px] font-bold text-muted-foreground hover:text-red-500 hover:underline">Ninguno</button>
+                  </div>
+                </div>
                 <div className="flex gap-1">
                   <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] rounded-lg" onClick={() => setPasteOpen(true)}>
                     <Wand2 className="h-3 w-3 mr-1" /> Pegar ticket

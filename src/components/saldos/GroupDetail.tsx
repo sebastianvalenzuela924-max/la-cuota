@@ -78,6 +78,12 @@ export default function SaldamosGroupDetail({
   const [payTo, setPayTo] = useState('');
   const [payAmount, setPayAmount] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
+  const [frequentPeople] = useState<string[]>(() => {
+    const saved = localStorage.getItem('saldamos_frequent_people');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
+  const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
 
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
@@ -628,6 +634,15 @@ export default function SaldamosGroupDetail({
         </TabsList>
 
         <TabsContent value="balances" className="space-y-4 pt-4">
+          {isFootball && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl shrink-0">⚽</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Modo Partido</p>
+                <p className="text-[10px] text-emerald-600/80 dark:text-emerald-500/60 leading-tight">Enfócate en quién ya pagó su cuota del partido.</p>
+              </div>
+            </div>
+          )}
           <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
@@ -997,9 +1012,37 @@ export default function SaldamosGroupDetail({
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
         <DialogContent className="rounded-2xl">
           <DialogHeader><DialogTitle>Nueva persona</DialogTitle></DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>Nombre</Label>
-            <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" autoFocus />
+          <div className="space-y-4 py-2">
+            {frequentPeople.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Mis Personas Frecuentes</Label>
+                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                  {frequentPeople.map(p => {
+                    const alreadyIn = members.some(m => m.name.toLowerCase() === p.toLowerCase());
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        disabled={alreadyIn}
+                        onClick={() => setMemberName(p)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                          alreadyIn 
+                            ? 'opacity-40 bg-muted cursor-not-allowed' 
+                            : 'bg-violet-500/10 border-violet-500/20 text-violet-600 hover:bg-violet-500/20'
+                        }`}
+                      >
+                        {alreadyIn ? '✓ ' : '+ '}{p}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="h-px bg-border/50 my-2" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Nuevo nombre</Label>
+              <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" autoFocus />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" className="rounded-xl" onClick={() => setMemberOpen(false)}>Cancelar</Button>
