@@ -737,20 +737,24 @@ export default function SaldamosGroupDetail({
                           <p className={`text-sm font-black tabular-nums ${isSettlement ? 'text-emerald-600' : ''}`}>
                             {formatMoney(ex.total_amount, group?.currency)}
                           </p>
-                          {myContrib && !isSettlement && (
-                            <div className="flex flex-col items-end -mt-0.5">
-                              {myContrib.amount_paid > 0 && (
-                                <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
-                                  Pagaste {formatMoney(myContrib.amount_paid, group?.currency)}
-                                </p>
-                              )}
-                              {myContrib.amount_owed > 0 && (
-                                <p className="text-[9px] font-bold text-violet-600 uppercase tracking-tighter">
-                                  Consumiste {formatMoney(myContrib.amount_owed, group?.currency)}
-                                </p>
-                              )}
-                            </div>
-                          )}
+                          {myContrib && !isSettlement && (() => {
+                            const net = (myContrib.amount_paid || 0) - (myContrib.amount_owed || 0);
+                            if (net > 0.01) return (
+                              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                +{formatMoney(net, group?.currency)} te deben
+                              </p>
+                            );
+                            if (net < -0.01) return (
+                              <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">
+                                {formatMoney(Math.abs(net), group?.currency)} debes
+                              </p>
+                            );
+                            return (
+                              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
+                                ✓ saldado
+                              </p>
+                            );
+                          })()}
                           <p className="text-[9px] text-muted-foreground font-medium tabular-nums mt-0.5 uppercase">
                             {ex.contributions?.length || 0} pers.
                           </p>
