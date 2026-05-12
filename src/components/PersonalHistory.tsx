@@ -156,7 +156,7 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
       <Card className="rounded-2xl border-border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <User className="h-5 w-5 text-violet-500" /> Mi historial
+            <User className="h-5 w-5 text-blue-600" /> Mi historial
           </CardTitle>
           <CardDescription className="text-xs">Elegí tu nombre para ver tus estadísticas.</CardDescription>
         </CardHeader>
@@ -175,7 +175,7 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground'}`}
+              className={`h-7 text-[10px] rounded-lg gap-1.5 ${showConverter ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}
               onClick={() => setShowConverter(!showConverter)}
             >
               <HandCoins className="w-3 h-3" />
@@ -202,9 +202,9 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
               <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Consumido Total</p>
               <p className="text-lg font-bold tabular-nums text-foreground">{fmt(totalConsumed)}</p>
             </Card>
-            <Card className="rounded-2xl p-3 border-violet-500/20 bg-violet-500/5">
+            <Card className="rounded-2xl p-3 border-blue-500/20 bg-blue-500/5">
               <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Gasto Personal</p>
-              <p className="text-lg font-bold tabular-nums text-violet-600">{fmt(totalPersonal)}</p>
+              <p className="text-lg font-bold tabular-nums text-blue-600">{fmt(totalPersonal)}</p>
             </Card>
           </div>
 
@@ -214,10 +214,10 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                 <button 
                   key={ct.name} 
                   onClick={() => setCategoryFilter(categoryFilter === ct.name ? 'all' : ct.name)}
-                  className={`shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px] transition-all active:scale-95 ${categoryFilter === ct.name ? 'border-violet-600 bg-violet-50' : 'border-border/50 hover:border-violet-300'}`}
+                  className={`shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px] transition-all active:scale-95 ${categoryFilter === ct.name ? 'border-blue-600 bg-blue-50' : 'border-border/50 hover:border-blue-300'}`}
                 >
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
-                  <p className={`text-xs font-bold ${categoryFilter === ct.name ? 'text-violet-600' : ''}`}>{fmt(ct.total)}</p>
+                  <p className={`text-xs font-bold ${categoryFilter === ct.name ? 'text-blue-600' : ''}`}>{fmt(ct.total)}</p>
                 </button>
               ))}
             </div>
@@ -255,15 +255,15 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                     key={r.expense.id} 
                     className={`p-3 rounded-xl border flex justify-between items-center transition-all active:scale-[0.98] cursor-pointer hover:shadow-md ${
                       r.isSettlement ? 'bg-emerald-50 border-emerald-100' : 
-                      r.isPersonal ? 'bg-violet-50 border-violet-100' : 
-                      'bg-card hover:border-violet-200'
+                      r.isPersonal ? 'bg-blue-50 border-blue-100' : 
+                      'bg-card hover:border-blue-200'
                     }`}
                     onClick={() => onViewDetail?.(r.expense.id)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`p-2 rounded-lg shrink-0 ${
                         r.isSettlement ? 'bg-emerald-100 text-emerald-600' : 
-                        r.isPersonal ? 'bg-violet-100 text-violet-600' : 
+                        r.isPersonal ? 'bg-blue-100 text-blue-600' : 
                         'bg-muted text-muted-foreground'
                       }`}>
                         <Receipt className="w-3.5 h-3.5" />
@@ -283,7 +283,7 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                           <p className={`text-[10px] font-black tabular-nums ${r.paid > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                             {fmt(r.paid)} <span className="text-[8px] font-black">APORTASTE</span>
                           </p>
-                          <p className={`text-[10px] font-black tabular-nums ${r.consumed > 0 ? 'text-violet-600' : 'text-muted-foreground'}`}>
+                          <p className={`text-[10px] font-black tabular-nums ${r.consumed > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
                             {fmt(r.isSettlement ? r.expense.total_amount : r.consumed)} <span className="text-[8px] font-black">CONSUMISTE</span>
                           </p>
                         </div>

@@ -426,11 +426,11 @@ export default function Index() {
           <button
             onClick={() => setActiveTab('saldos')}
             className={`flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors ${
-              activeTab === 'saldos' ? 'text-violet-500' : 'text-muted-foreground'
+              activeTab === 'saldos' ? 'text-blue-600' : 'text-muted-foreground'
             }`}
           >
-            <Scale className={`w-5 h-5 ${activeTab === 'saldos' ? 'text-violet-500' : 'text-muted-foreground'}`} />
-            <span className="text-[10px] font-semibold">Mis Saldos</span>
+            <Scale className={`w-5 h-5 ${activeTab === 'saldos' ? 'text-blue-600' : 'text-muted-foreground'}`} />
+            <span className="text-[10px] font-bold">Mis Saldos</span>
           </button>
         </div>
       </nav>

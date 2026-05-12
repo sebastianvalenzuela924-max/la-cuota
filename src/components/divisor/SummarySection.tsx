@@ -310,7 +310,7 @@ export default function SummarySection({
         {onImportToSaldos && (
           <Button 
             onClick={() => onImportToSaldos(summaryText)}
-            className="w-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90 rounded-xl py-6 font-semibold shadow-sm"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:opacity-90 rounded-xl py-6 font-semibold shadow-sm"
           >
             <Scale className="w-5 h-5 mr-2" />
             Guardar en Mis Saldos

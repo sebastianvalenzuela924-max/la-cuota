@@ -645,7 +645,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 <button
                   type="button"
                   onClick={() => setMemberInputs(prev => [...prev, ''])}
-                  className="w-full h-7 rounded-xl border border-dashed border-border text-[11px] text-muted-foreground hover:text-violet-600 hover:border-violet-300 transition-colors flex items-center justify-center gap-1"
+                  className="w-full h-7 rounded-xl border border-dashed border-border text-[11px] text-muted-foreground hover:text-blue-600 hover:border-blue-300 transition-colors flex items-center justify-center gap-1"
                 >
                   <Plus className="w-3 h-3" /> Añadir otra persona
                 </button>
@@ -657,7 +657,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
             <Button
               onClick={create}
               disabled={creating || !name.trim()}
-              className="rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white"
+              className="rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white"
             >
               {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedTemplate?.emoji + ' ')}
               Crear grupo

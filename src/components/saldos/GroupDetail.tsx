@@ -633,7 +633,7 @@ export default function SaldamosGroupDetail({
           <Button
             size="sm"
             variant="ghost"
-            className="rounded-xl h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-violet-600"
+            className="rounded-xl h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-blue-600"
             onClick={() => setShareOpen(true)}
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -877,10 +877,10 @@ export default function SaldamosGroupDetail({
                   <button 
                     key={ct.id} 
                     onClick={() => setHistoryCategory(ct.id)}
-                    className="shrink-0 bg-card border border-border/50 rounded-xl px-3 py-2 text-center min-w-[100px] hover:border-violet-300 hover:bg-violet-50/30 transition-all active:scale-95"
+                    className="shrink-0 bg-card border border-border/50 rounded-xl px-3 py-2 text-center min-w-[100px] hover:border-blue-300 hover:bg-blue-50/30 transition-all active:scale-95"
                   >
                     <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
-                    <p className="text-xs font-bold text-violet-600">{fmt(ct.total)}</p>
+                    <p className="text-xs font-bold text-blue-600">{fmt(ct.total)}</p>
                   </button>
                 ))}
               </div>
@@ -925,7 +925,7 @@ export default function SaldamosGroupDetail({
                         <div className={`p-2 rounded-xl shrink-0 ${
                           isSettlement ? 'bg-emerald-100 text-emerald-600' : 
                           showYellow ? 'bg-emerald-100 text-emerald-600' :
-                          'bg-violet-100 text-violet-600'
+                          'bg-blue-100 text-blue-600'
                         }`}>
                           {isSettlement ? <HandCoins className="w-4 h-4" /> : <Receipt className={`w-4 h-4 ${showYellow ? 'animate-bounce' : ''}`} />}
                         </div>
@@ -1009,15 +1009,15 @@ export default function SaldamosGroupDetail({
                                     : 'bg-muted/30'
                                 }`}>
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${isPayer ? 'bg-violet-500' : 'bg-muted-foreground/30'}`} />
-                                    <span className={`truncate font-medium ${isMe ? 'text-violet-600 font-bold' : ''}`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${isPayer ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
+                                    <span className={`truncate font-medium ${isMe ? 'text-blue-600 font-bold' : ''}`}>
                                       {m?.name || 'Desconocido'}
                                     </span>
-                                    {isPayer && <span className="text-[9px] bg-violet-500/15 text-violet-500 dark:text-violet-400 px-1 rounded uppercase font-bold">Pagó</span>}
+                                    {isPayer && <span className="text-[9px] bg-blue-500/15 text-blue-500 dark:text-blue-400 px-1 rounded uppercase font-bold">Pagó</span>}
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <div className="text-right tabular-nums">
-                                      {c.amount_paid > 0 && <p className="text-violet-500 dark:text-violet-400 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
+                                      {c.amount_paid > 0 && <p className="text-blue-500 dark:text-blue-400 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
                                       {c.amount_owed > 0 && <p className={c.is_settled ? 'text-emerald-500 dark:text-emerald-400 line-through' : 'text-red-500 dark:text-red-400'}>-{formatMoney(c.amount_owed, group?.currency)}</p>}
                                     </div>
                                     
@@ -1107,7 +1107,7 @@ export default function SaldamosGroupDetail({
                   <div className={`mt-1 p-1.5 rounded-lg ${
                     a.action.includes('DELETED') ? 'bg-red-50 text-red-500' : 
                     a.action.includes('ADDED') || a.action.includes('IMPORTED') ? 'bg-emerald-50 text-emerald-500' :
-                    'bg-violet-50 text-violet-500'
+                    'bg-blue-50 text-blue-500'
                   }`}>
                     <Sparkles className="w-3.5 h-3.5" />
                   </div>
@@ -1261,7 +1261,7 @@ export default function SaldamosGroupDetail({
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-violet-500" /> Compartir grupo
+              <Share2 className="w-5 h-5 text-blue-500" /> Compartir grupo
             </DialogTitle>
             <DialogDescription>
               Cualquiera con el enlace podrá ver los gastos. Para que otros puedan editar, deben iniciar sesión.
@@ -1290,7 +1290,7 @@ export default function SaldamosGroupDetail({
                   onChange={e => setInviteEmail(e.target.value)}
                   className="rounded-xl text-sm"
                 />
-                <Button className="rounded-xl bg-violet-600 text-white" onClick={() => {
+                <Button className="rounded-xl bg-blue-600 text-white" onClick={() => {
                   const subject = encodeURIComponent(`Te invito al grupo ${group?.name} en La Cuota`);
                   const body = encodeURIComponent(`Hola! Únete al grupo para gestionar los gastos juntos: ${window.location.origin}/?group=${groupId}`);
                   window.location.href = `mailto:${inviteEmail}?subject=${subject}&body=${body}`;
@@ -1309,14 +1309,14 @@ export default function SaldamosGroupDetail({
       <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-violet-500" /> Importar</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-blue-500" /> Importar</DialogTitle>
           </DialogHeader>
 
           {!importParsed ? (
             <div className="space-y-3">
               <Textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Pega el mensaje de La Cuota aquí..." className="min-h-[180px] font-mono text-xs rounded-xl" />
               <DialogFooter>
-                <Button onClick={handleParseImport} disabled={!importText.trim()} className="bg-violet-600 text-white rounded-xl w-full">Detectar personas</Button>
+                <Button onClick={handleParseImport} disabled={!importText.trim()} className="bg-blue-600 text-white rounded-xl w-full">Detectar personas</Button>
               </DialogFooter>
             </div>
           ) : (
@@ -1338,7 +1338,7 @@ export default function SaldamosGroupDetail({
                   </Select>
                 </div>
               ))}
-              <Button onClick={handleApplyImport} disabled={importing} className="bg-violet-600 text-white rounded-xl w-full">
+              <Button onClick={handleApplyImport} disabled={importing} className="bg-blue-600 text-white rounded-xl w-full">
                 {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Importar consumos
               </Button>
             </div>

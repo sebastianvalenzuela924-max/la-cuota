@@ -37,8 +37,8 @@ export function CurrencyConverter({
 
   return (
     <div className="rounded-xl border bg-card p-3">
-      <div className="flex items-center gap-2">
-        <ArrowLeftRight className="h-4 w-4 shrink-0 text-violet-500" />
+      <div className="flex items-center gap-3 p-3 bg-blue-500/5 rounded-xl border border-blue-500/10 mb-2">
+        <ArrowLeftRight className="h-4 w-4 shrink-0 text-blue-500" />
         <p className="text-sm font-medium">Ver en otra moneda</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">

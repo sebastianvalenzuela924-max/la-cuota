@@ -53,13 +53,12 @@ export default function SaldamosAuthWall() {
   return (
     <div className="flex flex-col items-center justify-center py-10 px-4 text-center animate-fade-in-up">
       {/* Icon */}
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center mb-4 shadow-lg">
-        <Scale className="w-8 h-8 text-white" />
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center mb-4 shadow-lg">
+        <User className="w-8 h-8 text-white" />
       </div>
-      <h2 className="text-2xl font-bold text-foreground mb-1">Mis Saldos</h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-        Guarda los balances entre tus grupos, viajes y salidas. <br/>
-        Conecta con tu cuenta de <strong>Saldamos</strong>.
+      <h1 className="text-2xl font-black tracking-tight text-foreground mb-2">Mi Cuenta</h1>
+      <p className="text-sm text-muted-foreground mb-8 max-w-[280px]">
+        Iniciá sesión para guardar tus grupos y acceder desde cualquier dispositivo.
       </p>
 
       <div className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow space-y-4 text-left">
@@ -116,7 +115,7 @@ export default function SaldamosAuthWall() {
         <Button
           onClick={handle}
           disabled={loading}
-          className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:opacity-90 font-semibold gap-1.5"
+          className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:opacity-90 font-semibold gap-1.5"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
           {mode === 'in' ? 'Entrar' : 'Crear cuenta gratis'}
