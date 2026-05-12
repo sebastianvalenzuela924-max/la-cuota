@@ -53,7 +53,7 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('balances');
+  const [activeTab, setActiveTab] = useState('historial');
 
   const [memberOpen, setMemberOpen] = useState(false);
   const [memberName, setMemberName] = useState('');
@@ -648,7 +648,7 @@ export default function SaldamosGroupDetail({
             {group?.name || 'Cargando...'}
           </h2>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
               {currency}
             </span>
             <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
@@ -672,11 +672,11 @@ export default function SaldamosGroupDetail({
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
-          <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
-            <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
-          </TabsTrigger>
           <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
+          </TabsTrigger>
+          <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
+            <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
           </TabsTrigger>
           <TabsTrigger value="mi-actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <User className="w-3.5 h-3.5" /> Mi Hist.

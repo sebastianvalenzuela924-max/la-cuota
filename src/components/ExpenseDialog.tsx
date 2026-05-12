@@ -77,6 +77,7 @@ export function ExpenseDialog({
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(false);
+  const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
 
   const eligible = useMemo(() => {
     if (existing) {
@@ -379,7 +380,10 @@ export function ExpenseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl rounded-2xl">
+      <DialogContent 
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl rounded-2xl"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>{existing ? "Editar gasto" : "Nuevo gasto"}</DialogTitle>
           <DialogDescription>
@@ -418,26 +422,52 @@ export function ExpenseDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Categoría</Label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <CategoryPicker
-                  groupId={groupId}
-                  categories={categories}
-                  value={categoryId}
-                  onChange={setCategoryId}
-                  onCategoriesChanged={onCategoriesChanged}
-                />
-              </div>
-              <div className="flex gap-1">
-                <Input 
-                  placeholder="Nueva..." 
-                  className="w-24 text-[10px] h-10 rounded-xl"
-                  id="new-cat-input"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const val = (e.currentTarget as HTMLInputElement).value;
+          {groupMode !== 'tracker' && (
+            <div className="space-y-2">
+              <Label>Categoría</Label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <CategoryPicker
+                    groupId={groupId}
+                    categories={categories}
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    onCategoriesChanged={onCategoriesChanged}
+                  />
+                </div>
+                <div className="flex gap-1">
+                  <Input 
+                    placeholder="Nueva..." 
+                    className="w-24 text-[10px] h-10 rounded-xl"
+                    id="new-cat-input"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = (e.currentTarget as HTMLInputElement).value;
+                        if (val.trim()) {
+                          (async () => {
+                            const { data, error } = await saldamosSupabase
+                              .from("expense_categories" as any)
+                              .insert({ group_id: groupId, name: val.trim(), is_default: false })
+                              .select("id")
+                              .single();
+                            if (!error) {
+                              await onCategoriesChanged();
+                              setCategoryId((data as any).id);
+                              (document.getElementById('new-cat-input') as HTMLInputElement).value = '';
+                              toast.success(`Categoría "${val}" creada`);
+                            }
+                          })();
+                        }
+                      }
+                    }}
+                  />
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="h-10 w-10 rounded-xl shrink-0"
+                    onClick={() => {
+                      const input = document.getElementById('new-cat-input') as HTMLInputElement;
+                      const val = input.value;
                       if (val.trim()) {
                         (async () => {
                           const { data, error } = await saldamosSupabase
@@ -448,54 +478,32 @@ export function ExpenseDialog({
                           if (!error) {
                             await onCategoriesChanged();
                             setCategoryId((data as any).id);
-                            (document.getElementById('new-cat-input') as HTMLInputElement).value = '';
+                            input.value = '';
                             toast.success(`Categoría "${val}" creada`);
                           }
                         })();
                       }
-                    }
-                  }}
-                />
-                <Button 
-                  size="icon" 
-                  variant="outline" 
-                  className="h-10 w-10 rounded-xl shrink-0"
-                  onClick={() => {
-                    const input = document.getElementById('new-cat-input') as HTMLInputElement;
-                    const val = input.value;
-                    if (val.trim()) {
-                      (async () => {
-                        const { data, error } = await saldamosSupabase
-                          .from("expense_categories" as any)
-                          .insert({ group_id: groupId, name: val.trim(), is_default: false })
-                          .select("id")
-                          .single();
-                        if (!error) {
-                          await onCategoriesChanged();
-                          setCategoryId((data as any).id);
-                          input.value = '';
-                          toast.success(`Categoría "${val}" creada`);
-                        }
-                      })();
-                    }
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
-            <div className="flex items-start gap-2">
-              <User className="mt-0.5 h-4 w-4 text-violet-500" />
-              <div>
-                <Label htmlFor="personal-switch" className="cursor-pointer font-medium">Gasto personal</Label>
-                <p className="text-[10px] text-muted-foreground">No afecta el balance grupal. Solo tu historial individual.</p>
+          {groupMode !== 'tracker' && (
+            <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
+              <div className="flex items-start gap-2">
+                <User className="mt-0.5 h-4 w-4 text-blue-500" />
+                <div>
+                  <Label htmlFor="personal-switch" className="cursor-pointer font-medium">Gasto personal</Label>
+                  <p className="text-[10px] text-muted-foreground">No afecta el balance grupal. Solo tu historial individual.</p>
+                </div>
               </div>
+              <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
             </div>
-            <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
-          </div>
+          )}
 
           {!isPersonal && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
