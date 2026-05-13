@@ -44,10 +44,11 @@ type Props = {
   onCategoriesChanged: () => Promise<void> | void;
   initialImportText?: string | null;
   mode?: 'balance' | 'tracker';
+  myMemberId?: string | null;
 };
 
 export function ExpenseDialog({ 
-  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode 
+  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId 
 }: Props) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
@@ -184,11 +185,22 @@ export function ExpenseDialog({
       if (isTrackerMode) {
         setSelected(new Set());
       } else {
-        setSelected(new Set(members.map((m) => m.id)));
+        const nextSelected = new Set(members.map((m) => m.id));
+        // If myMemberId is set, ensure it's selected (though it should be by default if in members)
+        if (myMemberId) nextSelected.add(myMemberId);
+        setSelected(nextSelected);
       }
       
       const map: Record<string, string> = {};
       members.forEach((m) => (map[m.id] = ""));
+      // Pre-select current user if creating new
+      if (myMemberId && !existing && !initialImportText) {
+        // We could auto-select, but the logic above already selects ALL if not tracker.
+        // If it's tracker mode, we might want to auto-select ONLY the user.
+        if (isTrackerMode) {
+           setSelected(new Set([myMemberId]));
+        }
+      }
       setContribs(map);
       setOwed({ ...map });
     }
@@ -771,7 +783,7 @@ export function ExpenseDialog({
                         }`}>
                           {isSel ? '✓' : m.name.charAt(0).toUpperCase()}
                         </div>
-                        {m.name}
+                        {m.name} {m.id === myMemberId && <span className="ml-1 opacity-60 text-[9px] font-black uppercase tracking-tighter">(Tú)</span>}
                       </button>
                     );
                   })}

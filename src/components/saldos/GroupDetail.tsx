@@ -118,6 +118,10 @@ export default function SaldamosGroupDetail({
     const saved = localStorage.getItem('saldamos_frequent_people');
     return saved ? JSON.parse(saved) : [];
   });
+  const [peopleGroups] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('saldamos_people_groups');
+    return saved ? JSON.parse(saved) : {};
+  });
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
   const groupMode = localStorage.getItem(`group_mode_${groupId}`) || 'balance';
@@ -132,9 +136,9 @@ export default function SaldamosGroupDetail({
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
-  const load = async () => {
+  const load = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [g, m, e, c] = await Promise.all([
         saldamosSupabase.from('groups').select('id, name, currency, owner_id').eq('id', groupId).maybeSingle(),
         saldamosSupabase.from('group_members').select('id, name, joined_at').eq('group_id', groupId).order('joined_at', { ascending: true }),
@@ -157,9 +161,9 @@ export default function SaldamosGroupDetail({
       if (c.data) setCategories(c.data as any);
     } catch (err: any) {
       console.error('Error loading group:', err);
-      toast.error('Error al cargar datos: ' + (err.message || 'Error desconocido'));
+      if (!silent) toast.error('Error al cargar datos: ' + (err.message || 'Error desconocido'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -299,11 +303,18 @@ export default function SaldamosGroupDetail({
       await logActivity('MEMBER_UPDATED', { name: memberName.trim() });
     } else {
       // Add new
-      const { error } = await saldamosSupabase
+      const { data, error } = await saldamosSupabase
         .from('group_members')
-        .insert({ group_id: groupId, name: memberName.trim() });
+        .insert({ group_id: groupId, name: memberName.trim() })
+        .select()
+        .single();
       
       if (error) { toast.error(error.message); setSavingMember(false); return; }
+      
+      // Update local state immediately
+      const newMember = data as any;
+      setMembers(prev => [...prev, newMember]);
+      
       toast.success(`${memberName.trim()} agregado`);
       await logActivity('MEMBER_ADDED', { name: memberName.trim() });
       
@@ -319,8 +330,31 @@ export default function SaldamosGroupDetail({
     setSavingMember(false);
     setMemberName('');
     setEditingMemberId(null);
-    setMemberOpen(false);
-    load();
+    await load(true); // Silent reload to keep data in sync
+  };
+
+  const addMemberByName = async (name: string) => {
+    if (!name.trim()) return;
+    if (members.some(m => m.name.toLowerCase() === name.trim().toLowerCase())) {
+      toast.info(`${name.trim()} ya está en el grupo`);
+      return;
+    }
+    
+    setSavingMember(true);
+    const { data, error } = await saldamosSupabase
+      .from('group_members')
+      .insert({ group_id: groupId, name: name.trim() })
+      .select()
+      .single();
+    
+    if (error) { toast.error(error.message); setSavingMember(false); return; }
+    
+    setMembers(prev => [...prev, data as any]);
+    toast.success(`${name.trim()} agregado`);
+    await logActivity('MEMBER_ADDED', { name: name.trim() });
+    
+    setSavingMember(false);
+    await load(true);
   };
 
   const deleteMember = async (id: string, name: string) => {
@@ -346,12 +380,40 @@ export default function SaldamosGroupDetail({
     
     toast.success(`${name} eliminado del grupo`);
     await logActivity('MEMBER_DELETED', { name });
-    load();
+    await load(true);
   };
 
   const startEditMember = (m: any) => {
     setEditingMemberId(m.id);
     setMemberName(m.name);
+  };
+
+  const bulkAddMembers = async (names: string[]) => {
+    const toAdd = names.filter(n => !members.some(m => m.name.toLowerCase() === n.toLowerCase()));
+    if (toAdd.length === 0) {
+      toast.info('Todas estas personas ya están en el grupo');
+      return;
+    }
+
+    setSavingMember(true);
+    try {
+      const { data, error } = await saldamosSupabase
+        .from('group_members')
+        .insert(toAdd.map(name => ({ group_id: groupId, name: name.trim() })))
+        .select();
+      
+      if (error) throw error;
+      
+      const newMembers = data as any[];
+      setMembers(prev => [...prev, ...newMembers]);
+      toast.success(`${toAdd.length} personas agregadas`);
+      await logActivity('MEMBERS_ADDED_BULK', { count: toAdd.length, names: toAdd });
+    } catch (err: any) {
+      toast.error('Error al agregar grupo: ' + err.message);
+    } finally {
+      setSavingMember(false);
+      load(true);
+    }
   };
 
   const filteredExpenses = useMemo(() => {
@@ -570,103 +632,113 @@ export default function SaldamosGroupDetail({
     
     setProcessingSettlements(prev => new Set(prev).add(contributionId));
     
+    const isTracker = groupMode === 'tracker' || (isFootball && groupMode !== 'balance');
+    const newStatus = !currentStatus;
+
+    // 1. Optimistic Update (Instant UI feedback)
+    const previousExpenses = [...expenses];
+    setExpenses(prev => prev.map(ex => {
+      if (ex.id === expense.id) {
+        return {
+          ...ex,
+          contributions: (ex.contributions || []).map((c: any) => 
+            c.id === contributionId ? { ...c, is_settled: newStatus } : c
+          )
+        };
+      }
+      return ex;
+    }));
+    
     try {
+      // 2. Perform DB Update
       const { error } = await saldamosSupabase
         .from('expense_contributions')
-        .update({ is_settled: !currentStatus })
+        .update({ is_settled: newStatus })
         .eq('id', contributionId);
       
-      if (error) {
-        toast.error(error.message);
+      if (error) throw error;
+
+      // 3. Handle Balance Reconciliations (Only in Balance Mode)
+      if (newStatus && !isTracker) {
+        const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
+        const payerContrib = (expense.contributions || []).find((c: any) => c.amount_paid > 0);
+        const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
+        const payerId = payerContrib?.member_id || myMemberId;
+
+        const { data: exp, error: expErr } = await saldamosSupabase
+          .from('expenses')
+          .insert({ 
+            group_id: groupId, 
+            description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
+            total_amount: contribution.amount_owed, 
+            is_settlement: true 
+          })
+          .select('id').single();
+        
+        if (expErr) console.warn('Error creating reconciliation:', expErr);
+        
+        if (!expErr && exp) {
+          await saldamosSupabase.from('expense_contributions').insert([
+            { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
+            { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
+          ]);
+        }
+      } else if (!newStatus && !isTracker) {
+        // Un-toggling in balance mode: delete the auto-generated settlement
+        const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
+        const payerContrib = (expense.contributions || []).find((c: any) => c.amount_paid > 0);
+        const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
+        const desc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
+        
+        await saldamosSupabase
+          .from('expenses')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('is_settlement', true)
+          .eq('description', desc);
+      }
+
+      // Success messages
+      if (newStatus) {
+        toast.success(isTracker ? 'Marcado como pagado' : 'Pago marcado y balance actualizado');
       } else {
-        // If marking as paid, register a REAL settlement to update global balance
-        if (!currentStatus) {
-          const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
-          const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
-          const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
-          const payerId = payerContrib?.member_id || myMemberId;
+        toast.success('Marcado como pendiente');
+      }
 
-          const { data: exp, error: expErr } = await saldamosSupabase
-            .from('expenses')
-            .insert({ 
-              group_id: groupId, 
-              description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
-              total_amount: contribution.amount_owed, 
-              is_settlement: true 
-            })
-            .select('id').single();
-          
-          if (!expErr && exp) {
-            await saldamosSupabase.from('expense_contributions').insert([
-              { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
-              { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
-            ]);
-          }
+      // 4. Celebration logic
+      if (newStatus) {
+        // Compute allNowSettled based on the optimistic state directly
+        const updatedContribs = (expense.contributions || []).map((c: any) =>
+          c.id === contributionId ? { ...c, is_settled: true } : c
+        );
+        const allNowSettled = updatedContribs
+          .filter((c: any) => c.amount_owed > 0)
+          .every((c: any) => c.is_settled);
 
-          toast.success('Marcado como pagado y balance actualizado');
-
-          // Check if TOTAL group balance is now zero (Suggestion 7)
-          const totalRemaining = currentSettlements.reduce((sum, s) => sum + s.amount, 0);
-          const beingPaidNow = contribution.amount_owed;
-          
-          if (totalRemaining - beingPaidNow <= 0.01) {
-            // 🎉 TOTAL DEBT CLEARED! Fire everything!
-            confetti({
-              particleCount: 250,
-              spread: 160,
-              origin: { y: 0.6 },
-              colors: ['#FFD700', '#FFA500', '#FFFFFF', '#00FF00', '#0000FF']
-            });
-            setTimeout(() => {
-              confetti({
-                particleCount: 150,
-                angle: 60,
-                spread: 55,
-                origin: { x: 0 },
-                colors: ['#FFD700', '#FFA500']
-              });
-            }, 250);
-            setTimeout(() => {
-              confetti({
-                particleCount: 150,
-                angle: 120,
-                spread: 55,
-                origin: { x: 1 },
-                colors: ['#FFD700', '#FFA500']
-              });
-            }, 400);
-            toast.success('🎉 ¡GRUPO SALDADO COMPLETAMENTE! ¡QUEDARON EN $0!', {
-              duration: 5000,
-            });
-          } else if (allNowSettled) {
-            // Big burst — all debts in this expense are settled!
-            confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#2563eb', '#1d4ed8', '#10b981', '#f59e0b', '#3b82f6'] });
-            setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#2563eb', '#10b981'] }), 200);
-            setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#1d4ed8', '#f59e0b'] }), 350);
+        if (isTracker) {
+          if (allNowSettled) {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
           } else {
-            // Small burst + Coins (Suggestion 1)
             launchCoins();
-            confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#2563eb', '#10b981', '#f59e0b'] });
           }
         } else {
-          // Un-toggling: delete the auto-generated settlement
-          const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
-          const payerContrib = expense.contributions.find((c: any) => c.amount_paid > 0);
-          const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
-          const desc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
-          
-          await saldamosSupabase
-            .from('expenses')
-            .delete()
-            .eq('group_id', groupId)
-            .eq('is_settlement', true)
-            .eq('description', desc);
-            
-          toast.success('Marcado como pendiente');
+          // Balance mode zero-debt check
+          const totalRemaining = (currentSettlements || []).reduce((sum, s) => sum + s.amount, 0);
+          if (totalRemaining - contribution.amount_owed <= 0.1) {
+            confetti({ particleCount: 250, spread: 160, origin: { y: 0.6 }, colors: ['#FFD700', '#FFA500', '#FFFFFF', '#00FF00', '#0000FF'] });
+            toast.success('🎉 ¡GRUPO SALDADO COMPLETAMENTE!', { duration: 5000 });
+          } else if (allNowSettled) {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+          } else {
+            launchCoins();
+          }
         }
-
-        load();
       }
+
+    } catch (err: any) {
+      console.error('Error toggling settlement:', err);
+      toast.error('Error: ' + err.message);
+      setExpenses(previousExpenses); // Revert on failure
     } finally {
       setProcessingSettlements(prev => {
         const next = new Set(prev);
@@ -680,16 +752,6 @@ export default function SaldamosGroupDetail({
     if (!inviteEmail.trim()) return;
     setInviting(true);
     try {
-      // First, we need to find if there's a user with that email. 
-      // Supabase client doesn't allow searching users by email easily without a service role.
-      // But we can insert into collaborators and let a trigger/logic handle it, 
-      // OR we just tell the user to share the link.
-      // For now, we'll try to insert and see if it works (assuming a trigger exists)
-      // Actually, let's just use the link sharing as primary.
-      
-      // If we don't have user_id, we can't insert into group_collaborators Row which requires user_id.
-      // I'll check if I can use a generic invite table, but I don't see one.
-      // I'll stick to a "Copy Link" feature with a message.
       toast.success('¡Enlace listo para compartir!');
       setShareOpen(false);
     } finally {
@@ -1300,6 +1362,7 @@ export default function SaldamosGroupDetail({
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
         mode={groupMode as 'balance' | 'tracker'}
+        myMemberId={myMemberId}
         onSaved={async (expense) => {
           await logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
             id: expense.id, 
@@ -1319,43 +1382,6 @@ export default function SaldamosGroupDetail({
           </DialogHeader>
           
           <div className="space-y-6 py-2">
-            {/* Existing Members List */}
-            {!editingMemberId && (
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">En el grupo ({members.length})</Label>
-                <div className="space-y-1.5">
-                  {members.map(m => (
-                    <div key={m.id} className="flex items-center justify-between p-2 rounded-xl bg-muted/30 border border-transparent hover:border-blue-100 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-black">
-                          {m.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-bold text-foreground">{m.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-100"
-                          onClick={() => startEditMember(m)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50"
-                          onClick={() => deleteMember(m.id, m.name)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="space-y-4">
               {editingMemberId ? (
                 <div className="space-y-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-100 animate-in zoom-in-95">
@@ -1368,24 +1394,58 @@ export default function SaldamosGroupDetail({
                 </div>
               ) : (
                 <>
-                  <div className="h-px bg-border/50 my-2" />
-                  
+                  {/* Reorganized: Add manually at the top */}
+                  <div className="space-y-2 bg-muted/20 p-3 rounded-2xl border border-border/50">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Agregar manualmente</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={memberName} 
+                        onChange={e => setMemberName(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && addMember()} 
+                        placeholder="Ej: Cami" 
+                        className="rounded-xl bg-background" 
+                      />
+                      <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="rounded-xl bg-blue-600 text-white px-6 shrink-0">
+                        {savingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {Object.keys(peopleGroups).length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest px-1">Importar grupo completo</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.keys(peopleGroups).map(gn => (
+                          <button
+                            key={gn}
+                            type="button"
+                            onClick={() => bulkAddMembers(peopleGroups[gn])}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black bg-blue-600 text-white shadow-md hover:bg-blue-700 transition-all active:scale-95 shrink-0"
+                          >
+                            <Users className="w-3 h-3" />
+                            {gn} ({peopleGroups[gn].length})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {frequentPeople.length > 0 && (
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Agregar de mis frecuentes</Label>
-                      <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Tus Frecuentes (Click para agregar)</Label>
+                      <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-1">
                         {frequentPeople.map(p => {
                           const alreadyIn = members.some(m => m.name.toLowerCase() === p.toLowerCase());
                           return (
                             <button
                               key={p}
                               type="button"
-                              disabled={alreadyIn}
-                              onClick={() => setMemberName(p)}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                              disabled={alreadyIn || savingMember}
+                              onClick={() => addMemberByName(p)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${
                                 alreadyIn 
-                                  ? 'opacity-40 bg-muted cursor-not-allowed' 
-                                  : 'bg-blue-500/10 border-blue-500/20 text-blue-600 hover:bg-blue-500/20'
+                                  ? 'opacity-40 bg-muted cursor-not-allowed grayscale' 
+                                  : 'bg-white border-blue-100 text-blue-600 hover:border-blue-300 hover:bg-blue-50 active:scale-95'
                               }`}
                             >
                               {alreadyIn ? '✓ ' : '+ '}{p}
@@ -1396,21 +1456,51 @@ export default function SaldamosGroupDetail({
                     </div>
                   )}
 
+                  <div className="h-px bg-border/50 my-2" />
+
+                  {/* Members list at the bottom */}
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Agregar manualmente</Label>
-                    <div className="flex gap-2">
-                      <Input value={memberName} onChange={e => setMemberName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMember()} placeholder="Ej: Cami" className="rounded-xl" />
-                      <Button onClick={addMember} disabled={savingMember || !memberName.trim()} className="rounded-xl bg-blue-600 text-white px-6">
-                        {savingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
-                      </Button>
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Personas en este grupo ({members.length})</Label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {members.map(m => (
+                        <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50 hover:border-blue-200 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 text-xs font-black group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                              {m.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-bold text-foreground">{m.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-100"
+                              onClick={() => startEditMember(m)}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50"
+                              onClick={() => deleteMember(m.id, m.name)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {members.length === 0 && (
+                        <p className="text-center py-6 text-xs text-muted-foreground italic bg-muted/10 rounded-2xl border border-dashed">No hay nadie en el grupo aún.</p>
+                      )}
                     </div>
                   </div>
                 </>
               )}
             </div>
           </div>
-          <DialogFooter>
-            {!editingMemberId && <Button variant="ghost" className="w-full rounded-xl" onClick={() => setMemberOpen(false)}>Cerrar</Button>}
+          <DialogFooter className="border-t border-dashed pt-4">
+            {!editingMemberId && <Button variant="outline" className="w-full rounded-xl h-12 font-bold" onClick={() => setMemberOpen(false)}>Listo / Cerrar</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
