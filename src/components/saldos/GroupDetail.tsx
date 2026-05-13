@@ -87,7 +87,7 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending'>('balances');
+  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('balances');
   const [showAllReconciliations, setShowAllReconciliations] = useState(false);
 
   const [memberOpen, setMemberOpen] = useState(false);
@@ -263,7 +263,7 @@ export default function SaldamosGroupDetail({
   }, [groupId]);
 
   useEffect(() => {
-    if (activeTab === 'actividad') loadActivities();
+    if (activeTab === 'activity') loadActivities();
   }, [activeTab]);
 
   // Auto-trigger import if pending text exists
@@ -872,7 +872,7 @@ export default function SaldamosGroupDetail({
           <TabsTrigger value="pending" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <User className="w-3.5 h-3.5" /> Mi Hist.
           </TabsTrigger>
-          <TabsTrigger value="actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="activity" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <Sparkles className="w-3.5 h-3.5" /> Actividad
           </TabsTrigger>
         </TabsList>
@@ -1031,7 +1031,7 @@ export default function SaldamosGroupDetail({
           </div>
         </TabsContent>
 
-        <TabsContent value="historial" className="space-y-4 pt-4">
+        <TabsContent value="history" className="space-y-4 pt-4">
 
           {showConverter && (
             <CurrencyConverter 
@@ -1300,7 +1300,7 @@ export default function SaldamosGroupDetail({
           </div>
         </TabsContent>
 
-        <TabsContent value="mi-actividad" className="pt-4">
+        <TabsContent value="pending" className="pt-4">
           <PersonalHistory 
             members={members} 
             expenses={expenses} 
@@ -1312,7 +1312,7 @@ export default function SaldamosGroupDetail({
           />
         </TabsContent>
 
-        <TabsContent value="actividad" className="space-y-4 pt-4">
+        <TabsContent value="activity" className="space-y-4 pt-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Log de actividad</h3>
             <Button variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={loadActivities} disabled={loadingActivities}>
