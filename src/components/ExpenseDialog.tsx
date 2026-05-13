@@ -43,10 +43,11 @@ type Props = {
   onMembersChanged?: () => Promise<void> | void;
   onCategoriesChanged: () => Promise<void> | void;
   initialImportText?: string | null;
+  mode?: 'balance' | 'tracker';
 };
 
 export function ExpenseDialog({ 
-  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText 
+  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode 
 }: Props) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
@@ -79,7 +80,16 @@ export function ExpenseDialog({
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(true);
   const [tempMembers, setTempMembers] = useState<Member[]>([]);
-  const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
+  const isTrackerMode = useMemo(() => {
+    const rawMode = (mode || (groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance'));
+    const m = String(rawMode || '').toLowerCase().trim();
+    const e = groupId ? localStorage.getItem(`group_emoji_${groupId}`) : null;
+    
+    // Si explícitamente es tracker, o si el emoji es fútbol, o si NO es balance
+    const isTracker = m === 'tracker' || m === 'solo-cobros' || e === '⚽' || e === '🥅' || (m !== 'balance' && m !== '');
+    return isTracker;
+  }, [mode, groupId, open]);
+
   const [peopleFilterTab, setPeopleFilterTab] = useState<'group' | 'friends'>('group');
 
   const allAvailableMembers = useMemo(() => {
@@ -166,13 +176,12 @@ export function ExpenseDialog({
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
       setTempMembers([]);
-      const groupMode = groupId ? localStorage.getItem(`group_mode_${groupId}`) : 'balance';
       const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
       
-      setTrackPayments(groupMode === 'tracker' || isFootball);
+      setTrackPayments(isTrackerMode || isFootball);
       setPersonalPayer("");
       
-      if (groupMode === 'tracker') {
+      if (isTrackerMode) {
         setSelected(new Set());
       } else {
         setSelected(new Set(members.map((m) => m.id)));
@@ -476,7 +485,7 @@ export function ExpenseDialog({
              />
           </div>
 
-          {groupMode !== 'tracker' && (
+          {!isTrackerMode && (
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Categoría</Label>
               <div className="flex gap-2">
@@ -547,8 +556,8 @@ export function ExpenseDialog({
           )}
 
 
-
-          {groupMode !== 'tracker' && (
+          {/* Gasto Personal Section - Hidden in Tracker Mode */}
+          {!isTrackerMode ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
               <div className="flex items-start gap-2">
                 <User className="mt-0.5 h-4 w-4 text-blue-500" />
@@ -559,9 +568,9 @@ export function ExpenseDialog({
               </div>
               <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
             </div>
-          )}
+          ) : null}
 
-          {!isPersonal && groupMode !== 'tracker' && (
+          {!isPersonal && !isTrackerMode && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
               <div className="flex items-start gap-2">
                 <HandCoins className="mt-0.5 h-4 w-4 text-amber-600" />
@@ -576,26 +585,97 @@ export function ExpenseDialog({
           
           {unmappedPersons.length > 0 && (
             <div className="space-y-3 p-4 rounded-2xl bg-amber-50 border border-amber-100 animate-in fade-in zoom-in duration-300">
-              <div className="flex items-center gap-2 text-amber-700 mb-1">
-                <AlertTriangle className="h-4 w-4" />
-                <p className="text-xs font-bold uppercase tracking-wider">Vincular personas detectadas</p>
+              <div className="flex items-center justify-between gap-2 text-amber-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <p className="text-xs font-bold uppercase tracking-wider">Personas por vincular</p>
+                </div>
+                {unmappedPersons.length > 1 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-7 text-[10px] font-black bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        const remaining = [...unmappedPersons];
+                        for (const p of remaining) {
+                          const { data, error } = await saldamosSupabase
+                            .from('group_members')
+                            .insert({ group_id: groupId, name: p.name.trim() })
+                            .select()
+                            .single();
+                          if (!error && data) {
+                            const newMember = data as any;
+                            setTempMembers(prev => [...prev, newMember]);
+                            setSelected(prev => new Set(prev).add(newMember.id));
+                            setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
+                          }
+                        }
+                        setUnmatchedPersons([]);
+                        if (onMembersChanged) onMembersChanged();
+                        toast.success('Todas las personas agregadas');
+                      } catch (err) {
+                        toast.error('Error al agregar personas');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> AGREGAR TODAS
+                  </Button>
+                )}
               </div>
-              <p className="text-[10px] text-amber-600 mb-2">No pudimos identificar a estas personas. Vincúlalas con un miembro del grupo y lo recordaremos para la próxima.</p>
+              <p className="text-[10px] text-amber-600 mb-2">Vincúlalas a alguien del grupo o créalas como nuevas personas.</p>
               <div className="space-y-2">
                 {unmappedPersons.map((p, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 bg-white/50 p-2 rounded-xl border border-amber-200">
-                    <span className="text-xs font-bold text-amber-900 truncate flex-1">{p.name} ({formatMoney(p.amount, currency)})</span>
-                    <ArrowRight className="w-3 h-3 text-amber-400" />
-                    <Select onValueChange={(val) => saveMapping(p.name, val)}>
-                      <SelectTrigger className="h-8 text-[10px] w-[140px] rounded-lg border-amber-200">
-                        <SelectValue placeholder="Vincular a..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {members.map(m => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div key={idx} className="flex flex-col gap-2 bg-white/50 p-3 rounded-xl border border-amber-200">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-amber-900 truncate flex-1">{p.name} ({formatMoney(p.amount, currency)})</span>
+                      <Button 
+                        size="sm" 
+                        variant="secondary" 
+                        className="h-7 text-[10px] font-bold bg-amber-200 hover:bg-amber-300 text-amber-800 border-none px-3"
+                        onClick={async () => {
+                          setSaving(true);
+                          try {
+                            const { data, error } = await saldamosSupabase
+                              .from('group_members')
+                              .insert({ group_id: groupId, name: p.name.trim() })
+                              .select()
+                              .single();
+                            if (!error && data) {
+                              const newMember = data as any;
+                              setTempMembers(prev => [...prev, newMember]);
+                              setSelected(prev => new Set(prev).add(newMember.id));
+                              setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
+                              setUnmatchedPersons(prev => prev.filter(item => item.name !== p.name));
+                              if (onMembersChanged) onMembersChanged();
+                              toast.success(`${p.name} agregado al grupo`);
+                            }
+                          } catch (err) {
+                            toast.error('Error');
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                      >
+                        CREAR NUEVO
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[9px] font-bold text-amber-600 uppercase shrink-0">O vincular a:</p>
+                      <Select onValueChange={(val) => saveMapping(p.name, val)}>
+                        <SelectTrigger className="h-8 text-[10px] flex-1 rounded-lg border-amber-200 bg-white">
+                          <SelectValue placeholder="Elegir persona..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allAvailableMembers.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -608,21 +688,37 @@ export function ExpenseDialog({
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
                 <Users className="w-3 h-3" /> Participantes
               </Label>
-              <div className="flex bg-muted/60 p-1 rounded-xl shadow-inner border border-border/50">
+              <div className="flex bg-muted/60 p-1 rounded-xl shadow-inner border border-border/50 items-center">
                 <button 
                   type="button"
                   onClick={() => setPeopleFilterTab('group')}
-                  className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'group' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'group' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   En el Grupo
                 </button>
                 <button 
                   type="button"
                   onClick={() => setPeopleFilterTab('friends')}
-                  className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'friends' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'friends' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Mis Amigos
                 </button>
+                <div className="h-4 w-[1px] bg-border mx-1" />
+                <div className="flex items-center gap-1 pl-1">
+                   <Input 
+                     placeholder="+ Nueva..." 
+                     className="h-7 w-24 text-[10px] rounded-lg border-none bg-transparent focus-visible:ring-0 focus-visible:bg-white"
+                     onKeyDown={async (e) => {
+                       if (e.key === 'Enter') {
+                         const val = e.currentTarget.value.trim();
+                         if (val) {
+                           e.currentTarget.value = '';
+                           await addFrequentToGroup(val);
+                         }
+                       }
+                     }}
+                   />
+                </div>
               </div>
             </div>
 

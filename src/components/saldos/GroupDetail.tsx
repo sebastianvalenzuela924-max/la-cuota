@@ -1214,6 +1214,7 @@ export default function SaldamosGroupDetail({
         categories={categories} 
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
+        mode={groupMode as 'balance' | 'tracker'}
         onSaved={async (expense) => {
           await logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
             id: expense.id, 

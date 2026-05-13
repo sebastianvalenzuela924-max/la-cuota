@@ -17,16 +17,31 @@ export type ParsedPerson = { name: string; amount: number };
 function parseAmount(raw: string): number {
   // Remove currency symbols and codes
   let s = raw.replace(/[A-Z]{3}\s*/g, '').replace(/[$R\s]/g, '');
-  // Detect if comma is decimal separator (e.g. "7,20") or thousands (e.g. "7,500")
+  
   const commaIdx = s.lastIndexOf(',');
   const dotIdx = s.lastIndexOf('.');
+  
   if (commaIdx > dotIdx) {
     // comma is decimal separator: 1.234,56
     s = s.replace(/\./g, '').replace(',', '.');
+  } else if (dotIdx > -1) {
+    // Only dots are present, or dot is after comma (unlikely but handled)
+    // Heuristic: if the last dot is followed by exactly 3 digits, it's likely a thousands separator (CLP)
+    const parts = s.split('.');
+    const lastPart = parts[parts.length - 1];
+    
+    if (lastPart.length === 3 && parts.length > 1) {
+      // It's a thousands separator: 46.900 -> 46900
+      s = s.replace(/\./g, '');
+    } else {
+      // It's a decimal separator or something else: 46.9 -> 46.9
+      s = s.replace(/,/g, '');
+    }
   } else {
-    // dot is decimal separator or thousands: 1,234.56 or 5.500
+    // No dots or commas
     s = s.replace(/,/g, '');
   }
+  
   return parseFloat(s) || 0;
 }
 
@@ -73,13 +88,7 @@ export function findMemberMatch(
   members: { id: string; name: string }[]
 ): string | null {
   const n = normalize(parsedName);
-  // Exact match
+  // Only exact match (normalized)
   const exact = members.find((m) => normalize(m.name) === n);
-  if (exact) return exact.id;
-  // Prefix match (handles "Anto" / "Antonella", "Sebas" / "Sebastian")
-  const partial = members.find((m) => {
-    const mn = normalize(m.name);
-    return mn.startsWith(n) || n.startsWith(mn);
-  });
-  return partial?.id ?? null;
+  return exact?.id ?? null;
 }
