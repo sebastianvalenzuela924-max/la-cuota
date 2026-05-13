@@ -326,62 +326,93 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         </div>
       </div>
 
-      {/* Mis Personas - Rediseñado Premium */}
-      <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-950/20 rounded-3xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
+      {/* Mis Personas - Rediseñado Premium con Grupos */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-3xl p-5 border border-blue-100/50 dark:border-blue-900/30 shadow-sm">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
               <Users className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-black text-foreground leading-none">Mis Personas</h3>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Tu lista de contactos</p>
+              <p className="text-[10px] text-blue-600/60 font-bold uppercase tracking-widest mt-1">Contactos y Grupos</p>
             </div>
           </div>
           <Button 
             size="sm" 
             variant="ghost" 
             onClick={() => setManagePeopleOpen(true)}
-            className="h-8 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600"
+            className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 px-3"
           >
             Gestionar
           </Button>
         </div>
         
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
           {frequentPeople.length === 0 ? (
             <button 
               onClick={() => setManagePeopleOpen(true)}
-              className="flex items-center gap-3 py-2 px-1 text-left w-full hover:bg-blue-100/50 dark:hover:bg-blue-900/20 rounded-2xl transition-colors"
+              className="flex items-center gap-4 py-3 px-2 text-left w-full hover:bg-blue-100/30 dark:hover:bg-blue-900/10 rounded-2xl transition-colors border border-dashed border-blue-200"
             >
-              <div className="w-10 h-10 rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900/40 flex items-center justify-center text-blue-300">
-                <Plus className="w-5 h-5" />
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-300">
+                <Plus className="w-6 h-6" />
               </div>
-              <p className="text-xs text-muted-foreground italic">Agrega amigos para armar grupos en segundos.</p>
+              <div>
+                <p className="text-xs font-bold text-foreground">Sin contactos aún</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Agrega amigos para armar grupos rápido.</p>
+              </div>
             </button>
           ) : (
             <>
-              {frequentPeople.map(p => (
-                <div key={p} className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-card border border-blue-100 dark:border-blue-800 shadow-sm flex items-center justify-center text-lg font-black text-blue-600">
-                    {p.charAt(0).toUpperCase()}
+              {/* Render Groups first */}
+              {Object.keys(peopleGroups).map(gn => (
+                <div key={gn} className="flex flex-col items-center gap-2 shrink-0 group">
+                  <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center text-xl font-black shadow-sm border transition-transform group-hover:scale-105 active:scale-95 ${getPeopleGroupStyle(gn)}`}>
+                    {gn.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-[10px] font-bold text-foreground max-w-[60px] truncate">{p}</span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] font-black text-foreground max-w-[70px] truncate">{gn}</span>
+                    <span className="text-[8px] font-bold text-muted-foreground uppercase opacity-60">{peopleGroups[gn].length} pers.</span>
+                  </div>
                 </div>
               ))}
+
+              {/* Unassigned people as "Otros" or individuals */}
+              {(() => {
+                const assigned = new Set();
+                Object.values(peopleGroups).forEach(m => m.forEach(p => assigned.add(p)));
+                const unassigned = frequentPeople.filter(p => !assigned.has(p));
+                
+                if (unassigned.length > 0) {
+                  return (
+                    <div className="flex flex-col items-center gap-2 shrink-0 group">
+                      <div className="w-14 h-14 rounded-[22px] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700 transition-transform group-hover:scale-105 active:scale-95">
+                        ?
+                      </div>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] font-black text-slate-500 max-w-[70px] truncate">Otros</span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase opacity-60">{unassigned.length} pers.</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               <button 
                 onClick={() => setManagePeopleOpen(true)}
-                className="flex flex-col items-center gap-1.5 shrink-0"
+                className="flex flex-col items-center gap-2 shrink-0"
               >
-                <div className="w-12 h-12 rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 transition-colors">
-                  <Plus className="w-5 h-5" />
+                <div className="w-14 h-14 rounded-[22px] border-2 border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all hover:border-blue-400">
+                  <Plus className="w-6 h-6" />
                 </div>
-                <span className="text-[10px] font-bold text-muted-foreground">Más</span>
+                <span className="text-[10px] font-black text-blue-500">Añadir</span>
               </button>
             </>
           )}
         </div>
       </div>
+
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
@@ -763,7 +794,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                   </Button>
                 </div>
 
-                <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                <div className="max-h-[400px] overflow-y-auto pr-1 space-y-6 custom-scrollbar">
                   {frequentPeople.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
@@ -772,41 +803,45 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                       <p className="text-sm text-muted-foreground italic">Aún no has guardado a nadie.</p>
                     </div>
                   ) : (
-                    frequentPeople.map(p => {
-                      const groupsForPerson = Object.keys(peopleGroups).filter(gn => peopleGroups[gn].includes(p));
-                      const hasNoGroup = groupsForPerson.length === 0;
-                      
-                      return (
-                        <div key={p} className="flex items-center justify-between p-3 bg-muted/20 dark:bg-muted/5 rounded-2xl border border-transparent hover:border-blue-100 dark:hover:border-blue-900/40 transition-all">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-800 flex items-center justify-center text-blue-600 text-sm font-black shadow-sm shrink-0">
-                              {p.charAt(0).toUpperCase()}
+                    <>
+                      {/* Grouped by actual groups */}
+                      {[...Object.keys(peopleGroups), 'Otros'].map(gn => {
+                        const assigned = new Set();
+                        Object.values(peopleGroups).forEach(m => m.forEach(p => assigned.add(p)));
+                        const membersInGroup = gn === 'Otros' 
+                          ? frequentPeople.filter(p => !assigned.has(p))
+                          : (peopleGroups[gn] || []);
+
+                        if (membersInGroup.length === 0) return null;
+
+                        return (
+                          <div key={gn} className="space-y-2">
+                            <div className="flex items-center gap-2 px-1">
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${gn === 'Otros' ? 'text-slate-500' : 'text-blue-600'}`}>{gn}</span>
+                              <div className="h-px bg-muted flex-1" />
                             </div>
-                            <div className="min-w-0">
-                              <span className="text-sm font-black text-foreground block truncate">{p}</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {groupsForPerson.map(gn => (
-                                  <span key={gn} className={`text-[8px] px-1.5 py-0.5 rounded-lg border font-black uppercase tracking-tight ${getPeopleGroupStyle(gn)}`}>
-                                    {gn}
-                                  </span>
-                                ))}
-                                {hasNoGroup && (
-                                  <span className="text-[8px] px-1.5 py-0.5 rounded-lg font-bold text-muted-foreground/60 bg-muted/50 border border-muted dark:bg-muted/10 dark:text-muted-foreground/40 uppercase tracking-tight">
-                                    Sin grupo
-                                  </span>
-                                )}
-                              </div>
+                            <div className="space-y-2">
+                              {membersInGroup.map(p => (
+                                <div key={p} className="flex items-center justify-between p-3 bg-muted/20 dark:bg-muted/5 rounded-2xl border border-transparent hover:border-blue-100 dark:hover:border-blue-900/40 transition-all">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shadow-sm shrink-0 border ${gn === 'Otros' ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-white dark:bg-slate-900 border-blue-100 text-blue-600'}`}>
+                                      {p.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-sm font-black text-foreground truncate">{p}</span>
+                                  </div>
+                                  <button 
+                                    onClick={() => removeFrequentPerson(p)}
+                                    className="text-muted-foreground/30 hover:text-red-500 transition-colors p-2 shrink-0"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <button 
-                            onClick={() => removeFrequentPerson(p)}
-                            className="text-muted-foreground/40 hover:text-red-500 transition-colors p-2 shrink-0"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      );
-                    })
+                        );
+                      })}
+                    </>
                   )}
                 </div>
               </div>

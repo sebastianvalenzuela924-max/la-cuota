@@ -42,7 +42,7 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
   };
 
   const addWholeGroup = (gn: string) => {
-    const members = peopleGroups[gn] || [];
+    const members = gn === 'Otros' ? unassignedPeople : (peopleGroups[gn] || []);
     let addedCount = 0;
     members.forEach(m => {
       if (!people.some(p => p.name.toLowerCase() === m.toLowerCase())) {
@@ -53,104 +53,124 @@ export default function PeopleSection({ people, onAdd, onRemove }: Props) {
     if (addedCount > 0) toast.success(`Se agregaron ${addedCount} personas de ${gn}`);
   };
 
+  const unassignedPeople = useMemo(() => {
+    const assigned = new Set<string>();
+    Object.values(peopleGroups).forEach(members => {
+      members.forEach(m => assigned.add(m));
+    });
+    return frequentPeople.filter(p => !assigned.has(p));
+  }, [frequentPeople, peopleGroups]);
+
   return (
     <section className="rounded-2xl bg-card p-5 card-shadow animate-fade-in-up border border-border">
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-          <Users className="w-4 h-4 text-primary" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+            <Users className="w-4 h-4 text-primary" />
+          </div>
+          <h2 className="font-bold text-foreground">Personas</h2>
         </div>
-        <h2 className="font-bold text-foreground">Personas</h2>
-      </div>
-
-      {frequentPeople.length > 0 && (
-        <div className="mb-4 space-y-2">
+        
+        {frequentPeople.length > 0 && (
           <button 
             type="button"
             onClick={() => setShowFrequent(!showFrequent)}
-            className="flex items-center justify-between w-full px-4 py-2 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-all"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+              showFrequent 
+                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' 
+                : 'bg-blue-50 border-blue-100 text-blue-600 hover:bg-blue-100'
+            }`}
           >
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              <span>Ver mis amigos / grupos</span>
-            </div>
-            <ChevronRight className={`w-4 h-4 transition-transform ${showFrequent ? 'rotate-90' : ''}`} />
+            <Users className="w-3.5 h-3.5" />
+            <span>{showFrequent ? 'Cerrar' : 'Mis Amigos'}</span>
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showFrequent ? 'rotate-90' : ''}`} />
           </button>
+        )}
+      </div>
 
-          {showFrequent && (
-            <div className="p-3 bg-muted/30 rounded-2xl border border-dashed border-muted space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1">Grupos</span>
-                <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[180px] pb-1">
-                  {Object.keys(peopleGroups).map(gn => (
-                    <button
-                      key={gn}
-                      onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
-                      className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
-                        activeGroup === gn 
-                          ? 'bg-blue-600 border-blue-600 text-white' 
-                          : 'bg-blue-50 border-blue-100 text-blue-600'
-                      }`}
-                    >
-                      {gn}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      {showFrequent && frequentPeople.length > 0 && (
+        <div className="mb-6 p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-2xl border border-blue-100/50 dark:border-blue-900/30 space-y-4 animate-in slide-in-from-top-2 duration-300">
+          {/* Groups Horizontal Scroll */}
+          <div className="space-y-2">
+            <p className="text-[9px] font-black text-blue-600/70 uppercase tracking-widest px-1">Grupos Guardados</p>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {Object.keys(peopleGroups).map(gn => (
+                <button
+                  key={gn}
+                  onClick={() => setActiveGroup(activeGroup === gn ? null : gn)}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap border ${
+                    activeGroup === gn 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-95' 
+                      : 'bg-white dark:bg-slate-900 border-blue-100 text-blue-600 hover:border-blue-300'
+                  }`}
+                >
+                  {gn}
+                </button>
+              ))}
+              {unassignedPeople.length > 0 && (
+                <button
+                  onClick={() => setActiveGroup(activeGroup === 'Otros' ? null : 'Otros')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap border ${
+                    activeGroup === 'Otros' 
+                      ? 'bg-slate-700 border-slate-700 text-white shadow-md scale-95' 
+                      : 'bg-white dark:bg-slate-900 border-slate-200 text-slate-500 hover:border-slate-400'
+                  }`}
+                >
+                  Otros
+                </button>
+              )}
+            </div>
+          </div>
 
-              <div className="flex flex-wrap gap-1.5 py-1">
-                {activeGroup ? (
-                  <>
+          {/* People Grid for selected group */}
+          <div className="min-h-[60px] animate-in fade-in duration-300">
+            {activeGroup ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-foreground">
+                    {activeGroup === 'Otros' ? 'Personas sin grupo' : `Gente en "${activeGroup}"`}
+                  </p>
+                  {activeGroup !== 'Otros' && (
                     <button 
                       onClick={() => addWholeGroup(activeGroup)}
-                      className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase shadow-sm mb-1 w-full"
+                      className="text-[9px] font-black text-blue-600 hover:underline flex items-center gap-1"
                     >
-                      + Agregar Todo el Grupo {activeGroup}
+                      <Plus className="w-3 h-3" /> AGREGAR TODO
                     </button>
-                    {(peopleGroups[activeGroup] || []).map(p => {
-                      const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
-                      return (
-                        <button
-                          key={p}
-                          disabled={isAdded}
-                          onClick={() => handleAdd(p)}
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
-                            isAdded 
-                              ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
-                              : 'bg-background border-blue-200 text-blue-600 hover:border-blue-400'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      );
-                    })}
-                  </>
-                ) : (
-                  frequentPeople.slice(0, 12).map(p => {
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(activeGroup === 'Otros' ? unassignedPeople : (peopleGroups[activeGroup] || [])).map(p => {
                     const isAdded = people.some(pp => pp.name.toLowerCase() === p.toLowerCase());
                     return (
                       <button
                         key={p}
                         disabled={isAdded}
                         onClick={() => handleAdd(p)}
-                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-2 ${
                           isAdded 
-                            ? 'bg-muted text-muted-foreground border-transparent opacity-50' 
-                            : 'bg-background border-blue-100 text-blue-600 hover:border-blue-300'
+                            ? 'bg-muted/50 text-muted-foreground border-transparent opacity-60 cursor-not-allowed' 
+                            : 'bg-white dark:bg-slate-900 border-blue-100 text-blue-700 shadow-sm hover:border-blue-400 hover:scale-105 active:scale-95'
                         }`}
                       >
+                        <div className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] ${isAdded ? 'bg-muted text-muted-foreground' : 'bg-blue-100 text-blue-600'}`}>
+                          {isAdded ? '✓' : p.charAt(0).toUpperCase()}
+                        </div>
                         {p}
                       </button>
                     );
-                  })
-                )}
-                {!activeGroup && frequentPeople.length > 12 && (
-                  <span className="text-[10px] text-muted-foreground self-center italic px-1">...y {frequentPeople.length - 12} más</span>
-                )}
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center py-4 text-center">
+                <p className="text-[10px] text-muted-foreground font-medium">Selecciona un grupo para ver a tus amigos</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
+
 
       <div className="flex gap-2 mb-4">
         <Input

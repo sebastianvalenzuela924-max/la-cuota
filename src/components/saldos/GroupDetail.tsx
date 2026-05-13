@@ -787,69 +787,72 @@ export default function SaldamosGroupDetail({
   if (!group) return <div className="text-center py-8 text-muted-foreground">Grupo no encontrado. <button onClick={onBack} className="text-primary underline">Volver</button></div>;
 
   return (
-    <div className="space-y-6 animate-slide-right pb-10">
-      {/* Top Nav Bar */}
-      <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40 gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-blue-600 transition-colors shrink-0">
-          <ArrowLeft className="w-4 h-4 stroke-[3px]" /> Volver
-        </button>
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {/* Import — secondary, small */}
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 border-blue-200 text-blue-600 hover:bg-blue-50 shrink-0"
-            onClick={handleImportClick}
-          >
-            <Sparkles className="w-3 h-3" /> Importar
-          </Button>
-          {/* Add member */}
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl h-8 px-2.5 text-[11px] gap-1 shrink-0"
-            onClick={() => setMemberOpen(true)}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Persona</span>
-          </Button>
-          {/* Share */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="rounded-xl h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-blue-600"
-            onClick={() => setShareOpen(true)}
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Hero Section */}
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black tracking-tight leading-none text-foreground break-words bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">
-            {group?.name || 'Cargando...'}
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
-              {currency}
-            </span>
-            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1">
-              <Users className="w-3 h-3" /> {members?.length || 0} Miembros
-            </span>
-            <div className="ml-auto flex items-center gap-2">
+    <div className="space-y-5 animate-slide-right pb-10">
+      {/* Sticky Header Container */}
+      <div className="sticky top-[72px] bg-background/95 backdrop-blur-md z-10 -mx-4 px-4 py-3 border-b border-border/40 shadow-sm transition-all duration-200">
+        <div className="flex flex-col gap-3">
+          {/* Top Row: Back and Secondary Actions */}
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:text-blue-600 transition-colors shrink-0">
+              <ArrowLeft className="w-3.5 h-3.5 stroke-[3px]" /> Volver
+            </button>
+            <div className="flex items-center gap-1.5">
               <Button
                 size="sm"
-                className="rounded-xl h-7 px-3 text-[10px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0 pulse-glow"
+                variant="outline"
+                className="rounded-xl h-7 px-2.5 text-[10px] gap-1 border-blue-100 text-blue-600 hover:bg-blue-50 shrink-0 font-bold"
+                onClick={handleImportClick}
+              >
+                <Sparkles className="w-3 h-3" /> Importar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl h-7 px-2.5 text-[10px] gap-1 shrink-0 font-bold border-muted text-muted-foreground"
+                onClick={() => setMemberOpen(true)}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Persona</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-xl h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-blue-600"
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Main Row: Group Name and Main Actions */}
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-2xl font-black tracking-tight leading-[1.1] text-foreground break-words bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">
+                {group?.name || 'Cargando...'}
+              </h2>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="px-1.5 py-0.5 rounded-lg bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-wider">
+                  {currency}
+                </span>
+                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1">
+                  <Users className="w-3 h-3" /> {members?.length || 0} Miembros
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <Button
+                size="sm"
+                className="rounded-xl h-8 px-4 text-[11px] font-black gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-none shrink-0 pulse-glow"
                 onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
               >
-                <Plus className="w-3.5 h-3.5" /> Gasto
+                <Plus className="w-4 h-4" /> GASTO
               </Button>
               <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
-                <SelectTrigger className="h-7 text-[10px] rounded-lg bg-blue-50 border-blue-100 text-blue-700 font-bold px-2 gap-1.5 min-w-[100px]">
-                  <User className="w-3 h-3" />
-                  <SelectValue placeholder="¿Quién eres tú?" />
+                <SelectTrigger className="h-6 text-[9px] rounded-lg bg-blue-50 border-blue-100 text-blue-700 font-black px-2 gap-1 min-w-[90px]">
+                  <User className="w-2.5 h-2.5" />
+                  <SelectValue placeholder="¿Quién eres?" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">(Nadie)</SelectItem>
@@ -860,6 +863,7 @@ export default function SaldamosGroupDetail({
           </div>
         </div>
       </div>
+
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
