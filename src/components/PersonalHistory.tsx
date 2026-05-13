@@ -214,7 +214,7 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                 <button 
                   key={ct.name} 
                   onClick={() => setCategoryFilter(categoryFilter === ct.name ? 'all' : ct.name)}
-                  className={`shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px] transition-all active:scale-95 ${categoryFilter === ct.name ? 'border-blue-600 bg-blue-50' : 'border-border/50 hover:border-blue-300'}`}
+                  className={`shrink-0 bg-card border rounded-xl px-3 py-2 text-center min-w-[100px] transition-all active:scale-95 ${categoryFilter === ct.name ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/20' : 'border-border/50 hover:border-blue-300'}`}
                 >
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">{ct.name}</p>
                   <p className={`text-xs font-bold ${categoryFilter === ct.name ? 'text-blue-600' : ''}`}>{fmt(ct.total)}</p>
@@ -254,8 +254,8 @@ export function PersonalHistory({ members, expenses, categories, currency, selec
                   <div 
                     key={r.expense.id} 
                     className={`p-3 rounded-xl border flex justify-between items-center transition-all active:scale-[0.98] cursor-pointer hover:shadow-md ${
-                      r.isSettlement ? 'bg-emerald-50 border-emerald-100' : 
-                      r.isPersonal ? 'bg-blue-50 border-blue-100' : 
+                      r.isSettlement ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30' : 
+                      r.isPersonal ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/30' : 
                       'bg-card hover:border-blue-200'
                     }`}
                     onClick={() => onViewDetail?.(r.expense.id)}

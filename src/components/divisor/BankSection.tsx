@@ -61,7 +61,7 @@ export default function BankSection({ bankData, onBankDataChange }: Props) {
       <div className="space-y-4">
         <div className="space-y-2">
           <Textarea
-            placeholder={`Pega aquí los datos bancarios o escríbelos. Ejemplo:\nJuan Perez\n12.345.678-9\nCuenta RUT`}
+            placeholder={`Pega aquí los datos bancarios o escríbelos. Ejemplo:\nLeonardo DiCaprio\n12.345.678-9\nCuenta RUT`}
             value={rawText}
             onChange={e => updateData(e.target.value)}
             className="text-sm min-h-[100px] rounded-xl bg-accent/30 border-dashed border-2 border-primary/20 focus-visible:border-solid transition-all"

@@ -33,6 +33,40 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExchangeRates } from '@/lib/currency';
 import { CurrencyConverter } from '@/components/CurrencyConverter';
 
+const launchCoins = (x = 0.5, y = 0.5) => {
+  const defaults = {
+    spread: 360,
+    ticks: 50,
+    gravity: 0.5,
+    decay: 0.94,
+    startVelocity: 30,
+    colors: ['FFE400', 'FFBD00', 'E89400', 'FFCA52', 'AD7A00'],
+    shapes: ['circle'] as any,
+  };
+
+  const shoot = () => {
+    confetti({
+      ...defaults,
+      particleCount: 40,
+      scalar: 1.2,
+      shapes: ['circle'],
+      origin: { x, y }
+    });
+
+    confetti({
+      ...defaults,
+      particleCount: 20,
+      scalar: 0.75,
+      shapes: ['circle'],
+      origin: { x, y }
+    });
+  };
+
+  setTimeout(shoot, 0);
+  setTimeout(shoot, 100);
+  setTimeout(shoot, 200);
+};
+
 const CREATE_NEW = '__create__';
 const SKIP = '__skip__';
 type Assignment = { parsedName: string; amount: number; target: string };
@@ -272,6 +306,14 @@ export default function SaldamosGroupDetail({
       if (error) { toast.error(error.message); setSavingMember(false); return; }
       toast.success(`${memberName.trim()} agregado`);
       await logActivity('MEMBER_ADDED', { name: memberName.trim() });
+      
+      // Auto-save to frequent people (contacts)
+      const saved = localStorage.getItem('saldamos_frequent_people');
+      const people: string[] = saved ? JSON.parse(saved) : [];
+      if (!people.includes(memberName.trim())) {
+        people.push(memberName.trim());
+        localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+      }
     }
     
     setSavingMember(false);
@@ -361,6 +403,14 @@ export default function SaldamosGroupDetail({
         target: findMemberMatch(p.name, members) ?? CREATE_NEW,
       }))
     );
+    
+    // 🎉 Confetti for detection
+    confetti({ 
+      particleCount: 100, 
+      spread: 70, 
+      origin: { y: 0.6 },
+      colors: ['#2563eb', '#10b981', '#f59e0b', '#3b82f6']
+    });
   };
 
   const handleApplyImport = async () => {
@@ -413,6 +463,15 @@ export default function SaldamosGroupDetail({
     if (cErr) { toast.error(cErr.message); return; }
 
     toast.success('✅ Consumos importados desde La Cuota');
+    
+    // 🎉 Success confetti
+    confetti({ 
+      particleCount: 150, 
+      spread: 100, 
+      origin: { y: 0.7 },
+      colors: ['#2563eb', '#10b981', '#f59e0b', '#3b82f6']
+    });
+
     await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
     setImportOpen(false);
     setImportText('');
@@ -546,21 +605,47 @@ export default function SaldamosGroupDetail({
 
           toast.success('Marcado como pagado y balance actualizado');
 
-          // 🎉 Confetti whenever marking as paid
-          const updatedContribs = expense.contributions.map((c: any) =>
-            c.id === contribution.id ? { ...c, is_settled: true } : c
-          );
-          const allNowSettled = updatedContribs
-            .filter((c: any) => c.amount_owed > 0)
-            .every((c: any) => c.is_settled);
-
-          if (allNowSettled) {
+          // Check if TOTAL group balance is now zero (Suggestion 7)
+          const totalRemaining = currentSettlements.reduce((sum, s) => sum + s.amount, 0);
+          const beingPaidNow = contribution.amount_owed;
+          
+          if (totalRemaining - beingPaidNow <= 0.01) {
+            // 🎉 TOTAL DEBT CLEARED! Fire everything!
+            confetti({
+              particleCount: 250,
+              spread: 160,
+              origin: { y: 0.6 },
+              colors: ['#FFD700', '#FFA500', '#FFFFFF', '#00FF00', '#0000FF']
+            });
+            setTimeout(() => {
+              confetti({
+                particleCount: 150,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: ['#FFD700', '#FFA500']
+              });
+            }, 250);
+            setTimeout(() => {
+              confetti({
+                particleCount: 150,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: ['#FFD700', '#FFA500']
+              });
+            }, 400);
+            toast.success('🎉 ¡GRUPO SALDADO COMPLETAMENTE! ¡QUEDARON EN $0!', {
+              duration: 5000,
+            });
+          } else if (allNowSettled) {
             // Big burst — all debts in this expense are settled!
             confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#2563eb', '#1d4ed8', '#10b981', '#f59e0b', '#3b82f6'] });
             setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.3 }, colors: ['#2563eb', '#10b981'] }), 200);
             setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.4, x: 0.7 }, colors: ['#1d4ed8', '#f59e0b'] }), 350);
           } else {
-            // Small burst — one payment marked
+            // Small burst + Coins (Suggestion 1)
+            launchCoins();
             confetti({ particleCount: 60, spread: 55, origin: { y: 0.65 }, colors: ['#2563eb', '#10b981', '#f59e0b'] });
           }
         } else {
@@ -638,7 +723,7 @@ export default function SaldamosGroupDetail({
   }
 
   return (
-    <div className="space-y-6 animate-fade-in-up pb-10">
+    <div className="space-y-6 animate-slide-right pb-10">
       {/* Top Nav Bar */}
       <div className="flex items-center justify-between -mx-4 px-4 py-2 sticky top-[80px] bg-background/95 backdrop-blur-md z-[5] border-b border-border/40 gap-2">
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-blue-600 transition-colors shrink-0">
@@ -692,7 +777,7 @@ export default function SaldamosGroupDetail({
             <div className="ml-auto flex items-center gap-2">
               <Button
                 size="sm"
-                className="rounded-xl h-7 px-3 text-[10px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0"
+                className="rounded-xl h-7 px-3 text-[10px] gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm shrink-0 pulse-glow"
                 onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
               >
                 <Plus className="w-3.5 h-3.5" /> Gasto
@@ -958,7 +1043,7 @@ export default function SaldamosGroupDetail({
                     id={`expense-${ex.id}`}
                     className={`group relative rounded-2xl border transition-all duration-300 ${
                       isExpanded ? 'bg-card shadow-lg ring-1 ring-primary/10' : 
-                      showYellow ? 'bg-amber-50/50 border-amber-200' :
+                      showYellow ? 'bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/20 dark:border-amber-500/30 border-l-4 border-l-amber-400' :
                       'bg-card/50 hover:bg-card hover:shadow-md'
                     }`}
                   >
@@ -969,7 +1054,7 @@ export default function SaldamosGroupDetail({
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`p-2 rounded-xl shrink-0 ${
                           isSettlement ? 'bg-emerald-100 text-emerald-600' : 
-                          showYellow ? 'bg-emerald-100 text-emerald-600' :
+                          showYellow ? 'bg-amber-100 text-amber-600' :
                           'bg-blue-100 text-blue-600'
                         }`}>
                           {isSettlement ? <HandCoins className="w-4 h-4" /> : <Receipt className={`w-4 h-4 ${showYellow ? 'animate-bounce' : ''}`} />}
@@ -998,7 +1083,7 @@ export default function SaldamosGroupDetail({
                               </span>
                             )}
                             {allSettled && !isSettlement && (
-                              <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                              <span className="flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full">
                                 ✓
                               </span>
                             )}

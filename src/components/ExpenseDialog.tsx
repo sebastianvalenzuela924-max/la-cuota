@@ -222,6 +222,14 @@ export function ExpenseDialog({
       const newMember = data as any;
       toast.success(`${name} agregado al grupo`);
       
+      // Auto-save to frequent people (contacts)
+      const saved = localStorage.getItem('saldamos_frequent_people');
+      const people: string[] = saved ? JSON.parse(saved) : [];
+      if (!people.includes(name.trim())) {
+        people.push(name.trim());
+        localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+      }
+
       // Update local members immediately so they appear in the UI
       setTempMembers(prev => [...prev, newMember]);
       
@@ -435,15 +443,15 @@ export function ExpenseDialog({
             <PartyPopper className="w-6 h-6 text-blue-500" />
             {existing ? "Editando gasto" : "¡Nuevo Gasto!"}
           </DialogTitle>
-          <DialogDescription className="text-center text-xs">
+          <DialogDescription className="text-center text-xs text-foreground/80 dark:text-blue-100/70">
             {existing ? "Vamos a ajustar los detalles." : "¿En qué se fue la plata esta vez? 💸"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="flex flex-col items-center justify-center space-y-2 bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 relative overflow-hidden group">
+          <div className="flex flex-col items-center justify-center space-y-2 p-6 rounded-3xl border border-blue-100/50 dark:border-blue-900/30 relative overflow-hidden group bg-background/50">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <Label htmlFor="total" className="text-blue-600 font-bold uppercase tracking-widest text-[10px] z-10">
+            <Label htmlFor="total" className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest text-[10px] z-10">
               ¿Cuánto dolió? ({currency})
             </Label>
             <div className="relative w-full max-w-[220px] z-10">
@@ -455,24 +463,24 @@ export function ExpenseDialog({
                 value={total}
                 onChange={(e) => setTotal(e.target.value)}
                 placeholder="0"
-                className="rounded-2xl text-4xl font-black text-center h-16 pl-10 border-blue-200 bg-white/80 shadow-inner focus-visible:ring-blue-400 focus-visible:ring-offset-2 transition-all"
+                className="rounded-2xl text-4xl font-black text-center h-16 pl-10 border-blue-200 dark:border-blue-800 bg-background/80 dark:bg-slate-950/50 shadow-inner focus-visible:ring-blue-400 focus-visible:ring-offset-2 transition-all"
               />
             </div>
           </div>
 
           <div className="space-y-3">
              <div className="flex items-center justify-between px-1">
-               <Label htmlFor="desc" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+               <Label htmlFor="desc" className="text-[10px] font-black text-foreground dark:text-white uppercase tracking-widest flex items-center gap-1.5">
                  <Sparkles className="w-3 h-3 text-amber-500" /> ¿Qué compramos?
                </Label>
                <div className="flex items-center gap-1">
-                 <Label htmlFor="date" className="text-[9px] font-bold text-muted-foreground/60 uppercase">Fecha:</Label>
+                 <Label htmlFor="date" className="text-[9px] font-bold text-foreground/80 dark:text-white/80 uppercase">Fecha:</Label>
                  <Input 
                    id="date" 
                    type="date" 
                    value={date} 
                    onChange={(e) => setDate(e.target.value)} 
-                   className="h-6 w-[105px] text-[10px] font-medium px-2 py-0 border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-muted-foreground shadow-none cursor-pointer rounded-md transition-colors" 
+                   className="h-6 w-[105px] text-[10px] font-bold px-2 py-0 border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-foreground dark:text-white shadow-none cursor-pointer rounded-md transition-colors" 
                  />
                </div>
              </div>
@@ -481,13 +489,13 @@ export function ExpenseDialog({
                value={description}
                onChange={(e) => setDescription(e.target.value)}
                placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
-               className="rounded-xl h-12 text-sm font-medium shadow-sm bg-white"
+               className="rounded-xl h-12 text-sm font-medium shadow-sm bg-background"
              />
           </div>
 
           {!isTrackerMode && (
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Categoría</Label>
+              <Label className="text-[10px] font-black text-foreground dark:text-white uppercase tracking-widest px-1">Categoría</Label>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <CategoryPicker
@@ -560,10 +568,9 @@ export function ExpenseDialog({
           {!isTrackerMode ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
               <div className="flex items-start gap-2">
-                <User className="mt-0.5 h-4 w-4 text-blue-500" />
-                <div>
-                  <Label htmlFor="personal-switch" className="cursor-pointer font-medium">Gasto personal</Label>
-                  <p className="text-[10px] text-muted-foreground">No afecta el balance grupal. Solo tu historial individual.</p>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="personal-switch" className="cursor-pointer font-black text-foreground dark:text-white text-xs">Gasto personal</Label>
+                  <p className="text-[10px] text-foreground/70 dark:text-blue-100/60 font-medium">No afecta el balance grupal.</p>
                 </div>
               </div>
               <Switch id="personal-switch" checked={isPersonal} onCheckedChange={(v) => setIsPersonal(!!v)} />
@@ -610,6 +617,14 @@ export function ExpenseDialog({
                             setTempMembers(prev => [...prev, newMember]);
                             setSelected(prev => new Set(prev).add(newMember.id));
                             setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
+
+                            // Auto-save to frequent people
+                            const saved = localStorage.getItem('saldamos_frequent_people');
+                            const people: string[] = saved ? JSON.parse(saved) : [];
+                            if (!people.includes(p.name.trim())) {
+                              people.push(p.name.trim());
+                              localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                            }
                           }
                         }
                         setUnmatchedPersons([]);
@@ -629,9 +644,9 @@ export function ExpenseDialog({
               <p className="text-[10px] text-amber-600 mb-2">Vincúlalas a alguien del grupo o créalas como nuevas personas.</p>
               <div className="space-y-2">
                 {unmappedPersons.map((p, idx) => (
-                  <div key={idx} className="flex flex-col gap-2 bg-white/50 p-3 rounded-xl border border-amber-200">
+                  <div key={idx} className="flex flex-col gap-2 bg-white/50 dark:bg-slate-900/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900/30">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-bold text-amber-900 truncate flex-1">{p.name} ({formatMoney(p.amount, currency)})</span>
+                      <span className="text-xs font-bold text-amber-900 dark:text-amber-200 truncate flex-1">{p.name} ({formatMoney(p.amount, currency)})</span>
                       <Button 
                         size="sm" 
                         variant="secondary" 
@@ -650,6 +665,15 @@ export function ExpenseDialog({
                               setSelected(prev => new Set(prev).add(newMember.id));
                               setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
                               setUnmatchedPersons(prev => prev.filter(item => item.name !== p.name));
+                              
+                              // Auto-save to frequent people
+                              const saved = localStorage.getItem('saldamos_frequent_people');
+                              const people: string[] = saved ? JSON.parse(saved) : [];
+                              if (!people.includes(p.name.trim())) {
+                                people.push(p.name.trim());
+                                localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                              }
+
                               if (onMembersChanged) onMembersChanged();
                               toast.success(`${p.name} agregado al grupo`);
                             }
@@ -683,41 +707,45 @@ export function ExpenseDialog({
           )}
 
           {/* NEW: People Selection Section */}
-          <div className="space-y-3 animate-in fade-in duration-300">
-            <div className="flex items-center justify-between px-1">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <Users className="w-3 h-3" /> Participantes
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="px-1">
+              <Label className="text-[11px] font-black text-foreground dark:text-white uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
+                <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Participantes
               </Label>
-              <div className="flex bg-muted/60 p-1 rounded-xl shadow-inner border border-border/50 items-center">
-                <button 
-                  type="button"
-                  onClick={() => setPeopleFilterTab('group')}
-                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'group' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  En el Grupo
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setPeopleFilterTab('friends')}
-                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'friends' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Mis Amigos
-                </button>
-                <div className="h-4 w-[1px] bg-border mx-1" />
-                <div className="flex items-center gap-1 pl-1">
-                   <Input 
-                     placeholder="+ Nueva..." 
-                     className="h-7 w-24 text-[10px] rounded-lg border-none bg-transparent focus-visible:ring-0 focus-visible:bg-white"
-                     onKeyDown={async (e) => {
-                       if (e.key === 'Enter') {
-                         const val = e.currentTarget.value.trim();
-                         if (val) {
-                           e.currentTarget.value = '';
-                           await addFrequentToGroup(val);
-                         }
-                       }
-                     }}
-                   />
+              
+              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="flex bg-muted/60 p-1 rounded-xl shadow-inner border border-border/50 items-center w-full sm:w-auto">
+                  <button 
+                    type="button"
+                    onClick={() => setPeopleFilterTab('group')}
+                    className={`flex-1 sm:flex-none px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'group' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-foreground dark:text-white/70 hover:text-foreground'}`}
+                  >
+                    En el Grupo
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setPeopleFilterTab('friends')}
+                    className={`flex-1 sm:flex-none px-4 py-1.5 text-[10px] font-black rounded-lg transition-all ${peopleFilterTab === 'friends' ? 'bg-white shadow-sm text-blue-600 dark:bg-card' : 'text-foreground dark:text-white/70 hover:text-foreground'}`}
+                  >
+                    Mis Amigos
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30 rounded-xl px-3 py-1 w-full sm:w-auto">
+                  <Plus className="w-3.5 h-3.5 text-blue-500" />
+                  <Input 
+                    placeholder="Añadir a alguien..." 
+                    className="h-7 w-full sm:w-32 text-[10px] rounded-lg border-none bg-transparent focus-visible:ring-0 placeholder:text-blue-400/50"
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        const val = e.currentTarget.value.trim();
+                        if (val) {
+                          e.currentTarget.value = '';
+                          await addFrequentToGroup(val);
+                        }
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -732,14 +760,14 @@ export function ExpenseDialog({
                         key={m.id}
                         type="button"
                         onClick={() => toggle(m.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all border shrink-0 ${
                           isSel 
                             ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20' 
-                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-slate-700 dark:text-slate-300 hover:border-blue-300'
+                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground dark:text-white hover:border-blue-300'
                         }`}
                       >
                         <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
-                          isSel ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
+                          isSel ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300'
                         }`}>
                           {isSel ? '✓' : m.name.charAt(0).toUpperCase()}
                         </div>
@@ -758,7 +786,7 @@ export function ExpenseDialog({
                         className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all whitespace-nowrap shadow-sm border ${
                           activeGroupFilter === null 
                             ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
-                            : 'bg-white dark:bg-card border-border text-muted-foreground hover:bg-muted/50'
+                            : 'bg-white dark:bg-card border-border text-foreground dark:text-white hover:bg-muted/50'
                         }`}
                       >
                         Todos
@@ -771,7 +799,7 @@ export function ExpenseDialog({
                           className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all whitespace-nowrap shadow-sm border ${
                             activeGroupFilter === gn 
                               ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
-                              : 'bg-blue-50/80 border-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800'
+                              : 'bg-blue-50/80 border-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:border-blue-700 dark:text-blue-100'
                           }`}
                         >
                           {gn}
@@ -794,20 +822,20 @@ export function ExpenseDialog({
                             type="button"
                             disabled={addingFrequent === p}
                             onClick={() => isAlreadyIn ? toggle(member.id) : addFrequentToGroup(p)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border text-left truncate ${
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all border text-left truncate ${
                               isSelected 
                                 ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20' 
                                 : isAlreadyIn
-                                  ? 'bg-blue-50/50 border-blue-200 text-blue-700 hover:bg-blue-50'
-                                  : 'bg-white dark:bg-card border-slate-200 text-slate-700 hover:border-blue-300'
+                                  ? 'bg-blue-50/50 border-blue-200 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                  : 'bg-white dark:bg-card border-slate-200 dark:border-slate-800 text-foreground dark:text-white hover:border-blue-300'
                             }`}
                           >
                             <div className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-[10px] font-black ${
                               isSelected 
                                 ? 'bg-white/20 text-white' 
                                 : isAlreadyIn
-                                  ? 'bg-blue-100 text-blue-600'
-                                  : 'bg-slate-100 text-slate-400'
+                                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300'
+                                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                             }`}>
                               {addingFrequent === p ? <Loader2 className="w-3 h-3 animate-spin" /> : (isSelected ? '✓' : (isAlreadyIn ? p.charAt(0).toUpperCase() : '+'))}
                             </div>
@@ -850,7 +878,7 @@ export function ExpenseDialog({
 
               <div className="space-y-2 rounded-xl border bg-muted/30 p-2 min-h-[60px] flex flex-col justify-center">
                 {selected.size === 0 ? (
-                  <p className="text-[10px] text-muted-foreground text-center italic py-4">Selecciona personas arriba para asignar montos</p>
+                  <p className="text-[10px] text-foreground dark:text-blue-100/60 text-center italic py-4">Selecciona personas arriba para asignar montos</p>
                 ) : (
                   allAvailableMembers
                     .filter(m => selected.has(m.id))

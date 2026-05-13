@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { Camera, Image, Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +42,14 @@ export default function ReceiptScanner({ onProductsDetected }: Props) {
         }));
 
         onProductsDetected(products, detectedCurrency);
+        
+        // 🎉 Confetti for success!
+        confetti({ 
+          particleCount: 150, 
+          spread: 80, 
+          origin: { y: 0.6 },
+          colors: ['#2563eb', '#10b981', '#f59e0b', '#3b82f6']
+        });
         const flag = detectedCurrency === 'BRL' ? '🇧🇷' : '🇨🇱';
         toast.success(`${flag} ${products.length} productos detectados`, {
           description: `Moneda: ${detectedCurrency}${data.localType ? ` • Tipo: ${data.localType}` : ''}`,
