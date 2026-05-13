@@ -10,7 +10,7 @@ import {
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
   MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy,
-  Clock, Scale
+  Clock, Scale, ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
@@ -87,7 +87,8 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('historial');
+  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending'>('balances');
+  const [showAllReconciliations, setShowAllReconciliations] = useState(false);
 
   const [memberOpen, setMemberOpen] = useState(false);
   const [memberName, setMemberName] = useState('');
@@ -277,6 +278,17 @@ export default function SaldamosGroupDetail({
 
   const balances = useMemo(() => computeBalances(members, expenses), [members, expenses]);
   const settlements = useMemo(() => simplifyDebts(balances), [balances]);
+  
+  const reconciliationExpenses = useMemo(() => 
+    expenses.filter(ex => ex.is_settlement).sort((a, b) => 
+      new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime()
+    ), 
+  [expenses]);
+
+  const totalSettledAmount = useMemo(() => 
+    reconciliationExpenses.reduce((sum, ex) => sum + ex.total_amount, 0),
+  [reconciliationExpenses]);
+
   const currency = group?.currency ?? 'CLP';
   
   const fmt = (n: number, curr?: string) => {
@@ -610,7 +622,7 @@ export default function SaldamosGroupDetail({
   };
 
   const handleViewDetail = (id: string) => {
-    setActiveTab('historial');
+    setActiveTab('history');
     setExpandedExpenses(prev => new Set(prev).add(id));
     setTimeout(() => {
       const el = document.getElementById(`expense-${id}`);
@@ -723,7 +735,7 @@ export default function SaldamosGroupDetail({
           }
         } else {
           // Balance mode zero-debt check
-          const totalRemaining = (currentSettlements || []).reduce((sum, s) => sum + s.amount, 0);
+          const totalRemaining = (settlements || []).reduce((sum, s) => sum + s.amount, 0);
           if (totalRemaining - contribution.amount_owed <= 0.1) {
             confetti({ particleCount: 250, spread: 160, origin: { y: 0.6 }, colors: ['#FFD700', '#FFA500', '#FFFFFF', '#00FF00', '#0000FF'] });
             toast.success('🎉 ¡GRUPO SALDADO COMPLETAMENTE!', { duration: 5000 });
@@ -773,16 +785,6 @@ export default function SaldamosGroupDetail({
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (!group) return <div className="text-center py-8 text-muted-foreground">Grupo no encontrado. <button onClick={onBack} className="text-primary underline">Volver</button></div>;
-
-  // Defensive check for computed values
-  let currentBalances: Balance[] = [];
-  let currentSettlements: Settlement[] = [];
-  try {
-    currentBalances = balances;
-    currentSettlements = settlements;
-  } catch (e) {
-    console.error("Error computing balances:", e);
-  }
 
   return (
     <div className="space-y-6 animate-slide-right pb-10">
@@ -859,15 +861,15 @@ export default function SaldamosGroupDetail({
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
-          <TabsTrigger value="historial" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="history" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
           </TabsTrigger>
           <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
           </TabsTrigger>
-          <TabsTrigger value="mi-actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
+          <TabsTrigger value="pending" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <User className="w-3.5 h-3.5" /> Mi Hist.
           </TabsTrigger>
           <TabsTrigger value="actividad" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
@@ -978,7 +980,7 @@ export default function SaldamosGroupDetail({
               <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
                 {members.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
-                ) : currentBalances.map(b => (
+                ) : balances.map(b => (
                   <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <span className="text-sm font-medium">{b.name}</span>
                     <span className={`text-sm font-bold tabular-nums ${b.balance > 0.01 ? 'text-emerald-600' : b.balance < -0.01 ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -988,10 +990,10 @@ export default function SaldamosGroupDetail({
                 ))}
               </div>
 
-              {currentSettlements.length > 0 && (
+              {settlements.length > 0 && (
                 <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
                   <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quién paga a quién</h3>
-                  {currentSettlements.map((s, i) => (
+                  {settlements.map((s, i) => (
                     <div key={i} className="flex items-center justify-between rounded-xl bg-accent/40 px-4 py-3">
                       <div className="flex items-center gap-2 text-sm truncate mr-2">
                         <span className="font-semibold text-red-500 truncate">{s.fromName}</span>
