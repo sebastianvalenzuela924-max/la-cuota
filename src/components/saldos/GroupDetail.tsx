@@ -32,6 +32,7 @@ import type { Category } from '@/components/CategoryPicker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExchangeRates } from '@/lib/currency';
 import { CurrencyConverter } from '@/components/CurrencyConverter';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const launchCoins = (x = 0.5, y = 0.5) => {
   const defaults = {
@@ -132,9 +133,10 @@ export default function SaldamosGroupDetail({
   const [historyCategory, setHistoryCategory] = useState('all');
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
-  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
+  const [isCollaborator, setIsCollaborator] = useState<boolean>(false);
+  const [joining, setJoining] = useState(false);
   const { convert, loading: ratesLoading, error: ratesError, fetchedAt } = useExchangeRates(group?.currency ?? 'CLP');
 
   const load = async (silent = false) => {
@@ -150,7 +152,24 @@ export default function SaldamosGroupDetail({
       if (g.error) throw g.error;
       if (m.error) throw m.error;
       
-      setGroup(g.data ?? null);
+      if (g.data) {
+        setGroup(g.data);
+        const { data: sess } = await saldamosSupabase.auth.getSession();
+        const userId = sess.session?.user?.id;
+        
+        if (userId) {
+          const isOwner = g.data.owner_id === userId;
+          const { data: collab } = await saldamosSupabase
+            .from('group_collaborators')
+            .select('id')
+            .eq('group_id', groupId)
+            .eq('user_id', userId)
+            .maybeSingle();
+          
+          setIsCollaborator(isOwner || !!collab);
+        }
+      }
+      
       setMembers(m.data ?? []);
       if (e.data) {
         const mappedExpenses = e.data.map((ex: any) => ({
@@ -760,6 +779,29 @@ export default function SaldamosGroupDetail({
     }
   };
 
+  const joinGroup = async () => {
+    const { data: sess } = await saldamosSupabase.auth.getSession();
+    const userId = sess.session?.user?.id;
+    if (!userId) { toast.error('Debes iniciar sesión para unirte'); return; }
+    
+    setJoining(true);
+    try {
+      const { error } = await saldamosSupabase
+        .from('group_collaborators')
+        .insert({ group_id: groupId, user_id: userId });
+      
+      if (error) throw error;
+      
+      setIsCollaborator(true);
+      toast.success('¡Te has unido al grupo!');
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    } catch (err: any) {
+      toast.error('Error al unirse: ' + err.message);
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const inviteCollaborator = async () => {
     if (!inviteEmail.trim()) return;
     setInviting(true);
@@ -797,6 +839,17 @@ export default function SaldamosGroupDetail({
               <ArrowLeft className="w-3.5 h-3.5 stroke-[3px]" /> Volver
             </button>
             <div className="flex items-center gap-1.5">
+              {!isCollaborator && (
+                <Button 
+                  size="sm" 
+                  onClick={joinGroup} 
+                  disabled={joining}
+                  className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 shadow-md animate-pulse hover:animate-none"
+                >
+                  {joining ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Plus className="w-3 h-3 mr-1.5" />}
+                  UNIRSE AL GRUPO
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -1513,50 +1566,123 @@ export default function SaldamosGroupDetail({
 
       {/* Share/Invite Dialog */}
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-blue-500" /> Compartir grupo
-            </DialogTitle>
-            <DialogDescription>
-              Cualquiera con el enlace podrá ver los gastos. Para que otros puedan editar, deben iniciar sesión.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Enlace del grupo</Label>
-              <div className="flex gap-2">
-                <Input 
-                  readOnly 
-                  value={window.location.origin + '/?group=' + groupId} 
-                  className="rounded-xl text-xs font-mono bg-muted/30" 
-                />
-                <Button size="icon" variant="outline" className="rounded-xl shrink-0" onClick={() => copyToClipboard(window.location.origin + '/?group=' + groupId)}>
-                  <Copy className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              <Label>Invitar por Email (Gmail)</Label>
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="ejemplo@gmail.com" 
-                  value={inviteEmail} 
-                  onChange={e => setInviteEmail(e.target.value)}
-                  className="rounded-xl text-sm"
-                />
-                <Button className="rounded-xl bg-blue-600 text-white" onClick={() => {
-                  const subject = encodeURIComponent(`Te invito al grupo ${group?.name} en La Cuota`);
-                  const body = encodeURIComponent(`Hola! Únete al grupo para gestionar los gastos juntos: ${window.location.origin}/?group=${groupId}`);
-                  window.location.href = `mailto:${inviteEmail}?subject=${subject}&body=${body}`;
-                  setShareOpen(false);
-                }}>
-                  Enviar
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground italic">Se abrirá tu aplicación de correo para enviar la invitación.</p>
-            </div>
+        <DialogContent className="rounded-3xl sm:max-w-md border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-white text-xl">
+                <Share2 className="w-6 h-6" /> Compartir grupo
+              </DialogTitle>
+              <DialogDescription className="text-blue-100 mt-2">
+                Invita a tus amigos para que todos puedan ver y gestionar los gastos de "{group?.name}".
+              </DialogDescription>
+            </DialogHeader>
           </div>
+
+          <Tabs defaultValue="link" className="w-full">
+            <div className="px-6 pt-4">
+              <TabsList className="grid grid-cols-3 w-full rounded-xl bg-muted/50">
+                <TabsTrigger value="link" className="rounded-lg text-xs font-bold">Enlace</TabsTrigger>
+                <TabsTrigger value="whatsapp" className="rounded-lg text-xs font-bold">WhatsApp</TabsTrigger>
+                <TabsTrigger value="qr" className="rounded-lg text-xs font-bold">QR</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="p-6">
+              <TabsContent value="link" className="mt-0 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Enlace directo</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      readOnly 
+                      value={`${window.location.origin}/?group=${groupId}`} 
+                      className="rounded-xl text-xs font-mono bg-muted/30 border-dashed" 
+                    />
+                    <Button size="icon" className="rounded-xl shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => copyToClipboard(`${window.location.origin}/?group=${groupId}`)}>
+                      <Copy className="w-4 h-4 text-white" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 pt-2 border-t border-dashed">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Invitar por Email</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="amigo@gmail.com" 
+                      value={inviteEmail} 
+                      onChange={e => setInviteEmail(e.target.value)}
+                      className="rounded-xl text-sm"
+                    />
+                    <Button variant="outline" className="rounded-xl border-blue-200 text-blue-600 font-bold px-4" onClick={() => {
+                      const subject = encodeURIComponent(`Te invito al grupo ${group?.name} en La Cuota`);
+                      const body = encodeURIComponent(`¡Hola! Únete al grupo para gestionar los gastos juntos:\n\n${window.location.origin}/?group=${groupId}`);
+                      window.location.href = `mailto:${inviteEmail}?subject=${subject}&body=${body}`;
+                    }}>
+                      Invitar
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="whatsapp" className="mt-0 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                <div className="flex flex-col items-center text-center py-4 space-y-4">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" className="w-10 h-10 text-green-600 fill-current">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground">Compartir por WhatsApp</h3>
+                    <p className="text-xs text-muted-foreground mt-1 px-4">
+                      Envía el enlace directamente a tu grupo de amigos o pareja.
+                    </p>
+                  </div>
+                  <Button 
+                    className="w-full rounded-2xl bg-green-500 hover:bg-green-600 text-white font-black py-6 text-base"
+                    onClick={() => {
+                      const text = encodeURIComponent(`¡Hola! Únete al grupo "${group?.name}" en La Cuota para gestionar nuestros gastos juntos: ${window.location.origin}/?group=${groupId}`);
+                      window.open(`https://wa.me/?text=${text}`, '_blank');
+                    }}
+                  >
+                    Abrir WhatsApp
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="qr" className="mt-0 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                <div className="flex flex-col items-center py-4 space-y-6">
+                  <div className="p-4 bg-white rounded-3xl shadow-xl border-8 border-blue-50">
+                    <QRCodeCanvas 
+                      value={`${window.location.origin}/?group=${groupId}`} 
+                      size={180}
+                      level="H"
+                      includeMargin={false}
+                      imageSettings={{
+                        src: "/favicon.ico",
+                        x: undefined,
+                        y: undefined,
+                        height: 40,
+                        width: 40,
+                        excavate: true,
+                      }}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-foreground">Escanea para unirte</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-black">Escanea con la cámara de tu celular</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="rounded-xl text-blue-600 font-bold" onClick={() => window.print()}>
+                    Imprimir QR
+                  </Button>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+
+          <DialogFooter className="bg-muted/30 p-4">
+            <Button variant="ghost" className="w-full rounded-xl h-10 font-bold text-muted-foreground" onClick={() => setShareOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

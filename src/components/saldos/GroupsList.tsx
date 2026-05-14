@@ -133,14 +133,43 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await saldamosSupabase
-      .from('groups')
-      .select('id, name, currency, owner_id')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-    if (error) toast.error(error.message);
-    setGroups((data ?? []).map((g: any) => ({ ...g, isOwner: g.owner_id === user.id })));
-    setLoading(false);
+    
+    try {
+      // 1. Fetch owned groups
+      const { data: owned, error: ownedErr } = await saldamosSupabase
+        .from('groups')
+        .select('id, name, currency, owner_id')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (ownedErr) throw ownedErr;
+
+      // 2. Fetch collaborated groups
+      const { data: collabs, error: collabsErr } = await saldamosSupabase
+        .from('group_collaborators')
+        .select('group_id, groups(id, name, currency, owner_id)')
+        .eq('user_id', user.id);
+      
+      if (collabsErr) console.warn('Collab fetch error:', collabsErr.message);
+
+      const collaboratedGroups = (collabs ?? [])
+        .map((c: any) => c.groups)
+        .filter(Boolean);
+
+      // Merge and deduplicate
+      const allGroups = [...(owned ?? [])];
+      collaboratedGroups.forEach(cg => {
+        if (!allGroups.some(ag => ag.id === cg.id)) {
+          allGroups.push(cg);
+        }
+      });
+
+      setGroups(allGroups.map((g: any) => ({ ...g, isOwner: g.owner_id === user.id })));
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, [user?.id]);
