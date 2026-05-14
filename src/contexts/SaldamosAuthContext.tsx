@@ -48,9 +48,14 @@ export function SaldamosAuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await saldamosSupabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: redirectUrl },
+      options: { 
+        emailRedirectTo: redirectUrl,
+        data: {
+          full_name: email.split('@')[0], // Fallback metadata in case trigger requires it
+        }
+      },
     });
-    return { error, requiresEmailConfirmation: !data.session };
+    return { error, requiresEmailConfirmation: !error && !data.session };
   };
 
   const signOut = async () => {
