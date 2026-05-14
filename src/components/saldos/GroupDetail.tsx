@@ -88,7 +88,7 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('history');
+  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('balances');
   const [showAllReconciliations, setShowAllReconciliations] = useState(false);
 
   const [memberOpen, setMemberOpen] = useState(false);
