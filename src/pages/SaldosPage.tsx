@@ -33,11 +33,24 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
     return <AuthWall />;
   }
 
+  const handleSelectGroup = (id: string | null) => {
+    setSelectedGroupId(id);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (id) {
+        url.searchParams.set('group', id);
+      } else {
+        url.searchParams.delete('group');
+      }
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  };
+
   if (selectedGroupId) {
     return (
       <GroupDetail 
         groupId={selectedGroupId} 
-        onBack={() => setSelectedGroupId(null)} 
+        onBack={() => handleSelectGroup(null)} 
         pendingImportText={pendingImportText}
         onClearPendingImport={onClearPendingImport}
         billData={billData}
@@ -45,5 +58,5 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
     );
   }
 
-  return <GroupsList onSelectGroup={setSelectedGroupId} />;
+  return <GroupsList onSelectGroup={handleSelectGroup} />;
 }

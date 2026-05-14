@@ -786,6 +786,13 @@ export default function SaldamosGroupDetail({
     if (!userId) { toast.error('Debes iniciar sesión para unirte'); return; }
     
     setJoining(true);
+    // Cleanup URL immediately
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('group');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+    
     try {
       const { error } = await saldamosSupabase
         .from('group_collaborators')
@@ -796,6 +803,13 @@ export default function SaldamosGroupDetail({
       setIsCollaborator(true);
       toast.success('¡Te has unido al grupo!');
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      
+      // Cleanup URL after joining
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('group');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
     } catch (err: any) {
       toast.error('Error al unirse: ' + err.message);
     } finally {

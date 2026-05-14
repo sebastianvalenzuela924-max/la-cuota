@@ -147,14 +147,22 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       // 2. Fetch collaborated groups
       const { data: collabs, error: collabsErr } = await saldamosSupabase
         .from('group_collaborators')
-        .select('group_id, groups(id, name, currency, owner_id)')
+        .select('group_id')
         .eq('user_id', user.id);
       
       if (collabsErr) console.warn('Collab fetch error:', collabsErr.message);
 
-      const collaboratedGroups = (collabs ?? [])
-        .map((c: any) => c.groups)
-        .filter(Boolean);
+      let collaboratedGroups: any[] = [];
+      if (collabs && collabs.length > 0) {
+        const collabIds = collabs.map((c: any) => c.group_id);
+        const { data: cGroups, error: cgErr } = await saldamosSupabase
+          .from('groups')
+          .select('id, name, currency, owner_id')
+          .in('id', collabIds);
+        
+        if (cgErr) console.warn('C-Groups fetch error:', cgErr.message);
+        collaboratedGroups = cGroups ?? [];
+      }
 
       // Merge and deduplicate
       const allGroups = [...(owned ?? [])];
@@ -163,6 +171,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
           allGroups.push(cg);
         }
       });
+      
+      console.log('Grupos consolidados:', allGroups.length);
 
       setGroups(allGroups.map((g: any) => ({ ...g, isOwner: g.owner_id === user.id })));
     } catch (err: any) {
