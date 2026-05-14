@@ -133,6 +133,7 @@ export default function SaldamosGroupDetail({
   const [historyCategory, setHistoryCategory] = useState('all');
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
+  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const [isCollaborator, setIsCollaborator] = useState<boolean>(false);
