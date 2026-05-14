@@ -88,7 +88,7 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('balances');
+  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('history');
   const [showAllReconciliations, setShowAllReconciliations] = useState(false);
 
   const [memberOpen, setMemberOpen] = useState(false);
@@ -850,8 +850,12 @@ export default function SaldamosGroupDetail({
         <div className="flex flex-col gap-3">
           {/* Top Row: Back and Secondary Actions */}
           <div className="flex items-center justify-between gap-2">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:text-blue-600 transition-colors shrink-0">
-              <ArrowLeft className="w-3.5 h-3.5 stroke-[3px]" /> Volver
+            <button 
+              onClick={onBack} 
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all duration-200 border border-blue-100 shadow-sm active:scale-95 shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[3px]" /> 
+              <span className="text-xs font-black uppercase tracking-tight">Cerrar grupo</span>
             </button>
             <div className="flex items-center gap-1.5">
               {!isCollaborator && (

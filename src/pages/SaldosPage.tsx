@@ -21,6 +21,21 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
     return null;
   });
 
+  // Handle hardware back button
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      // If we are in detail view, go back to list
+      if (selectedGroupId) {
+        setSelectedGroupId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedGroupId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -34,15 +49,21 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
   }
 
   const handleSelectGroup = (id: string | null) => {
+    const prevId = selectedGroupId;
     setSelectedGroupId(id);
+    
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       if (id) {
         url.searchParams.set('group', id);
+        // Only push state if we are moving FROM list TO group
+        if (!prevId) window.history.pushState({ group: id }, '', url.pathname + url.search);
+        else window.history.replaceState({ group: id }, '', url.pathname + url.search);
       } else {
         url.searchParams.delete('group');
+        // If we had a group, we already "popped" or we are manually closing
+        window.history.replaceState({}, '', url.pathname + url.search);
       }
-      window.history.replaceState({}, '', url.pathname + url.search);
     }
   };
 
