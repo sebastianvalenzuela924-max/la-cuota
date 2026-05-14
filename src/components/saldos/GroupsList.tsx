@@ -104,14 +104,22 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
-  const [frequentPeople, setFrequentPeople] = useState<string[]>(() => {
-    const saved = localStorage.getItem('saldamos_frequent_people');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('saldamos_people_groups');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+
+  // Load user-specific data from localStorage
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const peopleKey = `saldamos_frequent_people_${user.id}`;
+    const groupsKey = `saldamos_people_groups_${user.id}`;
+    
+    const savedPeople = localStorage.getItem(peopleKey);
+    setFrequentPeople(savedPeople ? JSON.parse(savedPeople) : []);
+    
+    const savedGroups = localStorage.getItem(groupsKey);
+    setPeopleGroups(savedGroups ? JSON.parse(savedGroups) : {});
+  }, [user?.id]);
   const [managePeopleOpen, setManagePeopleOpen] = useState(false);
   const [newFrequentName, setNewFrequentName] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
@@ -128,6 +136,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     const { data, error } = await saldamosSupabase
       .from('groups')
       .select('id, name, currency, owner_id')
+      .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
     if (error) toast.error(error.message);
     setGroups((data ?? []).map((g: any) => ({ ...g, isOwner: g.owner_id === user.id })));
@@ -137,8 +146,16 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   useEffect(() => { load(); }, [user?.id]);
 
   useEffect(() => {
-    localStorage.setItem('saldamos_frequent_people', JSON.stringify(frequentPeople));
-  }, [frequentPeople]);
+    if (user?.id && frequentPeople.length >= 0) {
+      localStorage.setItem(`saldamos_frequent_people_${user.id}`, JSON.stringify(frequentPeople));
+    }
+  }, [frequentPeople, user?.id]);
+
+  useEffect(() => {
+    if (user?.id && Object.keys(peopleGroups).length >= 0) {
+      localStorage.setItem(`saldamos_people_groups_${user.id}`, JSON.stringify(peopleGroups));
+    }
+  }, [peopleGroups, user?.id]);
 
   const addFrequentPerson = () => {
     if (!newFrequentName.trim()) return;
@@ -154,22 +171,18 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const removeFrequentPerson = (name: string) => {
     const next = frequentPeople.filter(p => p !== name);
     setFrequentPeople(next);
-    localStorage.setItem('saldamos_frequent_people', JSON.stringify(next));
-    
     // Also remove from any groups
     const nextGroups = { ...peopleGroups };
     Object.keys(nextGroups).forEach(g => {
       nextGroups[g] = nextGroups[g].filter(p => p !== name);
     });
     setPeopleGroups(nextGroups);
-    localStorage.setItem('saldamos_people_groups', JSON.stringify(nextGroups));
   };
 
   const addGroup = () => {
     if (!newGroupName.trim() || peopleGroups[newGroupName.trim()]) return;
     const next = { ...peopleGroups, [newGroupName.trim()]: [] };
     setPeopleGroups(next);
-    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
     setNewGroupName('');
     toast.success(`Grupo "${newGroupName}" creado`);
   };
@@ -183,7 +196,6 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       next[groupName] = [...group, personName];
     }
     setPeopleGroups(next);
-    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
   };
 
   const deletePersonGroup = (groupName: string) => {
@@ -191,7 +203,6 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     const next = { ...peopleGroups };
     delete next[groupName];
     setPeopleGroups(next);
-    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
     toast.success('Grupo eliminado');
   };
 
@@ -204,7 +215,6 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     next[renameGroupValue.trim()] = next[oldName];
     delete next[oldName];
     setPeopleGroups(next);
-    localStorage.setItem('saldamos_people_groups', JSON.stringify(next));
     setRenamingGroup(null);
     setEditingGroup(renameGroupValue.trim());
     toast.success('Grupo renombrado');
