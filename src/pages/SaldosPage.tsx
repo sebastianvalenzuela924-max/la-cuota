@@ -49,17 +49,30 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
 
   const handleSelectGroup = (id: string | null) => {
     if (id === selectedGroupId) return;
+    
     setSelectedGroupId(id);
     
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       if (id) {
         url.searchParams.set('group', id);
+        // Only push if manually selecting, don't push if already there
         window.history.pushState({ group: id }, '', url.pathname + url.search);
       } else {
         url.searchParams.delete('group');
-        window.history.pushState({}, '', url.pathname + url.search);
+        // When going back to list, use replace to not pollute history if it was just a "back" action
+        window.history.replaceState({}, '', url.pathname + url.search);
       }
+    }
+  };
+
+  const handleManualBack = () => {
+    // Check if we can just go back in history
+    if (window.history.state?.group) {
+      window.history.back();
+    } else {
+      // If we landed directly on the group, manually clear it
+      handleSelectGroup(null);
     }
   };
 
@@ -67,7 +80,7 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
     return (
       <GroupDetail 
         groupId={selectedGroupId} 
-        onBack={() => window.history.back()} 
+        onBack={handleManualBack} 
         pendingImportText={pendingImportText}
         onClearPendingImport={onClearPendingImport}
         billData={billData}

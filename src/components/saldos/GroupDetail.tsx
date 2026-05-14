@@ -845,17 +845,13 @@ export default function SaldamosGroupDetail({
 
   return (
     <div className="space-y-5 animate-slide-right pb-10">
-      {/* Sticky Header Container */}
-      <div className="sticky top-[72px] bg-background/95 backdrop-blur-md z-10 -mx-4 px-4 py-3 border-b border-border/40 shadow-sm transition-all duration-200">
-        <div className="flex flex-col gap-3">
-          {/* Top Row: Back and Secondary Actions */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <button 
               onClick={onBack} 
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all duration-200 border border-blue-100 shadow-sm active:scale-95 shrink-0"
+              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 transition-colors active:scale-95 shrink-0"
             >
-              <ArrowLeft className="w-4 h-4 stroke-[3px]" /> 
-              <span className="text-xs font-black uppercase tracking-tight">Cerrar grupo</span>
+              <ArrowLeft className="w-5 h-5 stroke-[3px]" /> 
+              <span className="text-sm font-black uppercase">Volver</span>
             </button>
             <div className="flex items-center gap-1.5">
               {!isCollaborator && (
