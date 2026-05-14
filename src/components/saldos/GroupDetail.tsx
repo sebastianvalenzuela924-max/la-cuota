@@ -929,8 +929,6 @@ export default function SaldamosGroupDetail({
               </Select>
             </div>
           </div>
-        </div>
-      </div>
 
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">

@@ -203,7 +203,7 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 card-shadow">
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border px-4 py-4 card-shadow">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <Dialog>
             <DialogTrigger asChild>
