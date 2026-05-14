@@ -30,7 +30,8 @@ export default function SaldamosAuthWall() {
       if (lower.includes('invalid login') || lower.includes('invalid credentials')) friendly = 'Email o contraseña incorrectos.';
       else if (lower.includes('already registered') || lower.includes('user already')) friendly = 'Ese email ya tiene cuenta. Inicia sesión.';
       else if (lower.includes('email not confirmed')) friendly = 'Confirma tu email primero.';
-      else if (lower.includes('database error saving new user')) friendly = 'Error del servidor al crear usuario. Reintenta en unos minutos o contacta soporte.';
+      else if (lower.includes('database error saving new user')) friendly = 'Error del servidor al crear usuario. Contacta soporte o prueba con otro email.';
+      else if (lower.includes('weak_password') || lower.includes('too easy')) friendly = 'La contraseña es muy simple. Prueba con algo más complejo (letras y números).';
       
       console.error('Auth error:', result.error);
       toast.error(friendly);

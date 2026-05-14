@@ -51,7 +51,10 @@ export function SaldamosAuthProvider({ children }: { children: ReactNode }) {
       options: { 
         emailRedirectTo: redirectUrl,
         data: {
-          full_name: email.split('@')[0], // Fallback metadata in case trigger requires it
+          full_name: email.split('@')[0], 
+          name: email.split('@')[0],
+          username: email.split('@')[0].toLowerCase(),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`
         }
       },
     });
