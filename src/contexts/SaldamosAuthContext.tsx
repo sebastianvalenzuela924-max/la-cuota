@@ -50,12 +50,6 @@ export function SaldamosAuthProvider({ children }: { children: ReactNode }) {
       password,
       options: { 
         emailRedirectTo: redirectUrl,
-        data: {
-          full_name: email.split('@')[0], 
-          name: email.split('@')[0],
-          username: email.split('@')[0].toLowerCase(),
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`
-        }
       },
     });
     return { error, requiresEmailConfirmation: !error && !data.session };
