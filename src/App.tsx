@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Session from "./pages/Session";
-import QuickAdd from "./pages/QuickAdd";
 import NotFound from "./pages/NotFound";
 import { SaldamosAuthProvider } from "./contexts/SaldamosAuthContext";
 
@@ -21,7 +20,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/session/:sessionId" element={<Session />} />
-            <Route path="/quick-add" element={<QuickAdd />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

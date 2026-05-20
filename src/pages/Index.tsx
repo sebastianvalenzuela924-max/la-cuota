@@ -13,7 +13,7 @@ import CurrencySelector from '@/components/divisor/CurrencySelector';
 import SaldosPage from '@/pages/SaldosPage';
 import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
 import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
-import { Share2, Loader2, Sparkles } from 'lucide-react';
+import { Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
@@ -296,15 +296,6 @@ export default function Index() {
           
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
-              {user && (
-                <button
-                  onClick={() => navigate('/quick-add')}
-                  className="w-9 h-9 rounded-2xl flex items-center justify-center bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 transition-all active:scale-95 shadow-sm border border-blue-500/20"
-                  title="Gasto Rápido ⚡"
-                >
-                  <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
-                </button>
-              )}
               <button
                 onClick={toggleDark}
                 className="w-9 h-9 rounded-2xl flex items-center justify-center bg-accent hover:bg-accent/80 transition-all active:scale-95 shadow-sm"
