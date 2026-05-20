@@ -127,12 +127,6 @@ export default function Index() {
   };
 
   const handleShare = async () => {
-    if (!user) {
-      toast.error('Debes iniciar sesión para crear una mesa compartida.');
-      setActiveTab('saldos');
-      return;
-    }
-
     if (products.length === 0) {
       toast.error('Agrega al menos un producto para compartir');
       return;
@@ -140,18 +134,20 @@ export default function Index() {
 
     setSharing(true);
     try {
-      // 1. Create Session + auto-add creator as collaborator via SECURITY DEFINER function
-      // (bypasses RLS policies which can block INSERT on bill_sessions)
-      const { data: sid, error: sError } = await saldamosSupabase
-        .rpc('create_bill_session', {
-          p_currency: currency,
-          p_tip_type: tipType,
-          p_tip_value: tipValue,
-          p_bank_data: bankData
-        });
+      // 1. Create Session (no auth required - sessions are public)
+      const { data: session, error: sError } = await saldamosSupabase
+        .from('bill_sessions')
+        .insert([{
+          currency,
+          tip_type: tipType,
+          tip_value: tipValue,
+          bank_data: bankData,
+        }])
+        .select()
+        .single();
 
       if (sError) throw sError;
-      if (!sid) throw new Error('No se pudo obtener el ID de la sesión');
+      const sid = session.id;
 
       // 2. Create Products
       if (products.length > 0) {

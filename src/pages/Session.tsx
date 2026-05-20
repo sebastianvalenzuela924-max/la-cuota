@@ -24,7 +24,7 @@ export default function Session() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
-  const { user, loading: authLoading } = useSaldamosAuth();
+  const { user } = useSaldamosAuth();
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(true);
 
@@ -38,17 +38,11 @@ export default function Session() {
 
   // Load Initial Data
   useEffect(() => {
-    if (!sessionId || !user) return;
+    if (!sessionId) return;
 
     async function loadData() {
       setLoading(true);
       try {
-        // 0. Register user as a collaborator for this session to grant RLS permissions
-        const { error: colError } = await saldamosSupabase
-          .from('bill_session_collaborators')
-          .upsert({ session_id: sessionId, user_id: user.id });
-
-        if (colError) throw colError;
 
         // 1. Fetch Session
         const { data: session, error: sError } = await saldamosSupabase
@@ -148,7 +142,7 @@ export default function Session() {
     return () => {
       saldamosSupabase.removeChannel(channel);
     };
-  }, [sessionId, user, navigate]);
+  }, [sessionId, navigate]);
 
   // Derived Values
   const subtotal = useMemo(() => products.reduce((s, p) => s + p.price * p.quantity, 0), [products]);
@@ -301,39 +295,6 @@ export default function Session() {
 
   const sessionUrl = window.location.href;
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-muted-foreground font-medium">Verificando sesión...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background pb-10">
-        <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 card-shadow">
-          <div className="max-w-lg mx-auto flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-10 w-10 rounded-xl">
-              <ArrowLeft className="w-6 h-6" />
-            </Button>
-            <div className="flex-1 min-w-0">
-              <h1 className="font-extrabold text-2xl text-foreground tracking-tight leading-tight">Iniciar Sesión</h1>
-            </div>
-          </div>
-        </header>
-        <main className="max-w-lg mx-auto px-4 mt-5">
-          <div className="bg-blue-600/10 border border-blue-600/20 text-blue-700 dark:text-blue-400 rounded-2xl p-4 text-xs font-semibold mb-5 text-center leading-relaxed">
-            Debes iniciar sesión con tu cuenta de Saldamos para unirte a esta mesa compartida.
-          </div>
-          <AuthWall />
-        </main>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
