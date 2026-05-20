@@ -17,12 +17,13 @@ jobs:
 
       - name: Ping Sharing Supabase (Sessions)
         run: |
-          curl -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/?select=count" \
+          curl -s -o /dev/null -w "%{http_code}" -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/bill_sessions?select=id&limit=1" \
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4"
 
       - name: Ping Saldamos2 Supabase (Groups)
         run: |
-          curl -X GET "https://atvkvzukbeifwinoxzli.supabase.co/rest/v1/?select=count" \
+          curl -s -o /dev/null -w "%{http_code}" -X GET "https://atvkvzukbeifwinoxzli.supabase.co/rest/v1/groups?select=id&limit=1" \
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dmt2enVrYmVpZndpbm94emxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0ODY0MzYsImV4cCI6MjA5MjA2MjQzNn0.rHsCvtFGgx0L9k_m1NIdak1ssyFPITLRLKt3Q_2DkXk" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dmt2enVrYmVpZndpbm94emxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0ODY0MzYsImV4cCI6MjA5MjA2MjQzNn0.rHsCvtFGgx0L9k_m1NIdak1ssyFPITLRLKt3Q_2DkXk"
+
