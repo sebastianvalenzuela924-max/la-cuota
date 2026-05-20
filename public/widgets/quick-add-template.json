@@ -1,0 +1,32 @@
+{
+  "type": "AdaptiveCard",
+  "body": [
+    {
+      "type": "TextBlock",
+      "size": "Medium",
+      "weight": "Bolder",
+      "text": "La Cuota ⚡",
+      "color": "Accent"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Toca abajo para añadir un gasto rápidamente en segundos a tus grupos y balances.",
+      "wrap": true,
+      "size": "Small",
+      "color": "Good"
+    },
+    {
+      "type": "ActionSet",
+      "actions": [
+        {
+          "type": "Action.Execute",
+          "title": "⚡ Gasto Rápido",
+          "verb": "quick-add",
+          "id": "quick-add-action"
+        }
+      ]
+    }
+  ],
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5"
+}

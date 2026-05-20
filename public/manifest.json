@@ -19,5 +19,37 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Gasto Rápido ⚡",
+      "short_name": "Gasto Rápido",
+      "description": "Añade un gasto rápidamente a tus grupos",
+      "url": "/quick-add",
+      "icons": [
+        {
+          "src": "/icon.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "name": "Gasto Rápido La Cuota",
+      "short_name": "Gasto Rápido",
+      "description": "Agrega un gasto rápidamente a tus grupos",
+      "tag": "quick-add",
+      "ms_ac_template": "/widgets/quick-add-template.json",
+      "data": "/widgets/quick-add-data.json",
+      "icons": [
+        {
+          "src": "/icon.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
