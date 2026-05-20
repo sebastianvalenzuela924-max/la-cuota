@@ -128,6 +128,7 @@ export default function SaldamosGroupDetail({
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
   const groupMode = localStorage.getItem(`group_mode_${groupId}`) || 'balance';
+  const isTracker = groupMode === 'tracker' || (isFootball && groupMode !== 'balance');
 
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
@@ -665,7 +666,6 @@ export default function SaldamosGroupDetail({
     
     setProcessingSettlements(prev => new Set(prev).add(contributionId));
     
-    const isTracker = groupMode === 'tracker' || (isFootball && groupMode !== 'balance');
     const newStatus = !currentStatus;
 
     // 1. Optimistic Update (Instant UI feedback)
