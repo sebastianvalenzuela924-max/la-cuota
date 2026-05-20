@@ -140,28 +140,18 @@ export default function Index() {
 
     setSharing(true);
     try {
-      // 1. Create Session
-      const { data: session, error: sError } = await saldamosSupabase
-        .from('bill_sessions')
-        .insert([{
-          currency,
-          tip_type: tipType,
-          tip_value: tipValue,
-          bank_data: bankData,
-          created_by: user.id
-        }])
-        .select()
-        .single();
+      // 1. Create Session + auto-add creator as collaborator via SECURITY DEFINER function
+      // (bypasses RLS policies which can block INSERT on bill_sessions)
+      const { data: sid, error: sError } = await saldamosSupabase
+        .rpc('create_bill_session', {
+          p_currency: currency,
+          p_tip_type: tipType,
+          p_tip_value: tipValue,
+          p_bank_data: bankData
+        });
 
       if (sError) throw sError;
-
-      const sid = session.id;
-
-      // 1b. Register as collaborator to bypass product/people RLS
-      const { error: colError } = await saldamosSupabase
-        .from('bill_session_collaborators')
-        .insert([{ session_id: sid, user_id: user.id }]);
-      if (colError) throw colError;
+      if (!sid) throw new Error('No se pudo obtener el ID de la sesión');
 
       // 2. Create Products
       if (products.length > 0) {
