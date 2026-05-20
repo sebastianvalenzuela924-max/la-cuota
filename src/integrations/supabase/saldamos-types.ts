@@ -38,6 +38,36 @@ export type SaldamosDatabase = {
         Update: { action?: string; details?: any };
         Relationships: [];
       };
+      bill_sessions: {
+        Row: { id: string; currency: string; tip_type: string; tip_value: number; bank_data: any; created_at: string; created_by: string | null };
+        Insert: { id?: string; currency?: string; tip_type?: string; tip_value?: number; bank_data?: any; created_at?: string; created_by?: string | null };
+        Update: { currency?: string; tip_type?: string; tip_value?: number; bank_data?: any; created_by?: string | null };
+        Relationships: [];
+      };
+      bill_session_collaborators: {
+        Row: { session_id: string; user_id: string; created_at: string };
+        Insert: { session_id: string; user_id: string; created_at?: string };
+        Update: { session_id?: string; user_id?: string };
+        Relationships: [];
+      };
+      bill_products: {
+        Row: { id: string; session_id: string; name: string; price: number; quantity: number; created_at: string };
+        Insert: { id?: string; session_id: string; name: string; price: number; quantity: number; created_at?: string };
+        Update: { name?: string; price?: number; quantity?: number };
+        Relationships: [];
+      };
+      bill_people: {
+        Row: { id: string; session_id: string; name: string; color_index: number; created_at: string };
+        Insert: { id: string; session_id: string; name: string; color_index: number; created_at?: string };
+        Update: { name?: string; color_index?: number };
+        Relationships: [];
+      };
+      bill_assignments: {
+        Row: { product_id: string; person_id: string; session_id: string; created_at: string };
+        Insert: { product_id: string; person_id: string; session_id: string; created_at?: string };
+        Update: { product_id?: string; person_id?: string; session_id?: string };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

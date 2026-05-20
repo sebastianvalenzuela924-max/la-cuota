@@ -67,12 +67,13 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
   };
 
   const handleManualBack = () => {
-    // Check if we can just go back in history
-    if (window.history.state?.group) {
-      window.history.back();
-    } else {
-      // If we landed directly on the group, manually clear it
-      handleSelectGroup(null);
+    // Always update React state immediately (1 press = 1 action)
+    // Then clean the URL to match — no need to wait for popstate
+    setSelectedGroupId(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('group');
+      window.history.replaceState({}, '', url.pathname + url.search);
     }
   };
 

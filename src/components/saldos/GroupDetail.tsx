@@ -111,6 +111,7 @@ export default function SaldamosGroupDetail({
   const [importParsed, setImportParsed] = useState<ParsedPerson[] | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [importing, setImporting] = useState(false);
+  const [footballTotal, setFootballTotal] = useState('');
 
   const [payFrom, setPayFrom] = useState('');
   const [payTo, setPayTo] = useState('');
@@ -730,6 +731,9 @@ export default function SaldamosGroupDetail({
           .eq('description', desc);
       }
 
+      // Reload group data to update balances, settlements, and history
+      await load(true);
+
       // Success messages
       if (newStatus) {
         toast.success(isTracker ? 'Marcado como pagado' : 'Pago marcado y balance actualizado');
@@ -893,6 +897,39 @@ export default function SaldamosGroupDetail({
             </div>
           </div>
 
+          {/* Football pitch banner */}
+          {isFootball && (
+            <div
+              className="relative rounded-2xl overflow-hidden mb-1"
+              style={{
+                background: 'linear-gradient(180deg, #166534 0%, #15803d 18%, #166534 36%, #15803d 54%, #166534 72%, #15803d 90%, #166534 100%)',
+                minHeight: 90,
+              }}
+            >
+              {/* Pitch lines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                {/* Center circle */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full border-2 border-white/30" />
+                  <div className="absolute w-1.5 h-1.5 rounded-full bg-white/40" />
+                </div>
+                {/* Center line */}
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/20" />
+                {/* Left penalty box */}
+                <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-10 border-r-2 border-t-2 border-b-2 border-white/20 rounded-r" />
+                {/* Right penalty box */}
+                <div className="absolute top-1/2 -translate-y-1/2 right-0 w-8 h-10 border-l-2 border-t-2 border-b-2 border-white/20 rounded-l" />
+              </div>
+              <div className="relative z-10 flex items-center gap-3 p-4">
+                <span className="text-3xl drop-shadow">⚽</span>
+                <div>
+                  <p className="text-white font-black text-lg leading-tight drop-shadow">{group?.name}</p>
+                  <p className="text-white/70 text-xs font-semibold">{members.length} jugadores • {currency}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Main Row: Group Name and Main Actions */}
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -937,7 +974,7 @@ export default function SaldamosGroupDetail({
             <History className="w-3.5 h-3.5" /> Gastos
           </TabsTrigger>
           <TabsTrigger value="balances" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
-            <Scale className="w-3.5 h-3.5" /> {groupMode === 'tracker' ? 'Pagos' : 'Balances'}
+            <Scale className="w-3.5 h-3.5" /> {isTracker ? 'Pagos' : 'Balances'}
           </TabsTrigger>
           <TabsTrigger value="pending" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <User className="w-3.5 h-3.5" /> Mi Hist.
@@ -948,7 +985,7 @@ export default function SaldamosGroupDetail({
         </TabsList>
 
         <TabsContent value="balances" className="space-y-4 pt-4">
-          {groupMode === 'tracker' ? (
+          {isTracker ? (
             <div className="space-y-4">
               <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-2xl flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl shrink-0">📋</div>
@@ -1433,7 +1470,7 @@ export default function SaldamosGroupDetail({
         categories={categories} 
         existing={selectedExpense} 
         initialImportText={importTextForDialog}
-        mode={groupMode as 'balance' | 'tracker'}
+        mode={isTracker ? 'tracker' : 'balance'}
         myMemberId={myMemberId}
         onSaved={async (expense) => {
           await logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
@@ -1700,7 +1737,7 @@ export default function SaldamosGroupDetail({
       </Dialog>
 
       {/* Import from La Cuota Dialog */}
-      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); } }}>
+      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); setFootballTotal(''); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-blue-500" /> Importar</DialogTitle>
@@ -1708,18 +1745,53 @@ export default function SaldamosGroupDetail({
 
           {!importParsed ? (
             <div className="space-y-3">
-              <Textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Pega el mensaje de La Cuota aquí..." className="min-h-[180px] font-mono text-xs rounded-xl" />
+              <Textarea
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder={`Pega el mensaje de La Cuota:\n👤 *Pedro*: $5.500\n\nO una lista de fútbol:\nMartes 21.10\ncanchas 6 $6.000\n1. Neto\n2. Rodo\n3. Iván`}
+                className="min-h-[180px] font-mono text-xs rounded-xl"
+              />
               <DialogFooter>
-                <Button onClick={handleParseImport} disabled={!importText.trim()} className="bg-blue-600 text-white rounded-xl w-full">Detectar personas</Button>
+                <Button onClick={handleParseImport} disabled={!importText.trim()} className="bg-blue-600 text-white rounded-xl w-full">⚡ Detectar personas</Button>
               </DialogFooter>
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Football mode: amounts are 0, ask user for total */}
+              {assignments.every(a => a.amount === 0) && (
+                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                    ⚽ Lista de jugadores detectada — {assignments.length} personas
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="number"
+                      placeholder="Total a dividir ($)"
+                      value={footballTotal}
+                      onChange={e => {
+                        setFootballTotal(e.target.value);
+                        const total = Number(e.target.value);
+                        if (total > 0) {
+                          const share = Math.round(total / assignments.length);
+                          setAssignments(prev => prev.map(a => ({ ...a, amount: share })));
+                        }
+                      }}
+                      className="rounded-xl text-sm h-9 flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {footballTotal && Number(footballTotal) > 0
+                        ? `= $${Math.round(Number(footballTotal) / assignments.length).toLocaleString('es-CL')} c/u`
+                        : 'por persona'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {assignments.map((a, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border bg-accent/30 p-3">
                   <div>
                     <p className="font-semibold text-xs truncate">{a.parsedName}</p>
-                    <p className="text-[10px] text-muted-foreground tabular-nums">{fmt(a.amount)}</p>
+                    <p className="text-[10px] text-muted-foreground tabular-nums">{a.amount > 0 ? fmt(a.amount) : '—'}</p>
                   </div>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
                   <Select value={a.target} onValueChange={v => setAssignments(prev => prev.map((p, i) => i === idx ? { ...p, target: v } : p))}>
@@ -1732,8 +1804,13 @@ export default function SaldamosGroupDetail({
                   </Select>
                 </div>
               ))}
-              <Button onClick={handleApplyImport} disabled={importing} className="bg-blue-600 text-white rounded-xl w-full">
-                {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Importar consumos
+              <Button
+                onClick={handleApplyImport}
+                disabled={importing || assignments.every(a => a.amount === 0)}
+                className="bg-blue-600 text-white rounded-xl w-full"
+              >
+                {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {assignments.every(a => a.amount === 0) ? 'Ingresa el total primero' : 'Importar consumos'}
               </Button>
             </div>
           )}

@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Receipt, Share2, ArrowLeft, Copy, CheckCircle2, Download } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { sharingSupabase } from '@/integrations/supabase/sharing-client';
+import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
+import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
+import AuthWall from '@/components/saldos/AuthWall';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue } from '@/lib/bill-utils';
 import ProductSection from '@/components/divisor/ProductSection';
@@ -22,6 +24,7 @@ export default function Session() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
+  const { user, loading: authLoading } = useSaldamosAuth();
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(true);
 
@@ -35,13 +38,20 @@ export default function Session() {
 
   // Load Initial Data
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return;
 
     async function loadData() {
       setLoading(true);
       try {
+        // 0. Register user as a collaborator for this session to grant RLS permissions
+        const { error: colError } = await saldamosSupabase
+          .from('bill_session_collaborators')
+          .upsert({ session_id: sessionId, user_id: user.id });
+
+        if (colError) throw colError;
+
         // 1. Fetch Session
-        const { data: session, error: sError } = await sharingSupabase
+        const { data: session, error: sError } = await saldamosSupabase
           .from('bill_sessions')
           .select('*')
           .eq('id', sessionId)
@@ -54,7 +64,7 @@ export default function Session() {
         setBankData(session.bank_data);
 
         // 2. Fetch Products
-        const { data: pData, error: pError } = await sharingSupabase
+        const { data: pData, error: pError } = await saldamosSupabase
           .from('bill_products')
           .select('*')
           .eq('session_id', sessionId);
@@ -62,7 +72,7 @@ export default function Session() {
         setProducts(pData || []);
 
         // 3. Fetch People
-        const { data: peData, error: peError } = await sharingSupabase
+        const { data: peData, error: peError } = await saldamosSupabase
           .from('bill_people')
           .select('*')
           .eq('session_id', sessionId);
@@ -75,7 +85,7 @@ export default function Session() {
         })));
 
         // 4. Fetch Assignments
-        const { data: aData, error: aError } = await sharingSupabase
+        const { data: aData, error: aError } = await saldamosSupabase
           .from('bill_assignments')
           .select('product_id, person_id')
           .eq('session_id', sessionId);
@@ -101,7 +111,7 @@ export default function Session() {
     loadData();
 
     // Setup Realtime Subscriptions
-    const channel = sharingSupabase
+    const channel = saldamosSupabase
       .channel(`session-${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_sessions', filter: `id=eq.${sessionId}` }, (payload) => {
         const data = payload.new as { currency?: Currency; tip_type?: TipType; tip_value?: number; bank_data?: Partial<BankData> };
@@ -111,11 +121,11 @@ export default function Session() {
         if (data.bank_data) setBankData(data.bank_data);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_products', filter: `session_id=eq.${sessionId}` }, async () => {
-        const { data } = await sharingSupabase.from('bill_products').select('*').eq('session_id', sessionId);
+        const { data } = await saldamosSupabase.from('bill_products').select('*').eq('session_id', sessionId);
         setProducts(data || []);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_people', filter: `session_id=eq.${sessionId}` }, async () => {
-        const { data } = await sharingSupabase.from('bill_people').select('*').eq('session_id', sessionId);
+        const { data } = await saldamosSupabase.from('bill_people').select('*').eq('session_id', sessionId);
         setPeople((data || []).map(p => ({
           id: p.id,
           name: p.name,
@@ -124,7 +134,7 @@ export default function Session() {
         })));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bill_assignments', filter: `session_id=eq.${sessionId}` }, async () => {
-        const { data } = await sharingSupabase.from('bill_assignments').select('*').eq('session_id', sessionId);
+        const { data } = await saldamosSupabase.from('bill_assignments').select('*').eq('session_id', sessionId);
         
         const agg: Record<string, string[]> = {};
         data?.forEach(a => {
@@ -136,9 +146,9 @@ export default function Session() {
       .subscribe();
 
     return () => {
-      sharingSupabase.removeChannel(channel);
+      saldamosSupabase.removeChannel(channel);
     };
-  }, [sessionId, navigate]);
+  }, [sessionId, user, navigate]);
 
   // Derived Values
   const subtotal = useMemo(() => products.reduce((s, p) => s + p.price * p.quantity, 0), [products]);
@@ -156,22 +166,22 @@ export default function Session() {
 
   // Mutations
   const addProduct = async (p: Product) => {
-    const { error } = await sharingSupabase.from('bill_products').insert([{ ...p, session_id: sessionId }]);
+    const { error } = await saldamosSupabase.from('bill_products').insert([{ ...p, session_id: sessionId }]);
     if (error) toast.error('Error al añadir producto');
   };
 
   const removeProduct = async (id: string) => {
-    const { error } = await sharingSupabase.from('bill_products').delete().eq('id', id);
+    const { error } = await saldamosSupabase.from('bill_products').delete().eq('id', id);
     if (error) toast.error('Error al eliminar producto');
   };
 
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    const { error } = await sharingSupabase.from('bill_products').update(data).eq('id', id);
+    const { error } = await saldamosSupabase.from('bill_products').update(data).eq('id', id);
     if (error) toast.error('Error al actualizar producto');
   };
 
   const addPerson = async (p: Person) => {
-    const { error } = await sharingSupabase.from('bill_people').insert([{ 
+    const { error } = await saldamosSupabase.from('bill_people').insert([{ 
       id: p.id,
       name: p.name,
       color_index: p.colorIndex,
@@ -181,7 +191,7 @@ export default function Session() {
   };
 
   const removePerson = async (id: string) => {
-    const { error } = await sharingSupabase.from('bill_people').delete().eq('id', id);
+    const { error } = await saldamosSupabase.from('bill_people').delete().eq('id', id);
     if (error) toast.error('Error al eliminar persona');
   };
 
@@ -202,7 +212,7 @@ export default function Session() {
 
     try {
       if (exists) {
-        const { error } = await sharingSupabase
+        const { error } = await saldamosSupabase
           .from('bill_assignments')
           .delete()
           .eq('product_id', productId)
@@ -210,7 +220,7 @@ export default function Session() {
           .eq('session_id', sessionId);
         if (error) throw error;
       } else {
-        const { error } = await sharingSupabase.from('bill_assignments').insert([{ 
+        const { error } = await saldamosSupabase.from('bill_assignments').insert([{ 
           product_id: productId, 
           person_id: personId,
           session_id: sessionId
@@ -237,7 +247,7 @@ export default function Session() {
         person_id: p.id,
         session_id: sessionId
       }));
-      const { error } = await sharingSupabase.from('bill_assignments').insert(inserts);
+      const { error } = await saldamosSupabase.from('bill_assignments').insert(inserts);
       if (error) throw error;
     } catch (error) {
       setAssignments(previousAssignments);
@@ -265,7 +275,7 @@ export default function Session() {
           });
         });
       });
-      const { error } = await sharingSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
+      const { error } = await saldamosSupabase.from('bill_assignments').upsert(inserts, { onConflict: 'product_id,person_id,session_id' });
       if (error) throw error;
     } catch (error) {
       setAssignments(previousAssignments);
@@ -274,7 +284,7 @@ export default function Session() {
   };
 
   const updateSession = async (updates: Record<string, unknown>) => {
-    await sharingSupabase.from('bill_sessions').update(updates).eq('id', sessionId);
+    await saldamosSupabase.from('bill_sessions').update(updates).eq('id', sessionId);
   };
 
   const handleProductsDetected = async (detected: Product[], detectedCurrency?: Currency) => {
@@ -284,12 +294,46 @@ export default function Session() {
     
     if (detected.length > 0) {
       const inserts = detected.map(p => ({ ...p, session_id: sessionId }));
-      const { error } = await sharingSupabase.from('bill_products').insert(inserts);
+      const { error } = await saldamosSupabase.from('bill_products').insert(inserts);
       if (error) toast.error('Error al añadir productos detectados');
     }
   };
 
   const sessionUrl = window.location.href;
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground font-medium">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background pb-10">
+        <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 card-shadow">
+          <div className="max-w-lg mx-auto flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="shrink-0 h-10 w-10 rounded-xl">
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="font-extrabold text-2xl text-foreground tracking-tight leading-tight">Iniciar Sesión</h1>
+            </div>
+          </div>
+        </header>
+        <main className="max-w-lg mx-auto px-4 mt-5">
+          <div className="bg-blue-600/10 border border-blue-600/20 text-blue-700 dark:text-blue-400 rounded-2xl p-4 text-xs font-semibold mb-5 text-center leading-relaxed">
+            Debes iniciar sesión con tu cuenta de Saldamos para unirte a esta mesa compartida.
+          </div>
+          <AuthWall />
+        </main>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

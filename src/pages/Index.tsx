@@ -11,7 +11,8 @@ import BankSection from '@/components/divisor/BankSection';
 import SummarySection from '@/components/divisor/SummarySection';
 import CurrencySelector from '@/components/divisor/CurrencySelector';
 import SaldosPage from '@/pages/SaldosPage';
-import { sharingSupabase } from '@/integrations/supabase/sharing-client';
+import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
+import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import { Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 export default function Index() {
   const navigate = useNavigate();
   const { canInstall, install } = usePWAInstall();
+  const { user } = useSaldamosAuth();
   const { isDark, toggle: toggleDark } = useDarkMode();
   const [activeTab, setActiveTab] = useState<'dividir' | 'saldos'>(() => {
     if (typeof window !== 'undefined') {
@@ -125,6 +127,12 @@ export default function Index() {
   };
 
   const handleShare = async () => {
+    if (!user) {
+      toast.error('Debes iniciar sesión para crear una mesa compartida.');
+      setActiveTab('saldos');
+      return;
+    }
+
     if (products.length === 0) {
       toast.error('Agrega al menos un producto para compartir');
       return;
@@ -133,13 +141,14 @@ export default function Index() {
     setSharing(true);
     try {
       // 1. Create Session
-      const { data: session, error: sError } = await sharingSupabase
+      const { data: session, error: sError } = await saldamosSupabase
         .from('bill_sessions')
         .insert([{
           currency,
           tip_type: tipType,
           tip_value: tipValue,
-          bank_data: bankData
+          bank_data: bankData,
+          created_by: user.id
         }])
         .select()
         .single();
@@ -148,9 +157,15 @@ export default function Index() {
 
       const sid = session.id;
 
+      // 1b. Register as collaborator to bypass product/people RLS
+      const { error: colError } = await saldamosSupabase
+        .from('bill_session_collaborators')
+        .insert([{ session_id: sid, user_id: user.id }]);
+      if (colError) throw colError;
+
       // 2. Create Products
       if (products.length > 0) {
-        const { error: pError } = await sharingSupabase
+        const { error: pError } = await saldamosSupabase
           .from('bill_products')
           .insert(products.map(p => ({ ...p, session_id: sid })));
         if (pError) throw pError;
@@ -158,7 +173,7 @@ export default function Index() {
 
       // 3. Create People
       if (people.length > 0) {
-        const { error: peError } = await sharingSupabase
+        const { error: peError } = await saldamosSupabase
           .from('bill_people')
           .insert(people.map(p => ({ 
             id: p.id,
@@ -182,7 +197,7 @@ export default function Index() {
       });
 
       if (assignmentInserts.length > 0) {
-        const { error: aError } = await sharingSupabase
+        const { error: aError } = await saldamosSupabase
           .from('bill_assignments')
           .insert(assignmentInserts);
         if (aError) throw aError;
@@ -347,18 +362,18 @@ export default function Index() {
           )}
         </div>
 
+        <PeopleSection
+          people={people}
+          onAdd={addPerson}
+          onRemove={removePerson}
+        />
+
         <ProductSection
           products={products}
           currency={currency}
           onAdd={addProduct}
           onRemove={removeProduct}
           onUpdate={updateProduct}
-        />
-
-        <PeopleSection
-          people={people}
-          onAdd={addPerson}
-          onRemove={removePerson}
         />
 
         <AssignmentSection

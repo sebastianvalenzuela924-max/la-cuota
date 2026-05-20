@@ -55,14 +55,11 @@ function normalize(s: string) {
 
 export function parseLaCuotaMessage(text: string): ParsedPerson[] {
   const people: ParsedPerson[] = [];
-
   const lines = text.split('\n');
 
+  // ── Mode 1: Standard La Cuota format (👤 *Pedro*: $5.500) ──────────────────
   for (const line of lines) {
     const trimmed = line.trim();
-
-    // Match person lines: "👤 *Pedro*: $5.500" or "👤 Pedro: $5.500"
-    // Also matches "Hola *Pedro*, tu parte en *La Cuota* es de *$5.500*"
     const personLineMatch =
       trimmed.match(/^👤\s+\*?([^*:,]+)\*?\s*:\s*(.+)$/) ||
       trimmed.match(/^👋\s+[Hh]ola\s+\*?([^*,]+)\*?,\s+tu parte.*es de\s+\*?([^*\s]+)/);
@@ -77,8 +74,54 @@ export function parseLaCuotaMessage(text: string): ParsedPerson[] {
     }
   }
 
+  if (people.length > 0) return people;
+
+  // ── Mode 2: Football / numbered player list ─────────────────────────────────
+  // Detect lines like: "1. Neto", "2. Rodo (a)", "3. Iván"
+  // Also detect a total: "$6.000", "Total: 6000", "canchas 6 $6.000", etc.
+  const playerLines: string[] = [];
+  let detectedTotal = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Numbered player: "1. Neto", "2. Rodo (a)", "10. García"
+    const playerMatch = trimmed.match(/^\d+[\.\)]\s*(.+)$/);
+    if (playerMatch) {
+      // Clean up annotations like "(a)", "(c)", "(s)", etc.
+      const rawName = playerMatch[1].replace(/\s*\([a-zA-Z]\)\s*$/, '').trim();
+      if (rawName.length > 0) {
+        playerLines.push(rawName);
+      }
+      continue;
+    }
+
+    // Detect a standalone total amount anywhere in the text
+    // e.g. "$6.000", "Total: $6.000", "canchas 6 campanil $6.000"
+    const totalMatch =
+      trimmed.match(/total\s*:?\s*\$?([\d.,]+)/i) ||
+      trimmed.match(/\$\s*([\d.,]+)\s*$/i) ||
+      trimmed.match(/^([\d.,]+)\s*$/) ||
+      trimmed.match(/(?:^|\s)\$\s*([\d.,]+)/i);
+
+    if (totalMatch) {
+      const parsed = parseAmount(totalMatch[1] ?? totalMatch[0]);
+      if (parsed > 0) detectedTotal = parsed;
+    }
+  }
+
+  if (playerLines.length > 0 && detectedTotal > 0) {
+    const share = Math.round(detectedTotal / playerLines.length);
+    playerLines.forEach(name => people.push({ name, amount: share }));
+  } else if (playerLines.length > 0 && detectedTotal === 0) {
+    // Return names with amount=0 so the UI shows them (user enters total manually)
+    playerLines.forEach(name => people.push({ name, amount: 0 }));
+  }
+
   return people;
 }
+
 
 /**
  * Finds a matching member by name (exact or prefix match, accent-insensitive).
