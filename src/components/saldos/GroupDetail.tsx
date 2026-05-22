@@ -89,7 +89,7 @@ export default function SaldamosGroupDetail({
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('balances');
+  const [activeTab, setActiveTab] = useState<'balances' | 'history' | 'pending' | 'activity'>('history');
   const [showAllReconciliations, setShowAllReconciliations] = useState(false);
 
   const [memberOpen, setMemberOpen] = useState(false);
@@ -142,8 +142,10 @@ export default function SaldamosGroupDetail({
 
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
-  const groupMode = localStorage.getItem(`group_mode_${groupId}`) || 'balance';
-  const isTracker = groupMode === 'tracker' || (isFootball && groupMode !== 'balance');
+  const rawGroupMode = localStorage.getItem(`group_mode_${groupId}`);
+  const groupMode = rawGroupMode || (isFootball ? 'tracker' : 'balance');
+  const hasTrackerExpenses = useMemo(() => expenses.some(ex => ex.track_payments), [expenses]);
+  const isTracker = groupMode === 'tracker' || hasTrackerExpenses;
 
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
@@ -558,17 +560,40 @@ export default function SaldamosGroupDetail({
     const total = Object.values(consumed).reduce((s, v) => s + v, 0);
     const { data: exp, error: expErr } = await saldamosSupabase
       .from('expenses')
-      .insert({ group_id: groupId, description: 'Importado desde La Cuota', total_amount: total })
+      .insert({ 
+        group_id: groupId, 
+        description: 'Importado desde La Cuota', 
+        total_amount: total,
+        track_payments: isTracker 
+      })
       .select('id').single();
     if (expErr || !exp) { setImporting(false); toast.error(expErr?.message ?? 'Error al crear gasto'); return; }
 
     // Each person: amount_paid = 0 (nobody "paid" the bill via the app), amount_owed = their share
-    // The "payer" (who put their card) should be registered separately via "Registrar pago"
-    const contribs = Object.entries(consumed).map(([member_id, amount]) => ({
+    // In tracker mode, the payerId gets amount_paid = total
+    const payerId = myMemberId || Object.keys(consumed)[0] || members[0]?.id;
+    const contribsMap: Record<string, { amount_paid: number; amount_owed: number }> = {};
+    
+    Object.entries(consumed).forEach(([member_id, amount]) => {
+      contribsMap[member_id] = {
+        amount_paid: 0,
+        amount_owed: amount,
+      };
+    });
+
+    if (isTracker && payerId) {
+      if (!contribsMap[payerId]) {
+        contribsMap[payerId] = { amount_paid: total, amount_owed: 0 };
+      } else {
+        contribsMap[payerId].amount_paid = total;
+      }
+    }
+
+    const contribs = Object.entries(contribsMap).map(([member_id, data]) => ({
       expense_id: (exp as any).id,
       member_id,
-      amount_paid: 0,
-      amount_owed: amount,
+      amount_paid: data.amount_paid,
+      amount_owed: data.amount_owed,
     }));
     const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
     setImporting(false);
@@ -1160,27 +1185,29 @@ export default function SaldamosGroupDetail({
             </>
           )}
 
-          <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
-              <HandCoins className="w-3.5 h-3.5" /> Registrar pago
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={payFrom} onValueChange={setPayFrom}>
-                <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="De..." /></SelectTrigger>
-                <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={payTo} onValueChange={setPayTo}>
-                <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="A..." /></SelectTrigger>
-                <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-              </Select>
+          {!isTracker && (
+            <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                <HandCoins className="w-3.5 h-3.5" /> Registrar pago
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={payFrom} onValueChange={setPayFrom}>
+                  <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="De..." /></SelectTrigger>
+                  <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={payTo} onValueChange={setPayTo}>
+                  <SelectTrigger className="text-xs h-9 rounded-xl"><SelectValue placeholder="A..." /></SelectTrigger>
+                  <SelectContent>{members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Input type="number" placeholder="Monto" value={payAmount} onChange={e => setPayAmount(e.target.value)} className="rounded-xl text-sm h-9" />
+                <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl px-4 bg-blue-600 text-white">
+                  {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Saldar'}
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="Monto" value={payAmount} onChange={e => setPayAmount(e.target.value)} className="rounded-xl text-sm h-9" />
-              <Button size="sm" onClick={registerPayment} disabled={savingPayment || !payFrom || !payTo || !payAmount} className="rounded-xl px-4 bg-blue-600 text-white">
-                {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Saldar'}
-              </Button>
-            </div>
-          </div>
+          )}
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4 pt-4">
@@ -1401,7 +1428,11 @@ export default function SaldamosGroupDetail({
                                   <div className="flex items-center gap-3">
                                     <div className="text-right tabular-nums">
                                       {c.amount_paid > 0 && <p className="text-blue-500 dark:text-blue-400 font-bold">+{formatMoney(c.amount_paid, group?.currency)}</p>}
-                                      {c.amount_owed > 0 && <p className={c.is_settled ? 'text-emerald-500 dark:text-emerald-400 line-through' : 'text-red-500 dark:text-red-400'}>-{formatMoney(c.amount_owed, group?.currency)}</p>}
+                                      {c.amount_owed > 0 && (
+                                        <p className={c.is_settled ? 'text-emerald-500 dark:text-emerald-400 font-medium' : 'text-red-500 dark:text-red-400'}>
+                                          {c.is_settled ? '✓ ' : '-'}{formatMoney(c.amount_owed, group?.currency)}
+                                        </p>
+                                      )}
                                     </div>
                                     
                                     {owesMe && (

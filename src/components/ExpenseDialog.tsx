@@ -170,7 +170,13 @@ export function ExpenseDialog({
       setOwed(nextOwed);
       setSelected(nextSelected);
       setUnmatchedPersons(unmatched);
-      setContribs({});
+      
+      const payerId = myMemberId || members[0]?.id;
+      if (isTrackerMode && payerId) {
+        setContribs({ [payerId]: sum.toString() });
+      } else {
+        setContribs({});
+      }
     } else {
       setDescription("");
       setTotal("");
@@ -423,7 +429,15 @@ export function ExpenseDialog({
     setSelected(nextSelected);
     
     const sum = parsed.reduce((s, p) => s + p.amount, 0);
+    const finalTotal = (!total || Number(total) === 0) ? sum : Number(total);
     if (!total || Number(total) === 0) setTotal(sum.toString());
+
+    if (isTrackerMode) {
+      const payerId = myMemberId || members[0]?.id;
+      if (payerId) {
+        setContribs(prev => ({ ...prev, [payerId]: finalTotal.toString() }));
+      }
+    }
     
     toast.success("Consumos importados");
     setPasteOpen(false);
