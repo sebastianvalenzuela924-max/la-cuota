@@ -28,6 +28,7 @@ import { parseLaCuotaMessage, findMemberMatch, type ParsedPerson } from '@/lib/l
 import { computeBalances, simplifyDebts, formatMoney, type ExpenseWithContribs, type Member, type Balance, type Settlement } from '@/lib/balances';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { PersonalHistory } from '@/components/PersonalHistory';
+import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import type { Category } from '@/components/CategoryPicker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExchangeRates } from '@/lib/currency';
@@ -117,14 +118,28 @@ export default function SaldamosGroupDetail({
   const [payTo, setPayTo] = useState('');
   const [payAmount, setPayAmount] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
-  const [frequentPeople] = useState<string[]>(() => {
-    const saved = localStorage.getItem('saldamos_frequent_people');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [peopleGroups] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('saldamos_people_groups');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const { user } = useSaldamosAuth();
+  const frequentPeopleKey = user?.id ? `saldamos_frequent_people_${user.id}` : 'saldamos_frequent_people';
+  const peopleGroupsKey = user?.id ? `saldamos_people_groups_${user.id}` : 'saldamos_people_groups';
+
+  const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(frequentPeopleKey);
+      setFrequentPeople(saved ? JSON.parse(saved) : []);
+    } catch {
+      setFrequentPeople([]);
+    }
+    try {
+      const saved = localStorage.getItem(peopleGroupsKey);
+      setPeopleGroups(saved ? JSON.parse(saved) : {});
+    } catch {
+      setPeopleGroups({});
+    }
+  }, [frequentPeopleKey, peopleGroupsKey]);
+
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
   const groupMode = localStorage.getItem(`group_mode_${groupId}`) || 'balance';
@@ -353,11 +368,12 @@ export default function SaldamosGroupDetail({
       await logActivity('MEMBER_ADDED', { name: memberName.trim() });
       
       // Auto-save to frequent people (contacts)
-      const saved = localStorage.getItem('saldamos_frequent_people');
+      const saved = localStorage.getItem(frequentPeopleKey);
       const people: string[] = saved ? JSON.parse(saved) : [];
       if (!people.includes(memberName.trim())) {
         people.push(memberName.trim());
-        localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+        localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+        setFrequentPeople(people);
       }
     }
     
@@ -849,38 +865,70 @@ export default function SaldamosGroupDetail({
 
   return (
     <div className="space-y-5 animate-slide-right pb-10">
-          <div className="flex items-center justify-between gap-2 mb-2">
+      {/* Unified Dashboard Header Card */}
+      <div 
+        className={`relative overflow-hidden rounded-[24px] shadow-lg border border-white/10 ${
+          isFootball 
+            ? 'text-white' 
+            : 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white'
+        }`}
+        style={isFootball ? {
+          background: 'linear-gradient(180deg, #166534 0%, #15803d 18%, #166534 36%, #15803d 54%, #166534 72%, #15803d 90%, #166534 100%)',
+        } : undefined}
+      >
+        {/* Soccer field lines overlay if isFootball is true */}
+        {isFootball && (
+          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
+            {/* Center circle */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full border-2 border-white" />
+              <div className="absolute w-1.5 h-1.5 rounded-full bg-white" />
+            </div>
+            {/* Center line */}
+            <div className="absolute top-1/2 left-0 right-0 h-px bg-white" />
+            {/* Left penalty box */}
+            <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-10 border-r-2 border-t-2 border-b-2 border-white rounded-r" />
+            {/* Right penalty box */}
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-8 h-10 border-l-2 border-t-2 border-b-2 border-white rounded-l" />
+          </div>
+        )}
+
+        <div className="relative z-10 p-5 space-y-4">
+          {/* Top Bar: Nav Back & Secondary Actions */}
+          <div className="flex items-center justify-between gap-3">
             <button 
               onClick={onBack} 
-              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 transition-colors active:scale-95 shrink-0"
+              className="flex items-center gap-1 text-white/80 hover:text-white transition-colors active:scale-95 shrink-0"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[3px]" /> 
-              <span className="text-sm font-black uppercase">Volver</span>
+              <ArrowLeft className="w-4 h-4 stroke-[3px]" /> 
+              <span className="text-xs font-black uppercase tracking-wider">Volver</span>
             </button>
+
             <div className="flex items-center gap-1.5">
               {!isCollaborator && (
                 <Button 
                   size="sm" 
                   onClick={joinGroup} 
                   disabled={joining}
-                  className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 shadow-md animate-pulse hover:animate-none"
+                  className="h-7 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2.5 text-[9px] shadow-sm animate-pulse hover:animate-none border-none shrink-0"
                 >
-                  {joining ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Plus className="w-3 h-3 mr-1.5" />}
-                  UNIRSE AL GRUPO
+                  {joining ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                  UNIRSE
                 </Button>
               )}
               <Button
                 size="sm"
-                variant="outline"
-                className="rounded-xl h-7 px-2.5 text-[10px] gap-1 border-blue-100 text-blue-600 hover:bg-blue-50 shrink-0 font-bold"
+                variant="ghost"
+                className="h-7 rounded-xl px-2 text-[9px] gap-1 bg-white/10 hover:bg-white/20 border-none text-white font-bold shrink-0"
                 onClick={handleImportClick}
               >
-                <Sparkles className="w-3 h-3" /> Importar
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Importar</span>
               </Button>
               <Button
                 size="sm"
-                variant="outline"
-                className="rounded-xl h-7 px-2.5 text-[10px] gap-1 shrink-0 font-bold border-muted text-muted-foreground"
+                variant="ghost"
+                className="h-7 rounded-xl px-2 text-[9px] gap-1 bg-white/10 hover:bg-white/20 border-none text-white font-bold shrink-0"
                 onClick={() => setMemberOpen(true)}
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -889,7 +937,7 @@ export default function SaldamosGroupDetail({
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-xl h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-blue-600"
+                className="h-7 w-7 p-0 rounded-xl bg-white/10 hover:bg-white/20 border-none text-white shrink-0"
                 onClick={() => setShareOpen(true)}
               >
                 <Share2 className="w-3.5 h-3.5" />
@@ -897,66 +945,42 @@ export default function SaldamosGroupDetail({
             </div>
           </div>
 
-          {/* Football pitch banner */}
-          {isFootball && (
-            <div
-              className="relative rounded-2xl overflow-hidden mb-1"
-              style={{
-                background: 'linear-gradient(180deg, #166534 0%, #15803d 18%, #166534 36%, #15803d 54%, #166534 72%, #15803d 90%, #166534 100%)',
-                minHeight: 90,
-              }}
-            >
-              {/* Pitch lines */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                {/* Center circle */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full border-2 border-white/30" />
-                  <div className="absolute w-1.5 h-1.5 rounded-full bg-white/40" />
-                </div>
-                {/* Center line */}
-                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/20" />
-                {/* Left penalty box */}
-                <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-10 border-r-2 border-t-2 border-b-2 border-white/20 rounded-r" />
-                {/* Right penalty box */}
-                <div className="absolute top-1/2 -translate-y-1/2 right-0 w-8 h-10 border-l-2 border-t-2 border-b-2 border-white/20 rounded-l" />
-              </div>
-              <div className="relative z-10 flex items-center gap-3 p-4">
-                <span className="text-3xl drop-shadow">⚽</span>
-                <div>
-                  <p className="text-white font-black text-lg leading-tight drop-shadow">{group?.name}</p>
-                  <p className="text-white/70 text-xs font-semibold">{members.length} jugadores • {currency}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Divider line inside card */}
+          <div className="border-t border-white/10 border-dashed" />
 
-          {/* Main Row: Group Name and Main Actions */}
-          <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-2xl font-black tracking-tight leading-[1.1] text-foreground break-words bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">
-                {group?.name || 'Cargando...'}
-              </h2>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="px-1.5 py-0.5 rounded-lg bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-wider">
+          {/* Body: Group Information & Main Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-2xl sm:text-3xl drop-shadow-sm font-black tracking-tight leading-tight block break-words">
+                  {isFootball && <span className="mr-1">⚽</span>}
+                  {group?.name || 'Cargando...'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded-lg bg-white/20 text-white text-[9px] font-black uppercase tracking-wider">
                   {currency}
                 </span>
-                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1">
-                  <Users className="w-3 h-3" /> {members?.length || 0} Miembros
+                <span className="text-[9px] text-white/80 font-black uppercase tracking-widest flex items-center gap-1 bg-white/10 px-1.5 py-0.5 rounded-lg">
+                  <Users className="w-3 h-3" /> 
+                  {members?.length || 0} {isFootball ? 'Jugadores' : 'Miembros'}
                 </span>
               </div>
             </div>
-            
-            <div className="flex flex-col items-end gap-2 shrink-0">
+
+            {/* Main Primary Actions */}
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
               <Button
                 size="sm"
-                className="rounded-xl h-8 px-4 text-[11px] font-black gap-1.5 bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-none shrink-0 pulse-glow"
+                className="rounded-xl h-8 px-4 text-xs font-black gap-1.5 bg-white text-blue-700 hover:bg-white/90 shadow-md border-none shrink-0"
                 onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
               >
-                <Plus className="w-4 h-4" /> GASTO
+                <Plus className="w-4 h-4 text-blue-700" /> GASTO
               </Button>
+              
               <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
-                <SelectTrigger className="h-6 text-[9px] rounded-lg bg-blue-50 border-blue-100 text-blue-700 font-black px-2 gap-1 min-w-[90px]">
-                  <User className="w-2.5 h-2.5" />
+                <SelectTrigger className="h-8 text-[10px] rounded-xl bg-white/15 border-none hover:bg-white/25 text-white font-black px-3 gap-1.5 min-w-[110px] shadow-sm [&>svg]:text-white">
+                  <User className="w-3 h-3 text-white/90" />
                   <SelectValue placeholder="¿Quién eres?" />
                 </SelectTrigger>
                 <SelectContent>
@@ -966,6 +990,9 @@ export default function SaldamosGroupDetail({
               </Select>
             </div>
           </div>
+        </div>
+      </div>
+
 
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
@@ -1036,7 +1063,13 @@ export default function SaldamosGroupDetail({
                   }).filter(Boolean);
 
                   return items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6 italic">No tienes cobros pendientes.</p>
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                      </div>
+                      <p className="text-xs font-bold text-foreground">¡Todo cobrado!</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[200px] leading-tight">No tienes cobros pendientes en este grupo.</p>
+                    </div>
                   ) : <div className="space-y-2">{items}</div>;
                 })()}
               </div>
@@ -1068,7 +1101,13 @@ export default function SaldamosGroupDetail({
                   }).filter(Boolean);
 
                   return items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6 italic">¡Estás al día! No debes nada.</p>
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                        <CheckCircle2 className="w-6 h-6 text-blue-500" />
+                      </div>
+                      <p className="text-xs font-bold text-foreground">Al día</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[200px] leading-tight">¡Estás al día! No le debes nada a nadie en este grupo.</p>
+                    </div>
                   ) : <div className="space-y-2">{items}</div>;
                 })()}
               </div>
@@ -1086,7 +1125,13 @@ export default function SaldamosGroupDetail({
               )}
               <div className="rounded-2xl bg-card border border-border p-4 space-y-2">
                 {members.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Agrega personas para ver los balances.</p>
+                  <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                    <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mb-3">
+                      <Users className="w-6 h-6 text-muted-foreground/60" />
+                    </div>
+                    <p className="text-xs font-bold text-foreground">Sin miembros</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 max-w-[220px] leading-tight">Agrega personas al grupo para comenzar a ver los balances.</p>
+                  </div>
                 ) : balances.map(b => (
                   <div key={b.memberId} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <span className="text-sm font-medium">{b.name}</span>
@@ -1190,7 +1235,17 @@ export default function SaldamosGroupDetail({
 
           <div className="space-y-2">
             {filteredExpenses.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-10 italic">No se encontraron gastos.</p>
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-card/30 border border-dashed border-border/80 rounded-2xl p-6">
+                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mb-3">
+                  <Receipt className="w-6 h-6 text-muted-foreground/60" />
+                </div>
+                <p className="text-xs font-bold text-foreground">Sin gastos</p>
+                <p className="text-[10px] text-muted-foreground mt-1 max-w-[220px] leading-tight">
+                  {historySearch || historyCategory !== 'all' 
+                    ? 'No se encontraron gastos con los filtros aplicados.' 
+                    : 'Aún no hay gastos registrados. Presiona "+ GASTO" para añadir uno.'}
+                </p>
+              </div>
             ) : (
               filteredExpenses.map((ex) => {
                 const isExpanded = expandedExpenses.has(ex.id);
@@ -1429,7 +1484,13 @@ export default function SaldamosGroupDetail({
 
           <div className="space-y-3">
             {activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-10 italic">No hay actividad registrada aún.</p>
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-card/30 border border-dashed border-border/80 rounded-2xl p-6">
+                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mb-3">
+                  <History className="w-6 h-6 text-muted-foreground/60" />
+                </div>
+                <p className="text-xs font-bold text-foreground">Sin actividad</p>
+                <p className="text-[10px] text-muted-foreground mt-1 max-w-[220px] leading-tight">No se ha registrado actividad reciente en este grupo.</p>
+              </div>
             ) : (
               activities.map((a) => (
                 <div key={a.id} className="flex gap-3 items-start p-3 rounded-xl bg-card border border-border/50">
