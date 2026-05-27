@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles, Users, Scale, HandCoins } from 'lucide-react';
+import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles, Users, Scale, HandCoins, Zap } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
@@ -16,6 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
+import QuickExpenseDialog from './QuickExpenseDialog';
 
 type Group = { id: string; name: string; currency: string; owner_id: string; isOwner: boolean };
 
@@ -98,6 +99,7 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('CLP');
   const [creating, setCreating] = useState(false);
@@ -1020,6 +1022,24 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Action Button for Quick Add Expense */}
+      {groups.length > 0 && (
+        <button
+          onClick={() => setQuickExpenseOpen(true)}
+          className="fixed bottom-[90px] right-6 z-50 w-16 h-16 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50 animate-bounce hover:animate-none"
+          title="Gasto Rápido ⚡"
+        >
+          <Zap className="w-7 h-7 text-white fill-white animate-pulse" />
+        </button>
+      )}
+
+      <QuickExpenseDialog
+        open={quickExpenseOpen}
+        onOpenChange={setQuickExpenseOpen}
+        groups={groups}
+        onSaved={load}
+      />
     </div>
   );
 }
