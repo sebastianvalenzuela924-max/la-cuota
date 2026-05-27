@@ -111,8 +111,8 @@ export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved
         setPayerId(loadedMembers[0].id);
       }
       
-      // Initialize participants (all selected by default)
-      setSelectedParticipants(new Set(loadedMembers.map(m => m.id)));
+      // Initialize participants (none selected by default)
+      setSelectedParticipants(new Set());
       
       const initialCustom: Record<string, string> = {};
       loadedMembers.forEach(m => {

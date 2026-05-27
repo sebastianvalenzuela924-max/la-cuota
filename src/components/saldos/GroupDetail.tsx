@@ -120,6 +120,8 @@ export default function SaldamosGroupDetail({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [importing, setImporting] = useState(false);
   const [footballTotal, setFootballTotal] = useState('');
+  const [footballPerPerson, setFootballPerPerson] = useState('');
+  const [lastEditedInput, setLastEditedInput] = useState<'total' | 'perPerson'>('total');
   const [soccerTotal, setSoccerTotal] = useState('');
   const [soccerPerPerson, setSoccerPerPerson] = useState('');
 
@@ -577,6 +579,9 @@ export default function SaldamosGroupDetail({
     const parsed = parseLaCuotaMessage(importText);
     if (parsed.length === 0) { toast.error('No se detectaron personas. Pega el resumen tal como lo genera La Cuota.'); return; }
     setImportParsed(parsed);
+    setFootballTotal('');
+    setFootballPerPerson('');
+    setLastEditedInput('total');
     
     const initialAssignments = parsed.map(p => ({
       parsedName: p.name,
@@ -775,6 +780,8 @@ export default function SaldamosGroupDetail({
     setImportParsed(null);
     setAssignments([]);
     setFootballTotal('');
+    setFootballPerPerson('');
+    setLastEditedInput('total');
     load();
   };
 
@@ -1146,6 +1153,14 @@ export default function SaldamosGroupDetail({
       return;
     }
     
+    if (isSettled) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+    
     try {
       const storageKey = `saldamos_football_status_${groupId}`;
       const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
@@ -1314,19 +1329,19 @@ export default function SaldamosGroupDetail({
           <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
             {/* Center circle */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full border-2 border-white" />
-              <div className="absolute w-1.5 h-1.5 rounded-full bg-white" />
+              <div className="w-12 h-12 rounded-full border-2 border-white" />
+              <div className="absolute w-1 h-1 rounded-full bg-white" />
             </div>
             {/* Center line */}
             <div className="absolute top-1/2 left-0 right-0 h-px bg-white" />
             {/* Left penalty box */}
-            <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-10 border-r-2 border-t-2 border-b-2 border-white rounded-r" />
+            <div className="absolute top-1/2 -translate-y-1/2 left-0 w-6 h-8 border-r-2 border-t-2 border-b-2 border-white rounded-r" />
             {/* Right penalty box */}
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-8 h-10 border-l-2 border-t-2 border-b-2 border-white rounded-l" />
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-6 h-8 border-l-2 border-t-2 border-b-2 border-white rounded-l" />
           </div>
         )}
 
-        <div className="relative z-10 p-5 space-y-4">
+        <div className={`relative z-10 ${isFootball ? 'p-3.5 sm:p-4 space-y-2.5' : 'p-5 space-y-4'}`}>
           {/* Top Bar: Nav Back & Secondary Actions */}
           <div className="flex items-center justify-between gap-3">
             <button 
@@ -1385,7 +1400,9 @@ export default function SaldamosGroupDetail({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-2xl sm:text-3xl drop-shadow-sm font-black tracking-tight leading-tight block break-words">
+                <span className={`drop-shadow-sm font-black tracking-tight leading-tight block break-words ${
+                  isFootball ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'
+                }`}>
                   {isFootball && <span className="mr-1">⚽</span>}
                   {group?.name || 'Cargando...'}
                 </span>
@@ -1506,39 +1523,41 @@ export default function SaldamosGroupDetail({
                     Ninguno
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-2 max-h-[220px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
                   {members.map(m => {
                     const isSelected = selectedPlayers.has(m.id);
                     return (
                       <div
                         key={m.id}
                         onClick={() => togglePlayerSelection(m.id)}
-                        className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl border text-xs font-black shrink-0 cursor-pointer select-none transition-all duration-200 active:scale-95 ${
+                        className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
                           isSelected
                             ? 'bg-green-600 border-green-600 text-white shadow-sm'
                             : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
                         }`}
                       >
-                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
-                          isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
-                        }`}>
-                          {isSelected ? '✓' : ''}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                            isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
+                          }`}>
+                            {isSelected ? '✓' : ''}
+                          </div>
+                          <span className="truncate">{m.name}</span>
                         </div>
-                        <span>{m.name}</span>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteMember(m.id, m.name);
                           }}
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                             isSelected 
                               ? 'hover:bg-white/20 text-white/80 hover:text-white' 
                               : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
                           }`}
                           title="Eliminar jugador"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     );
@@ -2649,7 +2668,7 @@ export default function SaldamosGroupDetail({
       </Dialog>
 
       {/* Import from La Cuota Dialog */}
-      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); setFootballTotal(''); } }}>
+      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); setFootballTotal(''); setFootballPerPerson(''); setLastEditedInput('total'); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-blue-500" /> Importar</DialogTitle>
@@ -2669,31 +2688,62 @@ export default function SaldamosGroupDetail({
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Football mode: amounts are 0, ask user for total */}
+              {/* Football mode: amounts are 0, ask user for total or per person */}
               {importParsed && importParsed.every(p => p.amount === 0) && (
-                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 space-y-2">
-                  <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    ⚽ Lista de jugadores detectada — {assignments.length} personas
+                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3.5 space-y-3">
+                  <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5 mb-1">
+                    ⚽ Lista de jugadores — {assignments.filter(a => a.target !== SKIP).length} activos ({assignments.length} total)
                   </p>
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      type="number"
-                      placeholder="Total a dividir ($)"
-                      value={footballTotal}
-                      onPointerDown={e => e.stopPropagation()}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setFootballTotal(val);
-                        setAssignments(prev => recalculateImportShares(val, prev));
-                      }}
-                      className="rounded-xl text-sm h-9 flex-1"
-                    />
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {footballTotal && Number(footballTotal) > 0
-                        ? `= $${Math.round(Number(footballTotal) / assignments.length).toLocaleString('es-CL')} c/u`
-                        : 'por persona'}
-                    </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="football-total-input" className="text-[10px] font-black uppercase text-green-800 dark:text-green-300 tracking-wider">Total Cancha</Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          id="football-total-input"
+                          type="number"
+                          placeholder="Monto total"
+                          value={footballTotal}
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFootballTotal(val);
+                            setLastEditedInput('total');
+                            const activeCount = assignments.filter(a => a.target !== SKIP).length;
+                            const perPerson = (Number(val) && activeCount > 0) ? Math.round(Number(val) / activeCount).toString() : '';
+                            setFootballPerPerson(perPerson);
+                            setAssignments(prev => recalculateImportShares(val, prev));
+                          }}
+                          className="rounded-xl text-xs h-9 pl-6 font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="football-perperson-input" className="text-[10px] font-black uppercase text-green-800 dark:text-green-300 tracking-wider">Por Persona</Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          id="football-perperson-input"
+                          type="number"
+                          placeholder="Costo c/u"
+                          value={footballPerPerson}
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFootballPerPerson(val);
+                            setLastEditedInput('perPerson');
+                            const activeCount = assignments.filter(a => a.target !== SKIP).length;
+                            const total = (Number(val) && activeCount > 0) ? (Number(val) * activeCount).toString() : '';
+                            setFootballTotal(total);
+                            setAssignments(prev => recalculateImportShares(total, prev));
+                          }}
+                          className="rounded-xl text-xs h-9 pl-6 font-semibold"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2705,10 +2755,25 @@ export default function SaldamosGroupDetail({
                     <p className="text-[10px] text-muted-foreground tabular-nums">{a.amount > 0 ? fmt(a.amount) : '—'}</p>
                   </div>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                  <Select value={a.target} onValueChange={v => setAssignments(prev => {
-                    const updated = prev.map((p, i) => i === idx ? { ...p, target: v } : p);
-                    return recalculateImportShares(footballTotal, updated);
-                  })}>
+                  <Select value={a.target} onValueChange={v => {
+                    const updated = assignments.map((p, i) => i === idx ? { ...p, target: v } : p);
+                    const activeCount = updated.filter(p => p.target !== SKIP).length;
+                    
+                    if (lastEditedInput === 'perPerson' && footballPerPerson) {
+                      const newTotal = (Number(footballPerPerson) * activeCount).toString();
+                      setFootballTotal(newTotal);
+                      const finalAssignments = recalculateImportShares(newTotal, updated);
+                      setAssignments(finalAssignments);
+                    } else {
+                      // default to 'total'
+                      if (footballTotal) {
+                        const newPerPerson = activeCount > 0 ? Math.round(Number(footballTotal) / activeCount).toString() : '';
+                        setFootballPerPerson(newPerPerson);
+                      }
+                      const finalAssignments = recalculateImportShares(footballTotal, updated);
+                      setAssignments(finalAssignments);
+                    }
+                  }}>
                     <SelectTrigger className="text-xs rounded-xl h-8"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={CREATE_NEW}>+ Crear "{a.parsedName}"</SelectItem>
