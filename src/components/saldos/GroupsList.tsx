@@ -471,6 +471,38 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
+          {/* Special "Mi Perfil" Card */}
+          <div
+            className="relative rounded-2xl overflow-hidden cursor-pointer shadow-md transition-all duration-200 active:scale-[0.97] hover:shadow-lg bg-gradient-to-br from-purple-600 via-fuchsia-600 to-pink-600 text-white"
+            onClick={() => onSelectGroup('my-profile')}
+          >
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 text-6xl opacity-20 leading-none -mt-2 -mr-1 select-none pointer-events-none">
+              👤
+            </div>
+
+            <div className="relative z-10 p-4 flex flex-col gap-2 min-h-[110px]">
+              {/* Top row: emoji */}
+              <div className="flex items-start justify-between">
+                <span className="text-2xl leading-none">👤</span>
+                <span className="px-1.5 py-0.5 rounded-lg bg-white/25 text-[8px] font-black uppercase tracking-wider">
+                  Mi Perfil
+                </span>
+              </div>
+
+              {/* Name */}
+              <div className="mt-auto">
+                <div className="flex items-end justify-between gap-1">
+                  <div>
+                    <p className="text-white font-black text-sm leading-tight truncate">Mi Perfil</p>
+                    <p className="text-white/80 text-[10px] font-bold uppercase">Control de Gastos</p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 mb-0.5" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {groups.map(g => {
             const style = getGroupStyle(g.id);
             const emoji = getGroupEmoji(g.name) || ('emoji' in style ? style.emoji : '👋');

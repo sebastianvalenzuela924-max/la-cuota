@@ -165,6 +165,28 @@ export default function SaldamosGroupDetail({
   const hasTrackerExpenses = useMemo(() => expenses.some(ex => ex.track_payments), [expenses]);
   const isTracker = groupMode === 'tracker' || hasTrackerExpenses;
 
+  const groupBgClass = useMemo(() => {
+    if (isFootball) return 'text-white';
+    const savedColor = localStorage.getItem(`group_color_${groupId}`);
+    if (savedColor) return `bg-gradient-to-br ${savedColor} text-white`;
+    try {
+      const TEMPLATE_GRADIENTS = [
+        'from-pink-500 to-rose-600',
+        'from-amber-500 to-orange-600',
+        'from-blue-500 to-indigo-600',
+        'from-sky-500 to-blue-700',
+        'from-blue-600 to-slate-800',
+        'from-orange-400 to-red-500',
+        'from-slate-500 to-gray-700',
+        'from-teal-500 to-cyan-600',
+      ];
+      const idx = parseInt(groupId.replace(/-/g, '').slice(0, 8), 16) % TEMPLATE_GRADIENTS.length;
+      return `bg-gradient-to-br ${TEMPLATE_GRADIENTS[idx]} text-white`;
+    } catch {
+      return 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white';
+    }
+  }, [groupId, isFootball]);
+
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('all');
@@ -191,6 +213,36 @@ export default function SaldamosGroupDetail({
   }, [members, myMemberId]);
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isPlayersInitialized, setIsPlayersInitialized] = useState(false);
+  const [isTeamExpanded, setIsTeamExpanded] = useState(true);
+  const [soccerSearch, setSoccerSearch] = useState('');
+
+  const filteredSoccerMembers = useMemo(() => {
+    if (!soccerSearch.trim()) return members;
+    return members.filter(m => m.name.toLowerCase().includes(soccerSearch.toLowerCase().trim()));
+  }, [members, soccerSearch]);
+
+  const addOrSelectMember = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const existing = members.find(m => m.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setSelectedPlayers(prev => {
+        const next = new Set(prev);
+        next.add(existing.id);
+        const numTotal = Number(soccerTotal);
+        if (numTotal > 0 && next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        }
+        return next;
+      });
+      setSoccerSearch('');
+      toast.success(`${existing.name} seleccionado`);
+    } else {
+      await addMemberByName(trimmed);
+      setSoccerSearch('');
+    }
+  };
+
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const [isCollaborator, setIsCollaborator] = useState<boolean>(false);
   const [joining, setJoining] = useState(false);
@@ -1342,11 +1394,7 @@ export default function SaldamosGroupDetail({
     <div className="space-y-5 animate-slide-right pb-10">
       {/* Unified Dashboard Header Card */}
       <div 
-        className={`relative overflow-hidden rounded-[24px] shadow-lg border border-white/10 ${
-          isFootball 
-            ? 'text-white' 
-            : 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white'
-        }`}
+        className={`relative overflow-hidden rounded-[24px] shadow-lg border border-white/10 ${groupBgClass}`}
         style={isFootball ? {
           background: 'linear-gradient(180deg, #166534 0%, #15803d 18%, #166534 36%, #15803d 54%, #166534 72%, #15803d 90%, #166534 100%)',
         } : undefined}
@@ -1368,7 +1416,7 @@ export default function SaldamosGroupDetail({
           </div>
         )}
 
-        <div className={`relative z-10 ${isFootball ? 'p-3.5 sm:p-4 space-y-2.5' : 'p-5 space-y-4'}`}>
+        <div className="relative z-10 p-3.5 sm:p-4 space-y-2.5">
           {/* Top Bar: Nav Back & Secondary Actions */}
           <div className="flex items-center justify-between gap-3">
             <button 
@@ -1427,9 +1475,7 @@ export default function SaldamosGroupDetail({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`drop-shadow-sm font-black tracking-tight leading-tight block break-words ${
-                  isFootball ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'
-                }`}>
+                <span className="drop-shadow-sm font-black tracking-tight leading-tight block break-words text-lg sm:text-xl">
                   {isFootball && <span className="mr-1">⚽</span>}
                   {group?.name || 'Cargando...'}
                 </span>
@@ -1478,118 +1524,139 @@ export default function SaldamosGroupDetail({
         <div className="space-y-6">
           {/* Section 1: Arma tu equipo / Quiénes jugaron ⚽ */}
           <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
-                  <span>¿Quiénes jugaron? / Arma tu equipo ⚽</span>
-                </h3>
-                <p className="text-[10px] text-muted-foreground font-medium">Selecciona los jugadores del partido y agrega nuevos</p>
+            <div className="flex items-center justify-between gap-3">
+              <div 
+                className="flex-1 cursor-pointer select-none flex items-center gap-2"
+                onClick={() => setIsTeamExpanded(!isTeamExpanded)}
+              >
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground flex items-center gap-1.5">
+                    <span>¿Quiénes jugaron? / Arma tu equipo ⚽</span>
+                    {isTeamExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground font-medium">Selecciona los jugadores del partido y agrega nuevos</p>
+                </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
+                className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed shrink-0"
                 onClick={() => setImportOpen(true)}
               >
                 <Wand2 className="w-3.5 h-3.5" /> Importar lista
               </Button>
             </div>
 
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nombre del jugador..."
-                className="rounded-xl h-10 text-xs font-medium"
-                id="soccer-player-input"
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter') {
-                    const val = e.currentTarget.value.trim();
-                    if (val) {
-                      e.currentTarget.value = '';
-                      await addMemberByName(val);
-                    }
-                  }
-                }}
-              />
-              <Button
-                size="sm"
-                className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={async () => {
-                  const input = document.getElementById('soccer-player-input') as HTMLInputElement;
-                  const val = input?.value?.trim();
-                  if (val) {
-                    input.value = '';
-                    await addMemberByName(val);
-                  }
-                }}
-              >
-                Agregar
-              </Button>
-            </div>
+            {isTeamExpanded && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Buscar o agregar jugador..."
+                    className="rounded-xl h-10 text-xs font-medium"
+                    value={soccerSearch}
+                    onChange={(e) => setSoccerSearch(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        const val = soccerSearch.trim();
+                        if (val) {
+                          await addOrSelectMember(val);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                    onClick={async () => {
+                      const val = soccerSearch.trim();
+                      if (val) {
+                        await addOrSelectMember(val);
+                      }
+                    }}
+                  >
+                    Agregar
+                  </Button>
+                </div>
 
-            {members.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                    onClick={selectAllPlayers}
-                  >
-                    Todos
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
-                    onClick={deselectAllPlayers}
-                  >
-                    Ninguno
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
-                  {members.map(m => {
-                    const isSelected = selectedPlayers.has(m.id);
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => togglePlayerSelection(m.id)}
-                        className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
-                          isSelected
-                            ? 'bg-green-600 border-green-600 text-white shadow-sm'
-                            : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
-                        }`}
+                {members.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                        onClick={selectAllPlayers}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
-                            isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
-                          }`}>
-                            {isSelected ? '✓' : ''}
-                          </div>
-                          <span className="truncate">{m.name}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteMember(m.id, m.name);
-                          }}
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected 
-                              ? 'hover:bg-white/20 text-white/80 hover:text-white' 
-                              : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
-                          }`}
-                          title="Eliminar jugador"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        Todos
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+                        onClick={deselectAllPlayers}
+                      >
+                        Ninguno
+                      </Button>
+                    </div>
+
+                    {filteredSoccerMembers.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-2xl">
+                        No se encontraron jugadores que coincidan.
+                        <br />
+                        Presiona "Agregar" para crear a "{soccerSearch}".
                       </div>
-                    );
-                  })}
-                </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
+                        {filteredSoccerMembers.map(m => {
+                          const isSelected = selectedPlayers.has(m.id);
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => togglePlayerSelection(m.id)}
+                              className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                                  : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                                  isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
+                                }`}>
+                                  {isSelected ? '✓' : ''}
+                                </div>
+                                <span className="truncate">{m.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteMember(m.id, m.name);
+                                }}
+                                className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected 
+                                    ? 'hover:bg-white/20 text-white/80 hover:text-white' 
+                                    : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+                                }`}
+                                title="Eliminar jugador"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1657,8 +1724,12 @@ export default function SaldamosGroupDetail({
             ) : (
               expenses.filter(ex => !ex.is_settlement).map(ex => {
                 const costPerPerson = Math.round(ex.total_amount / (ex.contributions?.length || 1));
+                const allPaid = ex.contributions && ex.contributions.length > 0 && ex.contributions.every((c: any) => c.is_settled);
+                const borderClass = allPaid
+                  ? 'border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-950/[0.05]'
+                  : 'border-2 border-amber-500/30 dark:border-amber-500/20 bg-amber-500/[0.02] dark:bg-amber-950/[0.05]';
                 return (
-                  <div key={ex.id} className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
+                  <div key={ex.id} className={`bg-card rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300 ${borderClass}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={() => toggleExpenseExpanded(ex.id)}>
                         <h4 className="font-black text-sm text-foreground flex items-center gap-2 flex-wrap">

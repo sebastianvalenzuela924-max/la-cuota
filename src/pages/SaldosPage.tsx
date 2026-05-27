@@ -3,6 +3,7 @@ import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import AuthWall from '@/components/saldos/AuthWall';
 import GroupsList from '@/components/saldos/GroupsList';
 import GroupDetail from '@/components/saldos/GroupDetail';
+import MyProfileDashboard from '@/components/saldos/MyProfileDashboard';
 import { Loader2 } from 'lucide-react';
 
 interface Props {
@@ -76,6 +77,10 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
       window.history.replaceState({}, '', url.pathname + url.search);
     }
   };
+
+  if (selectedGroupId === 'my-profile') {
+    return <MyProfileDashboard onBack={handleManualBack} />;
+  }
 
   if (selectedGroupId) {
     return (
