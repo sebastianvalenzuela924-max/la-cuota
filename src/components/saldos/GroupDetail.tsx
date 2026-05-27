@@ -125,6 +125,7 @@ export default function SaldamosGroupDetail({
   const [soccerTotal, setSoccerTotal] = useState('');
   const [soccerPerPerson, setSoccerPerPerson] = useState('');
 
+
   const [payFrom, setPayFrom] = useState('');
   const [payTo, setPayTo] = useState('');
   const [payAmount, setPayAmount] = useState('');
@@ -172,6 +173,18 @@ export default function SaldamosGroupDetail({
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
+
+  const toggleExpenseExpanded = (id: string) => {
+    setExpandedExpenses(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
   const activeMyMemberId = useMemo(() => {
     return members.some(m => m.id === myMemberId) ? myMemberId : null;
@@ -329,7 +342,7 @@ export default function SaldamosGroupDetail({
 
   useEffect(() => {
     if (members.length > 0 && !isPlayersInitialized) {
-      setSelectedPlayers(new Set(members.map(m => m.id)));
+      setSelectedPlayers(new Set());
       setIsPlayersInitialized(true);
     }
   }, [members, isPlayersInitialized]);
@@ -775,6 +788,13 @@ export default function SaldamosGroupDetail({
     });
 
     await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total: finalTotal });
+    if (isFootball) {
+      setExpandedExpenses(prev => {
+        const next = new Set(prev);
+        next.add((exp as any).id);
+        return next;
+      });
+    }
     setImportOpen(false);
     setImportText('');
     setImportParsed(null);
@@ -1268,6 +1288,13 @@ export default function SaldamosGroupDetail({
       toast.success('⚽ ¡Partido registrado con éxito!');
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
       
+      // Auto-expand the newly created match
+      setExpandedExpenses(prev => {
+        const next = new Set(prev);
+        next.add((exp as any).id);
+        return next;
+      });
+
       setSoccerTotal('');
       setSoccerPerPerson('');
       await load(true);
@@ -1633,12 +1660,17 @@ export default function SaldamosGroupDetail({
                 return (
                   <div key={ex.id} className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="font-black text-sm text-foreground flex items-center gap-2">
+                      <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={() => toggleExpenseExpanded(ex.id)}>
+                        <h4 className="font-black text-sm text-foreground flex items-center gap-2 flex-wrap">
                           <span>⚽ {ex.description}</span>
                           <span className="text-[10px] text-muted-foreground font-medium">
                             ({new Date(ex.expense_date).toLocaleDateString('es-CL')})
                           </span>
+                          {expandedExpenses.has(ex.id) ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          )}
                         </h4>
                         <div className="flex gap-2 items-center mt-1 text-[11px] font-bold text-muted-foreground">
                           <span>Total: <strong className="text-foreground">{formatMoney(ex.total_amount, currency)}</strong></span>
@@ -1650,94 +1682,99 @@ export default function SaldamosGroupDetail({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => deleteExpense(ex.id)}
+                        className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteExpense(ex.id);
+                        }}
                         title="Borrar partido"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
 
-                    <div className="border-t border-border/40 pt-4 space-y-2">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Estado de los jugadores:</p>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {ex.contributions?.map((c: any) => {
-                          const mName = members.find(m => m.id === c.member_id)?.name || 'Jugador';
-                          
-                          // Get local storage detailed status
-                          const localStatusMap = (() => {
-                            try {
-                              return JSON.parse(localStorage.getItem(`saldamos_football_status_${groupId}`) || '{}');
-                            } catch { return {}; }
-                          })();
-                          const localStatus = localStatusMap[`${ex.id}:${c.member_id}`] || (c.is_settled ? 'tarjeta' : 'pendiente');
-                          
-                          // Determine status display details
-                          const statusDetails = (() => {
-                            switch (localStatus) {
-                              case 'tarjeta':
-                                return { label: 'Pagado (Tarjeta) 💳', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
-                              case 'efectivo':
-                                return { label: 'Pagado (Efectivo) 💵', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
-                              case 'va_tarjeta':
-                                return { label: 'Va a pagar (Tarjeta) 💳', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
-                              case 'va_efectivo':
-                                return { label: 'Va a pagar (Efectivo) 💵', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
-                              case 'pendiente':
-                              default:
-                                return { label: 'Sin Pagar ❌', color: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400' };
-                            }
-                          })();
+                    {expandedExpenses.has(ex.id) && (
+                      <div className="border-t border-border/40 pt-4 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Estado de los jugadores:</p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {ex.contributions?.map((c: any) => {
+                            const mName = members.find(m => m.id === c.member_id)?.name || 'Jugador';
+                            
+                            // Get local storage detailed status
+                            const localStatusMap = (() => {
+                              try {
+                                  return JSON.parse(localStorage.getItem(`saldamos_football_status_${groupId}`) || '{}');
+                              } catch { return {}; }
+                            })();
+                            const localStatus = localStatusMap[`${ex.id}:${c.member_id}`] || (c.is_settled ? 'tarjeta' : 'pendiente');
+                            
+                            // Determine status display details
+                            const statusDetails = (() => {
+                              switch (localStatus) {
+                                case 'tarjeta':
+                                  return { label: 'Pagado (Tarjeta) 💳', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                                case 'efectivo':
+                                  return { label: 'Pagado (Efectivo) 💵', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                                case 'va_tarjeta':
+                                  return { label: 'Va a pagar (Tarjeta) 💳', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                                case 'va_efectivo':
+                                  return { label: 'Va a pagar (Efectivo) 💵', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                                case 'pendiente':
+                                default:
+                                  return { label: 'Sin Pagar ❌', color: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400' };
+                              }
+                            })();
 
-                          return (
-                            <div key={c.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border/40 bg-accent/20">
-                              <span className="text-xs font-black text-foreground truncate max-w-[120px]">{mName}</span>
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className={`px-2.5 py-1 text-[9px] font-black rounded-lg border cursor-pointer hover:opacity-90 active:scale-95 transition-all select-none ${statusDetails.color}`}>
-                                    {statusDetails.label}
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="rounded-xl">
-                                  <DropdownMenuItem 
-                                    className="text-[10px] font-black"
-                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'pendiente')}
-                                  >
-                                    Sin Pagar ❌
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    className="text-[10px] font-black text-emerald-600"
-                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'tarjeta')}
-                                  >
-                                    Pagado (Tarjeta) 💳
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    className="text-[10px] font-black text-emerald-600"
-                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'efectivo')}
-                                  >
-                                    Pagado (Efectivo) 💵
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    className="text-[10px] font-black text-amber-600"
-                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_tarjeta')}
-                                  >
-                                    Va a pagar (Tarjeta) 💳
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    className="text-[10px] font-black text-amber-600"
-                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_efectivo')}
-                                  >
-                                    Va a pagar (Efectivo) 💵
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          );
-                        })}
+                            return (
+                              <div key={c.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border/40 bg-accent/20">
+                                <span className="text-xs font-black text-foreground truncate max-w-[120px]">{mName}</span>
+                                
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className={`px-2.5 py-1 text-[9px] font-black rounded-lg border cursor-pointer hover:opacity-90 active:scale-95 transition-all select-none ${statusDetails.color}`}>
+                                      {statusDetails.label}
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-xl">
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'pendiente')}
+                                    >
+                                      Sin Pagar ❌
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-emerald-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'tarjeta')}
+                                    >
+                                      Pagado (Tarjeta) 💳
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-emerald-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'efectivo')}
+                                    >
+                                      Pagado (Efectivo) 💵
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-amber-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_tarjeta')}
+                                    >
+                                      Va a pagar (Tarjeta) 💳
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-amber-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_efectivo')}
+                                    >
+                                      Va a pagar (Efectivo) 💵
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })
