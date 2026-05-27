@@ -34,14 +34,18 @@ const TEMPLATES = [
 ];
 
 const COLOR_PRESETS = [
-  { name: 'Azul',     gradient: 'from-blue-600 to-indigo-700' },
-  { name: 'Naranja',  gradient: 'from-orange-500 to-red-600' },
-  { name: 'Verde',    gradient: 'from-emerald-600 to-teal-700' },
-  { name: 'Rojo',     gradient: 'from-rose-600 to-pink-700' },
-  { name: 'Morado',   gradient: 'from-blue-600 to-blue-700' }, // Replaced violet with blue for consistency
-  { name: 'Cielo',    gradient: 'from-sky-500 to-blue-600' },
-  { name: 'Negro',    gradient: 'from-slate-700 to-slate-900' },
-  { name: 'Turquesa', gradient: 'from-cyan-500 to-blue-600' },
+  { name: 'Azul',         gradient: 'from-blue-600 to-indigo-700' },
+  { name: 'Cielo',        gradient: 'from-sky-400 to-blue-500' },
+  { name: 'Turquesa',     gradient: 'from-cyan-500 to-teal-600' },
+  { name: 'Verde',        gradient: 'from-emerald-600 to-teal-700' },
+  { name: 'Verde Claro',  gradient: 'from-lime-500 to-emerald-600' },
+  { name: 'Amarillo',     gradient: 'from-amber-400 to-orange-500' },
+  { name: 'Naranja',      gradient: 'from-orange-500 to-red-600' },
+  { name: 'Rojo',         gradient: 'from-rose-600 to-pink-700' },
+  { name: 'Rosa',         gradient: 'from-pink-500 to-rose-600' },
+  { name: 'Violeta',      gradient: 'from-fuchsia-600 to-pink-700' },
+  { name: 'Morado',       gradient: 'from-purple-600 to-indigo-700' },
+  { name: 'Negro',        gradient: 'from-slate-700 to-slate-900' },
 ];
 
 const PEOPLE_GROUP_COLORS = [
@@ -376,57 +380,49 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       </div>
 
       {/* Mis Personas - Rediseñado Premium con Grupos */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-3xl p-5 border border-blue-100/50 dark:border-blue-900/30 shadow-sm">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-foreground leading-none">Mis Personas</h3>
-              <p className="text-[10px] text-blue-600/60 font-bold uppercase tracking-widest mt-1">Contactos y Grupos</p>
-            </div>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-2xl p-3 border border-blue-100/50 dark:border-blue-900/30 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <h3 className="text-xs font-black text-foreground">Mis Personas</h3>
           </div>
           <Button 
             size="sm" 
             variant="ghost" 
             onClick={() => setManagePeopleOpen(true)}
-            className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 px-3"
+            className="h-6 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 px-2"
           >
             Gestionar
           </Button>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
           {frequentPeople.length === 0 ? (
             <button 
               onClick={() => setManagePeopleOpen(true)}
-              className="flex items-center gap-4 py-3 px-2 text-left w-full hover:bg-blue-100/30 dark:hover:bg-blue-900/10 rounded-2xl transition-colors border border-dashed border-blue-200"
+              className="flex items-center gap-3 py-2 px-2 text-left w-full hover:bg-blue-100/30 dark:hover:bg-blue-900/10 rounded-xl transition-colors border border-dashed border-blue-200/60"
             >
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-300">
-                <Plus className="w-6 h-6" />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-300">
+                <Plus className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-foreground">Sin contactos aún</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Agrega amigos para armar grupos rápido.</p>
+                <p className="text-[10px] font-bold text-foreground leading-none">Sin contactos aún</p>
+                <p className="text-[8px] text-muted-foreground mt-0.5">Toca aquí para agregarlos.</p>
               </div>
             </button>
           ) : (
             <>
               {/* Render Groups first */}
               {Object.keys(peopleGroups).map(gn => (
-                <div key={gn} className="flex flex-col items-center gap-2 shrink-0 group">
-                  <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center text-xl font-black shadow-sm border transition-transform group-hover:scale-105 active:scale-95 ${getPeopleGroupStyle(gn)}`}>
+                <div key={gn} className="flex flex-col items-center gap-1 shrink-0 group">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shadow-sm border transition-transform group-hover:scale-105 active:scale-95 ${getPeopleGroupStyle(gn)}`}>
                     {gn.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[10px] font-black text-foreground max-w-[70px] truncate">{gn}</span>
-                    <span className="text-[8px] font-bold text-muted-foreground uppercase opacity-60">{peopleGroups[gn].length} pers.</span>
-                  </div>
+                  <span className="text-[9px] font-bold text-foreground max-w-[50px] truncate leading-tight">{gn}</span>
                 </div>
               ))}
 
-              {/* Unassigned people as "Otros" or individuals */}
+              {/* Unassigned people as "Otros" */}
               {(() => {
                 const assigned = new Set();
                 Object.values(peopleGroups).forEach(m => m.forEach(p => assigned.add(p)));
@@ -434,14 +430,11 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 
                 if (unassigned.length > 0) {
                   return (
-                    <div className="flex flex-col items-center gap-2 shrink-0 group">
-                      <div className="w-14 h-14 rounded-[22px] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700 transition-transform group-hover:scale-105 active:scale-95">
+                    <div className="flex flex-col items-center gap-1 shrink-0 group">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-sm font-black text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700 transition-transform group-hover:scale-105 active:scale-95">
                         ?
                       </div>
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] font-black text-slate-500 max-w-[70px] truncate">Otros</span>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase opacity-60">{unassigned.length} pers.</span>
-                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 max-w-[50px] truncate leading-tight">Otros</span>
                     </div>
                   );
                 }
@@ -450,12 +443,12 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
 
               <button 
                 onClick={() => setManagePeopleOpen(true)}
-                className="flex flex-col items-center gap-2 shrink-0"
+                className="flex flex-col items-center gap-1 shrink-0"
               >
-                <div className="w-14 h-14 rounded-[22px] border-2 border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all hover:border-blue-400">
-                  <Plus className="w-6 h-6" />
+                <div className="w-9 h-9 rounded-xl border border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all hover:border-blue-400">
+                  <Plus className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-black text-blue-500">Añadir</span>
+                <span className="text-[9px] font-bold text-blue-500 leading-tight">Añadir</span>
               </button>
             </>
           )}

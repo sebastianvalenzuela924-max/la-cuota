@@ -27,6 +27,7 @@ import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
 import { Textarea } from "@/components/ui/textarea";
 import confetti from "canvas-confetti";
+import { useSaldamosAuth } from "@/contexts/SaldamosAuthContext";
 
 type Member = { id: string; name: string; joined_at: string };
 type ExpenseWithCategory = ExpenseWithContribs & { category_id: string | null; is_personal?: boolean };
@@ -69,14 +70,29 @@ export function ExpenseDialog({
       return JSON.parse(localStorage.getItem(`saldamos_mappings_${groupId}`) || '{}');
     } catch { return {}; }
   });
-  const [frequentPeople] = useState<string[]>(() => {
-    const saved = localStorage.getItem('saldamos_frequent_people');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [peopleGroups] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('saldamos_people_groups');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const { user } = useSaldamosAuth();
+  
+  const frequentPeopleKey = user?.id ? `saldamos_frequent_people_${user.id}` : 'saldamos_frequent_people';
+  const peopleGroupsKey = user?.id ? `saldamos_people_groups_${user.id}` : 'saldamos_people_groups';
+
+  const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const savedPeople = localStorage.getItem(frequentPeopleKey);
+      setFrequentPeople(savedPeople ? JSON.parse(savedPeople) : []);
+    } catch {
+      setFrequentPeople([]);
+    }
+    try {
+      const savedGroups = localStorage.getItem(peopleGroupsKey);
+      setPeopleGroups(savedGroups ? JSON.parse(savedGroups) : {});
+    } catch {
+      setPeopleGroups({});
+    }
+  }, [frequentPeopleKey, peopleGroupsKey, open]);
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(true);
@@ -241,11 +257,12 @@ export function ExpenseDialog({
       toast.success(`${name} agregado al grupo`);
       
       // Auto-save to frequent people (contacts)
-      const saved = localStorage.getItem('saldamos_frequent_people');
+      const saved = localStorage.getItem(frequentPeopleKey);
       const people: string[] = saved ? JSON.parse(saved) : [];
       if (!people.includes(name.trim())) {
         people.push(name.trim());
-        localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+        localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+        setFrequentPeople(people);
       }
 
       // Update local members immediately so they appear in the UI
@@ -645,11 +662,12 @@ export function ExpenseDialog({
                             setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
 
                             // Auto-save to frequent people
-                            const saved = localStorage.getItem('saldamos_frequent_people');
+                            const saved = localStorage.getItem(frequentPeopleKey);
                             const people: string[] = saved ? JSON.parse(saved) : [];
                             if (!people.includes(p.name.trim())) {
                               people.push(p.name.trim());
-                              localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                              localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+                              setFrequentPeople(people);
                             }
                           }
                         }
@@ -693,11 +711,12 @@ export function ExpenseDialog({
                               setUnmatchedPersons(prev => prev.filter(item => item.name !== p.name));
                               
                               // Auto-save to frequent people
-                              const saved = localStorage.getItem('saldamos_frequent_people');
+                              const saved = localStorage.getItem(frequentPeopleKey);
                               const people: string[] = saved ? JSON.parse(saved) : [];
                               if (!people.includes(p.name.trim())) {
                                 people.push(p.name.trim());
-                                localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                                localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+                                setFrequentPeople(people);
                               }
 
                               if (onMembersChanged) onMembersChanged();

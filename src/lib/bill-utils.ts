@@ -239,7 +239,9 @@ export function calculatePersonTotals(
 ): Record<string, PersonTotal> {
   const result: Record<string, PersonTotal> = {};
 
-  for (const person of people) {
+  // Initialize result for unique base people only
+  const basePeople = people.filter(p => !p.id.includes('_share'));
+  for (const person of basePeople) {
     result[person.id] = { total: 0, items: [] };
   }
 
@@ -262,15 +264,33 @@ export function calculatePersonTotals(
       }
 
       for (const personId of assigned) {
-        if (result[personId]) {
+        const baseId = personId.split('_share')[0];
+        if (result[baseId]) {
           const itemTotal = roundValue(perPerson + tipPerPerson, currency);
-          result[personId].total = roundValue(result[personId].total + itemTotal, currency);
-          result[personId].items.push({
-            name: `${product.name}${product.quantity > 1 ? ` (${product.quantity}x)` : ''}`,
-            amount: itemTotal,
-            baseAmount: perPerson,
-            tipAmount: tipPerPerson,
-          });
+          result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
+          
+          // Let's check if the base product item is already in the list to group it, or just push a separate line.
+          const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
+          if (existingItem) {
+            existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
+            existingItem.baseAmount = roundValue(existingItem.baseAmount + perPerson, currency);
+            existingItem.tipAmount = roundValue(existingItem.tipAmount + tipPerPerson, currency);
+            
+            // Recalculate display name with portion count
+            const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+            const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
+            existingItem.name = `${product.name}${qtyText} (x${count})`;
+          } else {
+            const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+            const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
+            const displayName = count > 1 ? `${product.name}${qtyText} (x${count})` : `${product.name}${qtyText}`;
+            result[baseId].items.push({
+              name: displayName,
+              amount: itemTotal,
+              baseAmount: perPerson,
+              tipAmount: tipPerPerson,
+            });
+          }
         }
       }
     }

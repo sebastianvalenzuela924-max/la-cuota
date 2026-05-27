@@ -244,7 +244,7 @@ export default function SummarySection({
         </div>
 
       <div className="space-y-3 mb-5">
-        {people.map(person => {
+        {people.filter(p => !p.id.includes('_share')).map(person => {
           const pt = totals[person.id];
           if (!pt || pt.total === 0) return null;
           const color = PERSON_COLORS[person.colorIndex];

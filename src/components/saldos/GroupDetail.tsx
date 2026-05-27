@@ -10,13 +10,13 @@ import {
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
   Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
   MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy,
-  Clock, Scale, ChevronDown, ChevronUp
+  Clock, Scale, ChevronDown, ChevronUp, Calendar, X
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup
 } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -73,6 +73,13 @@ const CREATE_NEW = '__create__';
 const SKIP = '__skip__';
 type Assignment = { parsedName: string; amount: number; target: string };
 
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface Props {
   groupId: string;
   onBack: () => void;
@@ -113,6 +120,8 @@ export default function SaldamosGroupDetail({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [importing, setImporting] = useState(false);
   const [footballTotal, setFootballTotal] = useState('');
+  const [soccerTotal, setSoccerTotal] = useState('');
+  const [soccerPerPerson, setSoccerPerPerson] = useState('');
 
   const [payFrom, setPayFrom] = useState('');
   const [payTo, setPayTo] = useState('');
@@ -140,6 +149,12 @@ export default function SaldamosGroupDetail({
     }
   }, [frequentPeopleKey, peopleGroupsKey]);
 
+  const frequentNotInGroup = useMemo(() => {
+    return frequentPeople.filter(p => 
+      !members.some(m => m.name.toLowerCase() === p.toLowerCase())
+    );
+  }, [frequentPeople, members]);
+
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
   const rawGroupMode = localStorage.getItem(`group_mode_${groupId}`);
@@ -150,10 +165,17 @@ export default function SaldamosGroupDetail({
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<'general' | 'day' | 'custom'>('general');
+  const [customDate, setCustomDate] = useState<string>(() => getLocalDateString());
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
+  const activeMyMemberId = useMemo(() => {
+    return members.some(m => m.id === myMemberId) ? myMemberId : null;
+  }, [members, myMemberId]);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
+  const [isPlayersInitialized, setIsPlayersInitialized] = useState(false);
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const [isCollaborator, setIsCollaborator] = useState<boolean>(false);
   const [joining, setJoining] = useState(false);
@@ -298,8 +320,17 @@ export default function SaldamosGroupDetail({
   };
 
   useEffect(() => { 
+    setIsPlayersInitialized(false);
+    setSelectedPlayers(new Set());
     load(); 
   }, [groupId]);
+
+  useEffect(() => {
+    if (members.length > 0 && !isPlayersInitialized) {
+      setSelectedPlayers(new Set(members.map(m => m.id)));
+      setIsPlayersInitialized(true);
+    }
+  }, [members, isPlayersInitialized]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivities();
@@ -401,7 +432,19 @@ export default function SaldamosGroupDetail({
     
     if (error) { toast.error(error.message); setSavingMember(false); return; }
     
-    setMembers(prev => [...prev, data as any]);
+    const newMember = data as any;
+    setMembers(prev => [...prev, newMember]);
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      next.add(newMember.id);
+      
+      // Update soccer cost calculations based on the new count of selected players
+      const numTotal = Number(soccerTotal);
+      if (numTotal > 0 && next.size > 0) {
+        setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+      }
+      return next;
+    });
     toast.success(`${name.trim()} agregado`);
     await logActivity('MEMBER_ADDED', { name: name.trim() });
     
@@ -430,6 +473,21 @@ export default function SaldamosGroupDetail({
     setSavingMember(false);
     if (error) { toast.error(error.message); return; }
     
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      
+      // Update soccer cost calculations
+      const numTotal = Number(soccerTotal);
+      if (numTotal > 0) {
+        if (next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        } else {
+          setSoccerPerPerson('');
+        }
+      }
+      return next;
+    });
     toast.success(`${name} eliminado del grupo`);
     await logActivity('MEMBER_DELETED', { name });
     await load(true);
@@ -469,12 +527,21 @@ export default function SaldamosGroupDetail({
   };
 
   const filteredExpenses = useMemo(() => {
+    const todayStr = getLocalDateString();
     return expenses.filter(ex => {
       const matchesSearch = (ex.description || '').toLowerCase().includes(historySearch.toLowerCase());
       const matchesCategory = historyCategory === 'all' || ex.category_id === historyCategory;
-      return matchesSearch && matchesCategory;
+      
+      let matchesTime = true;
+      if (timeFilter === 'day') {
+        matchesTime = !!(ex.expense_date && (ex.expense_date === todayStr || ex.expense_date.startsWith(todayStr)));
+      } else if (timeFilter === 'custom') {
+        matchesTime = !!(ex.expense_date && (ex.expense_date === customDate || ex.expense_date.startsWith(customDate)));
+      }
+      
+      return matchesSearch && matchesCategory && matchesTime;
     });
-  }, [expenses, historySearch, historyCategory]);
+  }, [expenses, historySearch, historyCategory, timeFilter, customDate]);
 
   const categoryTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -510,13 +577,14 @@ export default function SaldamosGroupDetail({
     const parsed = parseLaCuotaMessage(importText);
     if (parsed.length === 0) { toast.error('No se detectaron personas. Pega el resumen tal como lo genera La Cuota.'); return; }
     setImportParsed(parsed);
-    setAssignments(
-      parsed.map(p => ({
-        parsedName: p.name,
-        amount: p.amount,
-        target: findMemberMatch(p.name, members) ?? CREATE_NEW,
-      }))
-    );
+    
+    const initialAssignments = parsed.map(p => ({
+      parsedName: p.name,
+      amount: p.amount,
+      target: findMemberMatch(p.name, members) ?? CREATE_NEW,
+    }));
+    
+    setAssignments(initialAssignments);
     
     // 🎉 Confetti for detection
     confetti({ 
@@ -527,79 +595,171 @@ export default function SaldamosGroupDetail({
     });
   };
 
+  const recalculateImportShares = (totalStr: string, currentAssignments: Assignment[]) => {
+    const total = Number(totalStr) || 0;
+    if (total <= 0) return currentAssignments.map(a => ({ ...a, amount: 0 }));
+    
+    const activeAssignments = currentAssignments.filter(a => a.target !== SKIP);
+    const activeCount = activeAssignments.length;
+    const share = activeCount > 0 ? Math.floor(total / activeCount) : 0;
+    
+    // Calculate remainder for rounding
+    let remainder = total - (share * activeCount);
+    
+    // Find the first active assignment's index/name to add the remainder
+    const firstActiveName = activeAssignments[0]?.parsedName;
+    
+    return currentAssignments.map(a => {
+      if (a.target === SKIP) {
+        return { ...a, amount: 0 };
+      }
+      let personShare = share;
+      if (a.parsedName === firstActiveName && remainder > 0) {
+        personShare += remainder;
+        remainder = 0; // Only add once
+      }
+      return { ...a, amount: personShare };
+    });
+  };
+
   const handleApplyImport = async () => {
     if (!importParsed) return;
     setImporting(true);
 
+    const normalizeKey = (s: string) => {
+      return s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
     // 1. Create new members
-    const toCreate = assignments
-      .filter(a => a.target === CREATE_NEW)
-      .map(a => a.parsedName.trim())
-      .filter((n, i, arr) => n && arr.indexOf(n) === i);
+    const toCreate: string[] = [];
+    assignments.forEach(a => {
+      if (a.target === CREATE_NEW) {
+        toCreate.push(a.parsedName.trim());
+      } else if (a.target.startsWith('frequent:')) {
+        const freqName = a.target.substring('frequent:'.length).trim();
+        toCreate.push(freqName);
+      }
+    });
+
+    const uniqueToCreate = toCreate.filter((n, i, arr) => n && arr.indexOf(n) === i);
 
     const createdMap: Record<string, string> = {};
-    if (toCreate.length > 0) {
+    if (uniqueToCreate.length > 0) {
       const { data, error } = await saldamosSupabase
         .from('group_members')
-        .insert(toCreate.map(name => ({ group_id: groupId, name })))
+        .insert(uniqueToCreate.map(name => ({ group_id: groupId, name: name.trim() })))
         .select('id, name');
       if (error || !data) { setImporting(false); toast.error('No se pudieron crear miembros'); return; }
-      (data as any[]).forEach((m: any) => (createdMap[m.name] = m.id));
+      (data as any[]).forEach((m: any) => {
+        createdMap[normalizeKey(m.name)] = m.id;
+      });
     }
 
     // 2. Build consumed map
     const consumed: Record<string, number> = {};
     for (const a of assignments) {
       if (a.target === SKIP) continue;
-      const id = a.target === CREATE_NEW ? createdMap[a.parsedName.trim()] : a.target;
+      
+      let id = '';
+      if (a.target === CREATE_NEW) {
+        id = createdMap[normalizeKey(a.parsedName)];
+      } else if (a.target.startsWith('frequent:')) {
+        const freqName = a.target.substring('frequent:'.length);
+        id = createdMap[normalizeKey(freqName)];
+      } else {
+        id = a.target;
+      }
+      
       if (!id) continue;
       consumed[id] = (consumed[id] ?? 0) + a.amount;
     }
 
+    // Verify payerId exists in the current group members or the newly created ones
+    const allMembersIds = new Set([
+      ...members.map(m => m.id),
+      ...Object.values(createdMap)
+    ]);
+    
+    const validMyMemberId = activeMyMemberId && allMembersIds.has(activeMyMemberId) ? activeMyMemberId : null;
+    let payerId = validMyMemberId || Object.keys(consumed)[0] || members[0]?.id;
+    
+    if ((!payerId || payerId === 'undefined') && allMembersIds.size > 0) {
+      payerId = Array.from(allMembersIds)[0];
+    }
+    
+    if (!payerId || payerId === 'undefined') {
+      setImporting(false);
+      toast.error('No se pudo determinar un pagador. Agrega al menos una persona.');
+      return;
+    }
+
+    const finalTotal = footballTotal ? Number(footballTotal) : Object.values(consumed).reduce((s, v) => s + v, 0);
+
+    // Calculate sum of amount_owed for everyone except payer to adjust rounding remainder
+    let othersOwedSum = 0;
+    Object.entries(consumed).forEach(([member_id, amount]) => {
+      if (member_id !== payerId) {
+        othersOwedSum += amount;
+      }
+    });
+
+    const payerOwed = Math.max(0, finalTotal - othersOwedSum);
+
     // 3. Create expense with individual contributions
-    const total = Object.values(consumed).reduce((s, v) => s + v, 0);
     const { data: exp, error: expErr } = await saldamosSupabase
       .from('expenses')
       .insert({ 
         group_id: groupId, 
-        description: 'Importado desde La Cuota', 
-        total_amount: total,
+        description: footballTotal ? 'Partido de fútbol' : 'Importado desde La Cuota', 
+        total_amount: finalTotal,
         track_payments: isTracker 
       })
       .select('id').single();
     if (expErr || !exp) { setImporting(false); toast.error(expErr?.message ?? 'Error al crear gasto'); return; }
 
-    // Each person: amount_paid = 0 (nobody "paid" the bill via the app), amount_owed = their share
-    // In tracker mode, the payerId gets amount_paid = total
-    const payerId = myMemberId || Object.keys(consumed)[0] || members[0]?.id;
+    // Each person: amount_paid = 0, amount_owed = their share
     const contribsMap: Record<string, { amount_paid: number; amount_owed: number }> = {};
     
     Object.entries(consumed).forEach(([member_id, amount]) => {
       contribsMap[member_id] = {
         amount_paid: 0,
-        amount_owed: amount,
+        amount_owed: member_id === payerId ? payerOwed : amount,
       };
     });
 
-    if (isTracker && payerId) {
-      if (!contribsMap[payerId]) {
-        contribsMap[payerId] = { amount_paid: total, amount_owed: 0 };
-      } else {
-        contribsMap[payerId].amount_paid = total;
-      }
+    if (!contribsMap[payerId]) {
+      contribsMap[payerId] = { amount_paid: 0, amount_owed: payerOwed };
     }
 
-    const contribs = Object.entries(contribsMap).map(([member_id, data]) => ({
-      expense_id: (exp as any).id,
-      member_id,
-      amount_paid: data.amount_paid,
-      amount_owed: data.amount_owed,
-    }));
+    if (isTracker && payerId && !isFootball) {
+      contribsMap[payerId].amount_paid = finalTotal;
+    }
+
+    const contribs = Object.entries(contribsMap)
+      .filter(([member_id, data]) => {
+        // Must be a valid member ID in the group
+        if (!member_id || member_id === 'undefined' || !allMembersIds.has(member_id)) {
+          return false;
+        }
+        // If football, filter out members with no involvement (0 paid, 0 owed)
+        if (isFootball && data.amount_paid === 0 && data.amount_owed === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map(([member_id, data]) => ({
+        expense_id: (exp as any).id,
+        member_id,
+        amount_paid: isFootball ? 0 : data.amount_paid,
+        amount_owed: data.amount_owed,
+        is_settled: false
+      }));
+
     const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
     setImporting(false);
     if (cErr) { toast.error(cErr.message); return; }
 
-    toast.success('✅ Consumos importados desde La Cuota');
+    toast.success(isFootball ? '⚽ ¡Partido importado y registrado!' : '✅ Consumos importados desde La Cuota');
     
     // 🎉 Success confetti
     confetti({ 
@@ -609,11 +769,12 @@ export default function SaldamosGroupDetail({
       colors: ['#2563eb', '#10b981', '#f59e0b', '#3b82f6']
     });
 
-    await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
+    await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total: finalTotal });
     setImportOpen(false);
     setImportText('');
     setImportParsed(null);
     setAssignments([]);
+    setFootballTotal('');
     load();
   };
 
@@ -677,6 +838,77 @@ export default function SaldamosGroupDetail({
     }
   };
 
+  const clearExpenses = async (type: 'all' | 'settled') => {
+    if (type === 'settled' && !isTracker) {
+      toast.error('La opción "Limpiar todo lo saldado" solo está disponible en grupos de "Solo Cobros" (Tracker).', {
+        description: 'En el modo Balance, borrar transacciones individuales alteraría el historial y los balances actuales. Para reiniciar, utiliza "Limpiar todo".',
+        duration: 6000
+      });
+      return;
+    }
+
+    if (type === 'all') {
+      if (!confirm('¿Seguro que quieres borrar TODOS los gastos y pagos de este grupo? Esta acción no se puede deshacer.')) return;
+      
+      setLoading(true);
+      try {
+        const { error } = await saldamosSupabase
+          .from('expenses')
+          .delete()
+          .eq('group_id', groupId);
+          
+        if (error) throw error;
+        
+        toast.success('Todos los gastos han sido eliminados');
+        await logActivity('EXPENSES_CLEARED_ALL', { count: expenses.length });
+        await load();
+      } catch (err: any) {
+        toast.error('Error al limpiar gastos: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    } else if (type === 'settled') {
+      // Find settled expenses:
+      // 1. is_settlement = true (payment register, reconciliation log)
+      // OR 
+      // 2. all contributions with active unpaid debts are settled
+      const settledExpenses = expenses.filter(ex => {
+        if (ex.is_settlement) return true;
+        
+        const contribs = ex.contributions || [];
+        // A contribution is an active unpaid debt if amount_owed > amount_paid and it is not settled
+        const hasUnsettledDebt = contribs.some((c: any) => c.amount_owed > c.amount_paid && !c.is_settled);
+        return !hasUnsettledDebt;
+      });
+
+      if (settledExpenses.length === 0) {
+        toast.info('No hay gastos saldados para limpiar.');
+        return;
+      }
+
+      if (!confirm(`¿Seguro que quieres borrar los ${settledExpenses.length} gastos/pagos totalmente saldados? Los gastos con deudas pendientes se conservarán.`)) return;
+
+      setLoading(true);
+      try {
+        const settledIds = settledExpenses.map(e => e.id);
+        const { error } = await saldamosSupabase
+          .from('expenses')
+          .delete()
+          .in('id', settledIds);
+
+        if (error) throw error;
+
+        toast.success(`${settledExpenses.length} gastos saldados eliminados`);
+        await logActivity('EXPENSES_CLEARED_SETTLED', { count: settledExpenses.length });
+        await load();
+      } catch (err: any) {
+        toast.error('Error al limpiar gastos saldados: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const toggleExpand = (id: string) => {
     const next = new Set(expandedExpenses);
     if (next.has(id)) next.delete(id);
@@ -686,10 +918,20 @@ export default function SaldamosGroupDetail({
 
   const handleViewDetail = (id: string) => {
     setActiveTab('history');
-    setExpandedExpenses(prev => new Set(prev).add(id));
+    setExpandedExpenses(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     setTimeout(() => {
       const el = document.getElementById(`expense-${id}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-blue-500', 'animate-pulse');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-blue-500', 'animate-pulse');
+        }, 2000);
+      }
     }, 150);
   };
 
@@ -774,6 +1016,14 @@ export default function SaldamosGroupDetail({
 
       // Reload group data to update balances, settlements, and history
       await load(true);
+
+      await logActivity('SETTLEMENT_TOGGLED', {
+        debtor: members.find(m => m.id === contribution.member_id)?.name ?? 'Desconocido',
+        payer: members.find(m => m.id === (expense.contributions?.find((ct: any) => ct.amount_paid > 0)?.member_id || myMemberId))?.name ?? 'Desconocido',
+        amount: contribution.amount_owed,
+        expense: expense.description,
+        is_settled: newStatus
+      });
 
       // Success messages
       if (newStatus) {
@@ -876,6 +1126,164 @@ export default function SaldamosGroupDetail({
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copiado al portapapeles');
+  };
+
+  const handleUpdatePlayerStatus = async (
+    expenseId: string, 
+    contributionId: string, 
+    memberId: string, 
+    status: 'pendiente' | 'tarjeta' | 'efectivo' | 'va_tarjeta' | 'va_efectivo'
+  ) => {
+    const isSettled = status === 'tarjeta' || status === 'efectivo';
+    
+    const { error } = await saldamosSupabase
+      .from('expense_contributions')
+      .update({ is_settled: isSettled })
+      .eq('id', contributionId);
+      
+    if (error) {
+      toast.error('Error al actualizar pago: ' + error.message);
+      return;
+    }
+    
+    try {
+      const storageKey = `saldamos_football_status_${groupId}`;
+      const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      current[`${expenseId}:${memberId}`] = status;
+      localStorage.setItem(storageKey, JSON.stringify(current));
+    } catch (e) {
+      console.error(e);
+    }
+    
+    await load(true);
+    toast.success('Pago actualizado');
+  };
+
+  const selectAllPlayers = () => {
+    const allIds = new Set(members.map(m => m.id));
+    setSelectedPlayers(allIds);
+    const numTotal = Number(soccerTotal);
+    if (numTotal > 0 && allIds.size > 0) {
+      setSoccerPerPerson(Math.round(numTotal / allIds.size).toString());
+    } else {
+      const numPerPerson = Number(soccerPerPerson);
+      if (numPerPerson > 0) {
+        setSoccerTotal((numPerPerson * allIds.size).toString());
+      }
+    }
+  };
+
+  const deselectAllPlayers = () => {
+    setSelectedPlayers(new Set());
+    setSoccerPerPerson('');
+    setSoccerTotal('');
+  };
+
+  const togglePlayerSelection = (id: string) => {
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      
+      const numTotal = Number(soccerTotal);
+      const numPerPerson = Number(soccerPerPerson);
+      
+      if (numTotal > 0) {
+        if (next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        } else {
+          setSoccerPerPerson('');
+        }
+      } else if (numPerPerson > 0) {
+        setSoccerTotal((numPerPerson * next.size).toString());
+      }
+      
+      return next;
+    });
+  };
+
+  const createSoccerMatch = async () => {
+    const total = Number(soccerTotal);
+    if (!total || total <= 0) {
+      toast.error('Ingresa un monto válido para la cancha');
+      return;
+    }
+    const playingMembers = members.filter(m => selectedPlayers.has(m.id));
+    if (playingMembers.length === 0) {
+      toast.error('Selecciona al menos un jugador que haya participado');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { data: exp, error: expErr } = await saldamosSupabase
+        .from('expenses')
+        .insert({
+          group_id: groupId,
+          description: `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}`,
+          total_amount: total,
+          track_payments: true,
+          is_settlement: false
+        })
+        .select('id')
+        .single();
+        
+      if (expErr || !exp) throw expErr || new Error('Gasto no creado');
+      
+      const share = Math.round(total / playingMembers.length);
+      const remainder = total - (share * playingMembers.length);
+      
+      const contribs = playingMembers.map((m, idx) => {
+        const owedShare = idx === 0 ? share + remainder : share;
+        return {
+          expense_id: (exp as any).id,
+          member_id: m.id,
+          amount_paid: 0,
+          amount_owed: owedShare,
+          is_settled: false
+        };
+      });
+      
+      const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
+      if (cErr) throw cErr;
+      
+      toast.success('⚽ ¡Partido registrado con éxito!');
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      
+      setSoccerTotal('');
+      setSoccerPerPerson('');
+      await load(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al registrar partido: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTotalChange = (val: string) => {
+    setSoccerTotal(val);
+    const num = Number(val);
+    const selectedCount = selectedPlayers.size;
+    if (num > 0 && selectedCount > 0) {
+      setSoccerPerPerson(Math.round(num / selectedCount).toString());
+    } else {
+      setSoccerPerPerson('');
+    }
+  };
+
+  const handlePerPersonChange = (val: string) => {
+    setSoccerPerPerson(val);
+    const num = Number(val);
+    const selectedCount = selectedPlayers.size;
+    if (num > 0 && selectedCount > 0) {
+      setSoccerTotal((num * selectedCount).toString());
+    } else {
+      setSoccerTotal('');
+    }
   };
 
   const handleSetIdentity = (id: string) => {
@@ -995,15 +1403,17 @@ export default function SaldamosGroupDetail({
 
             {/* Main Primary Actions */}
             <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-              <Button
-                size="sm"
-                className="rounded-xl h-8 px-4 text-xs font-black gap-1.5 bg-white text-blue-700 hover:bg-white/90 shadow-md border-none shrink-0"
-                onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-              >
-                <Plus className="w-4 h-4 text-blue-700" /> GASTO
-              </Button>
+              {!isFootball && (
+                <Button
+                  size="sm"
+                  className="rounded-xl h-8 px-4 text-xs font-black gap-1.5 bg-white text-blue-700 hover:bg-white/90 shadow-md border-none shrink-0"
+                  onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+                >
+                  <Plus className="w-4 h-4 text-blue-700" /> GASTO
+                </Button>
+              )}
               
-              <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
+              <Select value={activeMyMemberId || 'none'} onValueChange={handleSetIdentity}>
                 <SelectTrigger className="h-8 text-[10px] rounded-xl bg-white/15 border-none hover:bg-white/25 text-white font-black px-3 gap-1.5 min-w-[110px] shadow-sm [&>svg]:text-white">
                   <User className="w-3 h-3 text-white/90" />
                   <SelectValue placeholder="¿Quién eres?" />
@@ -1020,7 +1430,303 @@ export default function SaldamosGroupDetail({
 
 
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+      {isFootball ? (
+        <div className="space-y-6">
+          {/* Section 1: Arma tu equipo / Quiénes jugaron ⚽ */}
+          <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                  <span>¿Quiénes jugaron? / Arma tu equipo ⚽</span>
+                </h3>
+                <p className="text-[10px] text-muted-foreground font-medium">Selecciona los jugadores del partido y agrega nuevos</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
+                onClick={() => setImportOpen(true)}
+              >
+                <Wand2 className="w-3.5 h-3.5" /> Importar lista
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nombre del jugador..."
+                className="rounded-xl h-10 text-xs font-medium"
+                id="soccer-player-input"
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    const val = e.currentTarget.value.trim();
+                    if (val) {
+                      e.currentTarget.value = '';
+                      await addMemberByName(val);
+                    }
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={async () => {
+                  const input = document.getElementById('soccer-player-input') as HTMLInputElement;
+                  const val = input?.value?.trim();
+                  if (val) {
+                    input.value = '';
+                    await addMemberByName(val);
+                  }
+                }}
+              >
+                Agregar
+              </Button>
+            </div>
+
+            {members.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                    onClick={selectAllPlayers}
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+                    onClick={deselectAllPlayers}
+                  >
+                    Ninguno
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-[220px] overflow-y-auto pr-1">
+                  {members.map(m => {
+                    const isSelected = selectedPlayers.has(m.id);
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => togglePlayerSelection(m.id)}
+                        className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl border text-xs font-black shrink-0 cursor-pointer select-none transition-all duration-200 active:scale-95 ${
+                          isSelected
+                            ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                            : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
+                          isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </div>
+                        <span>{m.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMember(m.id, m.name);
+                          }}
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${
+                            isSelected 
+                              ? 'hover:bg-white/20 text-white/80 hover:text-white' 
+                              : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+                          }`}
+                          title="Eliminar jugador"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Costo de la Cancha 💸 */}
+          <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                <span>Registrar Partido 💸</span>
+              </h3>
+              <p className="text-[10px] text-muted-foreground font-medium">Ingresa el costo total o el costo por jugador</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="soccer-total-input" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Costo Total Cancha</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                  <Input
+                    id="soccer-total-input"
+                    type="number"
+                    placeholder="Total"
+                    value={soccerTotal}
+                    onChange={e => handleTotalChange(e.target.value)}
+                    className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="soccer-person-input" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Por Jugador</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                  <Input
+                    id="soccer-person-input"
+                    type="number"
+                    placeholder="Por jugador"
+                    value={soccerPerPerson}
+                    onChange={e => handlePerPersonChange(e.target.value)}
+                    className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Button
+              className="w-full bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-bold h-11 rounded-2xl shadow-md transition-all active:scale-95"
+              onClick={createSoccerMatch}
+              disabled={loading || !soccerTotal || Number(soccerTotal) <= 0 || selectedPlayers.size === 0}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Registrar Partido de Fútbol ⚽ ({selectedPlayers.size} {selectedPlayers.size === 1 ? 'jugador' : 'jugadores'})
+            </Button>
+          </div>
+
+          {/* Section 3: Partidos Registrados 📋 */}
+          <div className="space-y-4">
+            <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 px-1">
+              <span>Partidos Registrados 📋</span>
+            </h3>
+
+            {expenses.filter(ex => !ex.is_settlement).length === 0 ? (
+              <div className="bg-card border border-border/40 rounded-3xl p-8 text-center text-muted-foreground italic text-xs">
+                Aún no hay partidos registrados. ¡Ingresa el costo del partido arriba para empezar!
+              </div>
+            ) : (
+              expenses.filter(ex => !ex.is_settlement).map(ex => {
+                const costPerPerson = Math.round(ex.total_amount / (ex.contributions?.length || 1));
+                return (
+                  <div key={ex.id} className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-black text-sm text-foreground flex items-center gap-2">
+                          <span>⚽ {ex.description}</span>
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            ({new Date(ex.expense_date).toLocaleDateString('es-CL')})
+                          </span>
+                        </h4>
+                        <div className="flex gap-2 items-center mt-1 text-[11px] font-bold text-muted-foreground">
+                          <span>Total: <strong className="text-foreground">{formatMoney(ex.total_amount, currency)}</strong></span>
+                          <span>•</span>
+                          <span>Cuota: <strong className="text-foreground">{formatMoney(costPerPerson, currency)} c/u</strong></span>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => deleteExpense(ex.id)}
+                        title="Borrar partido"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    <div className="border-t border-border/40 pt-4 space-y-2">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Estado de los jugadores:</p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {ex.contributions?.map((c: any) => {
+                          const mName = members.find(m => m.id === c.member_id)?.name || 'Jugador';
+                          
+                          // Get local storage detailed status
+                          const localStatusMap = (() => {
+                            try {
+                              return JSON.parse(localStorage.getItem(`saldamos_football_status_${groupId}`) || '{}');
+                            } catch { return {}; }
+                          })();
+                          const localStatus = localStatusMap[`${ex.id}:${c.member_id}`] || (c.is_settled ? 'tarjeta' : 'pendiente');
+                          
+                          // Determine status display details
+                          const statusDetails = (() => {
+                            switch (localStatus) {
+                              case 'tarjeta':
+                                return { label: 'Pagado (Tarjeta) 💳', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                              case 'efectivo':
+                                return { label: 'Pagado (Efectivo) 💵', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                              case 'va_tarjeta':
+                                return { label: 'Va a pagar (Tarjeta) 💳', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                              case 'va_efectivo':
+                                return { label: 'Va a pagar (Efectivo) 💵', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                              case 'pendiente':
+                              default:
+                                return { label: 'Sin Pagar ❌', color: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400' };
+                            }
+                          })();
+
+                          return (
+                            <div key={c.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border/40 bg-accent/20">
+                              <span className="text-xs font-black text-foreground truncate max-w-[120px]">{mName}</span>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className={`px-2.5 py-1 text-[9px] font-black rounded-lg border cursor-pointer hover:opacity-90 active:scale-95 transition-all select-none ${statusDetails.color}`}>
+                                    {statusDetails.label}
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="rounded-xl">
+                                  <DropdownMenuItem 
+                                    className="text-[10px] font-black"
+                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'pendiente')}
+                                  >
+                                    Sin Pagar ❌
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-[10px] font-black text-emerald-600"
+                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'tarjeta')}
+                                  >
+                                    Pagado (Tarjeta) 💳
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-[10px] font-black text-emerald-600"
+                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'efectivo')}
+                                  >
+                                    Pagado (Efectivo) 💵
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-[10px] font-black text-amber-600"
+                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_tarjeta')}
+                                  >
+                                    Va a pagar (Tarjeta) 💳
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-[10px] font-black text-amber-600"
+                                    onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_efectivo')}
+                                  >
+                                    Va a pagar (Efectivo) 💵
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
           <TabsTrigger value="history" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
@@ -1079,6 +1785,15 @@ export default function SaldamosGroupDetail({
                                 >
                                   {processingSettlements.has(c.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : '¿PAGÓ?'}
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700"
+                                  onClick={() => handleViewDetail(ex.id)}
+                                  title="Ver detalle del gasto"
+                                >
+                                  🔗
+                                </Button>
                               </div>
                             </div>
                           );
@@ -1120,7 +1835,18 @@ export default function SaldamosGroupDetail({
                           <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
                           <p className="text-[11px] font-medium text-foreground">Debes a <span className="font-bold text-red-500">{payerName}</span></p>
                         </div>
-                        <span className="text-sm font-black text-red-600 dark:text-red-400 tabular-nums">{fmt(myContrib.amount_owed)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm font-black text-red-600 dark:text-red-400 tabular-nums mr-1">{fmt(myContrib.amount_owed)}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700"
+                            onClick={() => handleViewDetail(ex.id)}
+                            title="Ver detalle del gasto"
+                          >
+                            🔗
+                          </Button>
+                        </div>
                       </div>
                     );
                   }).filter(Boolean);
@@ -1244,6 +1970,92 @@ export default function SaldamosGroupDetail({
               </Select>
             </div>
 
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/40 shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={() => setTimeFilter('general')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    timeFilter === 'general'
+                      ? 'bg-card text-blue-700 shadow-sm font-black'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  General
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeFilter('day')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    timeFilter === 'day'
+                      ? 'bg-card text-blue-700 shadow-sm font-black'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Del Día
+                </button>
+                <div className="relative flex items-center shrink-0">
+                  <input
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCustomDate(e.target.value);
+                        setTimeFilter('custom');
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <button
+                    type="button"
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${
+                      timeFilter === 'custom'
+                        ? 'bg-card text-blue-700 shadow-sm font-black'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Calendar className="w-3 h-3" />
+                    <span>
+                      {timeFilter === 'custom' && customDate
+                        ? `${customDate.split('-')[2]}/${customDate.split('-')[1]}`
+                        : 'Fecha'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px] rounded-lg border-red-200/40 text-red-500 hover:text-red-600 hover:bg-red-50/50 gap-1 px-2.5 font-bold"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                    Limpiar Gastos
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl border border-border/80 p-1 min-w-[170px] shadow-lg">
+                  <DropdownMenuItem
+                    onClick={() => clearExpenses('settled')}
+                    className={`rounded-lg text-[11px] font-bold p-2 ${
+                      isTracker
+                        ? 'text-red-500 focus:text-red-600 focus:bg-red-50'
+                        : 'text-muted-foreground/60 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    Limpiar saldados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => clearExpenses('all')}
+                    className="rounded-lg text-[11px] font-bold text-red-600 focus:text-red-700 focus:bg-red-50 p-2"
+                  >
+                    Limpiar todo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
             {categoryTotals.length > 0 && historyCategory === 'all' && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {categoryTotals.map(ct => (
@@ -1288,7 +2100,7 @@ export default function SaldamosGroupDetail({
                 const hasPendingDebt = iOwe && myContrib && !myContrib.is_settled;
                 
                 const showYellow = ex.track_payments && hasPendingCollections;
-                const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled);
+                const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > c.amount_paid && !c.is_settled);
 
                 return (
                   <div 
@@ -1537,10 +2349,17 @@ export default function SaldamosGroupDetail({
                       <span className="font-bold">{a.user_name.split('@')[0]}</span>{' '}
                       {a.action === 'EXPENSE_ADDED' && `añadió el gasto "${a.details?.description || 'sin nombre'}"`}
                       {a.action === 'EXPENSE_UPDATED' && `editó el gasto "${a.details?.description || 'sin nombre'}"`}
-                      {a.action === 'EXPENSE_DELETED' && `eliminó el gasto "${a.details?.description || 'sin nombre'}"`}
+                      {a.action === 'EXPENSE_DELETED' && `eliminó el gasto "${a.details?.description || 'sin nombre'}"${a.details?.amount ? ` por ${formatMoney(a.details.amount, currency)}` : ''}`}
                       {a.action === 'MEMBER_ADDED' && `agregó a ${a.details?.name || 'alguien'}`}
+                      {a.action === 'MEMBER_DELETED' && `eliminó a "${a.details?.name || 'alguien'}" del grupo`}
                       {a.action === 'PAYMENT_REGISTERED' && `registró un pago de ${a.details?.from} a ${a.details?.to}`}
                       {a.action === 'EXPENSE_IMPORTED' && `importó ${a.details?.count} consumos por ${formatMoney(a.details?.total || 0, currency)}`}
+                      {a.action === 'EXPENSES_CLEARED_ALL' && `limpió todos los gastos del grupo (borró ${a.details?.count || 0} transacciones)`}
+                      {a.action === 'EXPENSES_CLEARED_SETTLED' && `limpió los gastos saldados del grupo (borró ${a.details?.count || 0} transacciones)`}
+                      {a.action === 'SETTLEMENT_TOGGLED' && (a.details?.is_settled 
+                        ? `marcó que ${a.details?.debtor} le pagó ${formatMoney(a.details?.amount || 0, currency)} a ${a.details?.payer} por "${a.details?.expense}"`
+                        : `marcó como pendiente el pago de ${a.details?.debtor} a ${a.details?.payer} por "${a.details?.expense}"`
+                      )}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {new Date(a.created_at).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -1552,6 +2371,7 @@ export default function SaldamosGroupDetail({
           </div>
         </TabsContent>
       </Tabs>
+      )}
 
       <ExpenseDialog 
         open={expenseOpen} 
@@ -1850,7 +2670,7 @@ export default function SaldamosGroupDetail({
           ) : (
             <div className="space-y-3">
               {/* Football mode: amounts are 0, ask user for total */}
-              {assignments.every(a => a.amount === 0) && (
+              {importParsed && importParsed.every(p => p.amount === 0) && (
                 <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 space-y-2">
                   <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
                     ⚽ Lista de jugadores detectada — {assignments.length} personas
@@ -1860,13 +2680,12 @@ export default function SaldamosGroupDetail({
                       type="number"
                       placeholder="Total a dividir ($)"
                       value={footballTotal}
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={e => e.stopPropagation()}
                       onChange={e => {
-                        setFootballTotal(e.target.value);
-                        const total = Number(e.target.value);
-                        if (total > 0) {
-                          const share = Math.round(total / assignments.length);
-                          setAssignments(prev => prev.map(a => ({ ...a, amount: share })));
-                        }
+                        const val = e.target.value;
+                        setFootballTotal(val);
+                        setAssignments(prev => recalculateImportShares(val, prev));
                       }}
                       className="rounded-xl text-sm h-9 flex-1"
                     />
@@ -1886,12 +2705,34 @@ export default function SaldamosGroupDetail({
                     <p className="text-[10px] text-muted-foreground tabular-nums">{a.amount > 0 ? fmt(a.amount) : '—'}</p>
                   </div>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                  <Select value={a.target} onValueChange={v => setAssignments(prev => prev.map((p, i) => i === idx ? { ...p, target: v } : p))}>
+                  <Select value={a.target} onValueChange={v => setAssignments(prev => {
+                    const updated = prev.map((p, i) => i === idx ? { ...p, target: v } : p);
+                    return recalculateImportShares(footballTotal, updated);
+                  })}>
                     <SelectTrigger className="text-xs rounded-xl h-8"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={CREATE_NEW}>+ Crear "{a.parsedName}"</SelectItem>
                       <SelectItem value={SKIP}>Omitir</SelectItem>
-                      {members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                      
+                      {members.length > 0 && (
+                        <SelectGroup>
+                          <SelectSeparator />
+                          <SelectLabel className="text-[9px] font-bold text-muted-foreground uppercase py-1 pl-8">En el grupo</SelectLabel>
+                          {members.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      
+                      {frequentNotInGroup.length > 0 && (
+                        <SelectGroup>
+                          <SelectSeparator />
+                          <SelectLabel className="text-[9px] font-bold text-blue-600 uppercase py-1 pl-8">Tus Frecuentes</SelectLabel>
+                          {frequentNotInGroup.map(name => (
+                            <SelectItem key={name} value={`frequent:${name}`}>+ Agregar {name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1909,16 +2750,18 @@ export default function SaldamosGroupDetail({
         </DialogContent>
       </Dialog>
       {/* Floating Action Button (FAB) */}
-      <button
-        onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-        className="fixed bottom-[90px] right-6 z-50 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
-      >
-        <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
-        <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
-        <p className="text-3xl font-black shadow-black/20 drop-shadow-md tracking-tighter pointer-events-none mt-[-2px]">
-          $
-        </p>
-      </button>
+      {!isFootball && (
+        <button
+          onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+          className="fixed bottom-[90px] right-6 z-50 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
+        >
+          <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
+          <p className="text-3xl font-black shadow-black/20 drop-shadow-md tracking-tighter pointer-events-none mt-[-2px]">
+            $
+          </p>
+        </button>
+      )}
     </div>
   );
 }

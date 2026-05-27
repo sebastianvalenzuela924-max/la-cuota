@@ -185,46 +185,134 @@ export default function Session() {
   };
 
   const removePerson = async (id: string) => {
-    const { error } = await saldamosSupabase.from('bill_people').delete().eq('id', id);
+    const { error } = await saldamosSupabase
+      .from('bill_people')
+      .delete()
+      .eq('session_id', sessionId)
+      .or(`id.eq.${id},id.like.${id}_share%`);
     if (error) toast.error('Error al eliminar persona');
   };
 
-  const toggleAssignment = async (productId: string, personId: string) => {
+  const toggleAssignment = async (productId: string, personId: string, action?: 'increment' | 'clear') => {
     const current = assignments[productId] || [];
-    const exists = current.includes(personId);
     const previousAssignments = { ...assignments };
+    const previousPeople = [...people];
 
-    // Optimistic Update
-    const newAssigned = exists 
-      ? current.filter(id => id !== personId)
-      : [...current, personId];
-    
-    setAssignments(prev => ({
-      ...prev,
-      [productId]: newAssigned
-    }));
+    if (action === 'clear') {
+      const newAssigned = current.filter(id => id !== personId && !id.startsWith(`${personId}_share`));
+      setAssignments(prev => ({
+        ...prev,
+        [productId]: newAssigned
+      }));
 
-    try {
-      if (exists) {
+      try {
         const { error } = await saldamosSupabase
           .from('bill_assignments')
           .delete()
           .eq('product_id', productId)
-          .eq('person_id', personId)
-          .eq('session_id', sessionId);
+          .eq('session_id', sessionId)
+          .or(`person_id.eq.${personId},person_id.like.${personId}_share%`);
         if (error) throw error;
-      } else {
-        const { error } = await saldamosSupabase.from('bill_assignments').insert([{ 
-          product_id: productId, 
+      } catch (error) {
+        console.error('Error clearing assignment:', error);
+        setAssignments(previousAssignments);
+        toast.error('Error al borrar asignaciones');
+      }
+      return;
+    }
+
+    // action === 'increment'
+    const matches = current.filter(id => id === personId || id.startsWith(`${personId}_share`));
+    const count = matches.length;
+
+    if (count === 0) {
+      setAssignments(prev => ({
+        ...prev,
+        [productId]: [...current, personId]
+      }));
+
+      try {
+        const { error } = await saldamosSupabase.from('bill_assignments').insert([{
+          product_id: productId,
           person_id: personId,
           session_id: sessionId
         }]);
         if (error) throw error;
+      } catch (error) {
+        console.error('Error assigning person:', error);
+        setAssignments(previousAssignments);
+        toast.error('Error al asignar persona');
       }
+    } else {
+      const virtualId = `${personId}_share${count}`;
+      const basePerson = people.find(p => p.id === personId);
+      if (!basePerson) return;
+
+      setAssignments(prev => ({
+        ...prev,
+        [productId]: [...current, virtualId]
+      }));
+      
+      if (!people.some(p => p.id === virtualId)) {
+        setPeople(prev => [...prev, {
+          id: virtualId,
+          name: basePerson.name,
+          colorIndex: basePerson.colorIndex,
+          session_id: sessionId
+        }]);
+      }
+
+      try {
+        const { data: existingPerson } = await saldamosSupabase
+          .from('bill_people')
+          .select('id')
+          .eq('id', virtualId)
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (!existingPerson) {
+          const { error: personError } = await saldamosSupabase.from('bill_people').insert([{
+            id: virtualId,
+            name: basePerson.name,
+            color_index: basePerson.colorIndex,
+            session_id: sessionId
+          }]);
+          if (personError) throw personError;
+        }
+
+        const { error: assignError } = await saldamosSupabase.from('bill_assignments').insert([{
+          product_id: productId,
+          person_id: virtualId,
+          session_id: sessionId
+        }]);
+        if (assignError) throw assignError;
+      } catch (error) {
+        console.error('Error incrementing assignment:', error);
+        setAssignments(previousAssignments);
+        setPeople(previousPeople);
+        toast.error('Error al incrementar asignación');
+      }
+    }
+  };
+
+  const clearProductAssignments = async (productId: string) => {
+    const previousAssignments = { ...assignments };
+    setAssignments(prev => ({
+      ...prev,
+      [productId]: []
+    }));
+
+    try {
+      const { error } = await saldamosSupabase
+        .from('bill_assignments')
+        .delete()
+        .eq('product_id', productId)
+        .eq('session_id', sessionId);
+      if (error) throw error;
     } catch (error) {
-      console.error('Error toggling assignment:', error);
+      console.error('Error clearing product assignments:', error);
       setAssignments(previousAssignments);
-      toast.error('Error al sincronizar cambio');
+      toast.error('Error al limpiar asignaciones del producto');
     }
   };
 
@@ -441,6 +529,7 @@ export default function Session() {
           onToggle={toggleAssignment}
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}
+          onClearProductAssignments={clearProductAssignments}
         />
 
         <TipSection
