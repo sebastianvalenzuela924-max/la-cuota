@@ -1726,81 +1726,83 @@ export default function SaldamosGroupDetail({
         <div className="space-y-6">
           {/* Section 1: Arma tu equipo / Quiénes jugaron ⚽ */}
           <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div 
-                className="flex-1 cursor-pointer select-none flex items-center gap-2"
-                onClick={() => setIsTeamExpanded(!isTeamExpanded)}
-              >
-                <div>
-                  <h3 className="font-extrabold text-base text-foreground flex items-center gap-1.5">
-                    <span>¿Quiénes jugaron? / Arma tu equipo ⚽</span>
-                    {selectedPlayers.size > 0 && (
-                      <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] font-black px-2 py-0.5 rounded-lg border border-green-200 dark:border-green-900/30">
-                        {selectedPlayers.size} seleccionados
-                      </span>
-                    )}
-                    {isTeamExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                    )}
-                  </h3>
-                  <p className="text-[10px] text-muted-foreground font-medium">Selecciona los jugadores del partido y agrega nuevos</p>
-                </div>
+            <div 
+              className="flex items-center justify-between gap-3 cursor-pointer select-none pb-1.5"
+              onClick={() => setIsTeamExpanded(!isTeamExpanded)}
+            >
+              <div className="min-w-0 flex-1">
+                <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 flex-wrap">
+                  <span>⚽ ¿Quiénes jugaron? / Arma tu equipo</span>
+                  {selectedPlayers.size > 0 && (
+                    <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] font-black px-2 py-0.5 rounded-lg border border-green-200 dark:border-green-900/30 shrink-0">
+                      {selectedPlayers.size} seleccionados
+                    </span>
+                  )}
+                </h3>
+                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Define quiénes participaron en este partido</p>
               </div>
-              <div className="flex gap-1.5 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
-                  onClick={() => setImportOpen(true)}
-                >
-                  <Wand2 className="w-3.5 h-3.5" /> Importar
-                </Button>
-                {members.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={savingMember}
-                    className="h-8 rounded-xl text-xs font-bold gap-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                    onClick={deleteAllMembers}
-                    title="Eliminar todos los jugadores del grupo"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div className="w-8 h-8 rounded-full bg-muted/40 hover:bg-muted flex items-center justify-center shrink-0 transition-colors">
+                {isTeamExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
             </div>
 
             {isTeamExpanded && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Buscar o agregar jugador..."
-                    className="rounded-xl h-10 text-xs font-medium"
-                    value={soccerSearch}
-                    onChange={(e) => setSoccerSearch(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter') {
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex gap-2 flex-1">
+                    <Input
+                      placeholder="Buscar o agregar jugador..."
+                      className="rounded-xl h-10 text-xs font-medium"
+                      value={soccerSearch}
+                      onChange={(e) => setSoccerSearch(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          const val = soccerSearch.trim();
+                          if (val) {
+                            await addOrSelectMember(val);
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                      onClick={async () => {
                         const val = soccerSearch.trim();
                         if (val) {
                           await addOrSelectMember(val);
                         }
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-                    onClick={async () => {
-                      const val = soccerSearch.trim();
-                      if (val) {
-                        await addOrSelectMember(val);
-                      }
-                    }}
-                  >
-                    Agregar
-                  </Button>
+                      }}
+                    >
+                      Agregar
+                    </Button>
+                  </div>
+                  <div className="flex gap-1.5 justify-end sm:justify-start">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-10 rounded-xl text-xs font-bold gap-1.5 border-dashed flex-1 sm:flex-initial"
+                      onClick={() => setImportOpen(true)}
+                    >
+                      <Wand2 className="w-3.5 h-3.5" /> Importar
+                    </Button>
+                    {members.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={savingMember}
+                        className="h-10 w-10 p-0 rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/30 shrink-0"
+                        onClick={deleteAllMembers}
+                        title="Eliminar todos los jugadores del grupo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {members.length === 0 ? (
@@ -1993,35 +1995,35 @@ export default function SaldamosGroupDetail({
                   <Button
                     type="button"
                     variant={soccerPaymentType === 'none' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
                       soccerPaymentType === 'none'
                         ? 'bg-slate-800 text-white border-slate-800 hover:bg-slate-900'
                         : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
                     }`}
                     onClick={() => { setSoccerPaymentType('none'); setSoccerSelectedCard(''); }}
                   >
-                    <span className="text-base">❌</span>
-                    <span className="text-[9px] uppercase font-black tracking-wider">No la pagué yo</span>
+                    <span className="text-sm shrink-0">❌</span>
+                    <span className="text-[10px] uppercase font-black tracking-wider truncate">No pagué</span>
                   </Button>
 
                   <Button
                     type="button"
                     variant={soccerPaymentType === 'cash' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
                       soccerPaymentType === 'cash'
                         ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                         : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
                     }`}
                     onClick={() => { setSoccerPaymentType('cash'); setSoccerSelectedCard(''); }}
                   >
-                    <span className="text-base">💵</span>
-                    <span className="text-[9px] uppercase font-black tracking-wider">Pagué en Efectivo</span>
+                    <span className="text-sm shrink-0">💵</span>
+                    <span className="text-[10px] uppercase font-black tracking-wider truncate">Efectivo</span>
                   </Button>
 
                   <Button
                     type="button"
                     variant={soccerPaymentType === 'card' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
                       soccerPaymentType === 'card'
                         ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
                         : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
@@ -2033,8 +2035,8 @@ export default function SaldamosGroupDetail({
                       }
                     }}
                   >
-                    <span className="text-base">💳</span>
-                    <span className="text-[9px] uppercase font-black tracking-wider">Pagué con Tarjeta</span>
+                    <span className="text-sm shrink-0">💳</span>
+                    <span className="text-[10px] uppercase font-black tracking-wider truncate">Tarjeta</span>
                   </Button>
                 </div>
 
