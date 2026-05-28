@@ -169,10 +169,15 @@ export default function SaldamosGroupDetail({
   }, [frequentPeopleKey, peopleGroupsKey, user?.id]);
 
   const frequentNotInGroup = useMemo(() => {
+    const namesInGroups = new Set<string>();
+    Object.values(peopleGroups).forEach(names => {
+      names.forEach(name => namesInGroups.add(name.toLowerCase()));
+    });
     return frequentPeople.filter(p => 
-      !members.some(m => m.name.toLowerCase() === p.toLowerCase())
+      !members.some(m => m.name.toLowerCase() === p.toLowerCase()) &&
+      !namesInGroups.has(p.toLowerCase())
     );
-  }, [frequentPeople, members]);
+  }, [frequentPeople, members, peopleGroups]);
 
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
@@ -297,7 +302,35 @@ export default function SaldamosGroupDetail({
         }
       }
       
-      setMembers(m.data ?? []);
+      let currentMembers = m.data ?? [];
+      const globalNameKey = user?.id ? `saldamos_my_name_${user.id}` : 'saldamos_my_name';
+      const profileName = localStorage.getItem(globalNameKey)?.trim();
+      
+      if (profileName) {
+        const hasMe = currentMembers.some(member => member.name.toLowerCase() === profileName.toLowerCase());
+        if (!hasMe) {
+          const { data: newMem, error: insertErr } = await saldamosSupabase
+            .from('group_members')
+            .insert({ group_id: groupId, name: profileName })
+            .select()
+            .single();
+          
+          if (!insertErr && newMem) {
+            currentMembers = [...currentMembers, newMem];
+            await logActivity('MEMBER_ADDED', { name: profileName });
+          } else if (insertErr) {
+            console.error('Error auto-inserting profile user to group:', insertErr);
+          }
+        }
+        
+        const myMem = currentMembers.find(member => member.name.toLowerCase() === profileName.toLowerCase());
+        if (myMem && myMemberId !== myMem.id) {
+          localStorage.setItem(`saldamos_id_${groupId}`, myMem.id);
+          setMyMemberId(myMem.id);
+        }
+      }
+      
+      setMembers(currentMembers);
       if (e.data) {
         const mappedExpenses = e.data.map((ex: any) => ({
           ...ex,
@@ -1443,6 +1476,8 @@ export default function SaldamosGroupDetail({
       setSoccerTotal('');
       setSoccerPerPerson('');
       setIPaidCourt(false);
+      setSelectedPlayers(new Set());
+      setIsTeamExpanded(false);
       await load(true);
     } catch (err: any) {
       console.error(err);
@@ -1643,6 +1678,11 @@ export default function SaldamosGroupDetail({
                 <div>
                   <h3 className="font-extrabold text-base text-foreground flex items-center gap-1.5">
                     <span>¿Quiénes jugaron? / Arma tu equipo ⚽</span>
+                    {selectedPlayers.size > 0 && (
+                      <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] font-black px-2 py-0.5 rounded-lg border border-green-200 dark:border-green-900/30">
+                        {selectedPlayers.size} seleccionados
+                      </span>
+                    )}
                     {isTeamExpanded ? (
                       <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
                     ) : (
@@ -1742,6 +1782,7 @@ export default function SaldamosGroupDetail({
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
                         {filteredSoccerMembers.map(m => {
                           const isSelected = selectedPlayers.has(m.id);
+                          const selectionIndex = isSelected ? Array.from(selectedPlayers).indexOf(m.id) + 1 : 0;
                           return (
                             <div
                               key={m.id}
@@ -1756,7 +1797,7 @@ export default function SaldamosGroupDetail({
                                 <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
                                   isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
                                 }`}>
-                                  {isSelected ? '✓' : ''}
+                                  {isSelected ? selectionIndex : ''}
                                 </div>
                                 <span className="truncate">{m.name}</span>
                               </div>
