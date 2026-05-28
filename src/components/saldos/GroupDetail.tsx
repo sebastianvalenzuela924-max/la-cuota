@@ -230,7 +230,8 @@ export default function SaldamosGroupDetail({
   }, [members, myMemberId]);
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isPlayersInitialized, setIsPlayersInitialized] = useState(false);
-  const [isTeamExpanded, setIsTeamExpanded] = useState(true);
+  const [isTeamExpanded, setIsTeamExpanded] = useState(false);
+  const [iPaidCourt, setIPaidCourt] = useState(false);
   const [soccerSearch, setSoccerSearch] = useState('');
 
   const filteredSoccerMembers = useMemo(() => {
@@ -595,6 +596,32 @@ export default function SaldamosGroupDetail({
     toast.success(`${name} eliminado del grupo`);
     await logActivity('MEMBER_DELETED', { name });
     await load(true);
+  };
+
+  const deleteAllMembers = async () => {
+    if (members.length === 0) {
+      toast.info('No hay jugadores que eliminar');
+      return;
+    }
+    if (!confirm(`¿Eliminar a TODOS los ${members.length} jugadores del grupo?\nEsta acción no se puede deshacer y borrará todo el historial asociado.`)) return;
+    setSavingMember(true);
+    try {
+      const { error } = await saldamosSupabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId);
+      if (error) throw error;
+      setSelectedPlayers(new Set());
+      setSoccerTotal('');
+      setSoccerPerPerson('');
+      toast.success('Todos los jugadores han sido eliminados');
+      await logActivity('MEMBERS_DELETED_ALL', { count: members.length });
+      await load(true);
+    } catch (err: any) {
+      toast.error('Error al eliminar jugadores: ' + err.message);
+    } finally {
+      setSavingMember(false);
+    }
   };
 
   const startEditMember = (m: any) => {
@@ -1380,17 +1407,28 @@ export default function SaldamosGroupDetail({
       
       const contribs = playingMembers.map((m, idx) => {
         const owedShare = idx === 0 ? share + remainder : share;
+        const iAmPayer = iPaidCourt && myMemberId && m.id === myMemberId;
         return {
           expense_id: (exp as any).id,
           member_id: m.id,
-          amount_paid: 0,
+          amount_paid: iAmPayer ? owedShare : 0,
           amount_owed: owedShare,
-          is_settled: false
+          is_settled: !!iAmPayer
         };
       });
       
       const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
       if (cErr) throw cErr;
+      
+      // Auto-save local football status as paid for me if iPaidCourt
+      if (iPaidCourt && myMemberId && selectedPlayers.has(myMemberId)) {
+        try {
+          const storageKey = `saldamos_football_status_${groupId}`;
+          const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          current[`${(exp as any).id}:${myMemberId}`] = 'efectivo';
+          localStorage.setItem(storageKey, JSON.stringify(current));
+        } catch (e) { console.error(e); }
+      }
       
       toast.success('⚽ ¡Partido registrado con éxito!');
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
@@ -1404,6 +1442,7 @@ export default function SaldamosGroupDetail({
 
       setSoccerTotal('');
       setSoccerPerPerson('');
+      setIPaidCourt(false);
       await load(true);
     } catch (err: any) {
       console.error(err);
@@ -1613,14 +1652,28 @@ export default function SaldamosGroupDetail({
                   <p className="text-[10px] text-muted-foreground font-medium">Selecciona los jugadores del partido y agrega nuevos</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed shrink-0"
-                onClick={() => setImportOpen(true)}
-              >
-                <Wand2 className="w-3.5 h-3.5" /> Importar lista
-              </Button>
+              <div className="flex gap-1.5 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
+                  onClick={() => setImportOpen(true)}
+                >
+                  <Wand2 className="w-3.5 h-3.5" /> Importar
+                </Button>
+                {members.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={savingMember}
+                    className="h-8 rounded-xl text-xs font-bold gap-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                    onClick={deleteAllMembers}
+                    title="Eliminar todos los jugadores del grupo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
 
             {isTeamExpanded && (
@@ -1729,6 +1782,68 @@ export default function SaldamosGroupDetail({
                     )}
                   </div>
                 )}
+
+                {/* Quick-add contacts from other groups */}
+                {(frequentNotInGroup.length > 0 || Object.keys(peopleGroups).length > 0) && (
+                  <div className="border-t border-border/40 pt-3 space-y-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Agregar desde mis contactos</p>
+
+                    {/* Frequent people not in group */}
+                    {frequentNotInGroup.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {frequentNotInGroup.map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={savingMember}
+                            onClick={() => addOrSelectMember(p)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 active:scale-95 transition-all"
+                          >
+                            + {p}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* People from saved groups — pick individual */}
+                    {Object.keys(peopleGroups).map(gn => {
+                      const available = peopleGroups[gn].filter(
+                        p => !members.some(m => m.name.toLowerCase() === p.toLowerCase())
+                      );
+                      if (available.length === 0) return null;
+                      return (
+                        <div key={gn} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5" /> {gn}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={savingMember}
+                              onClick={() => bulkAddMembers(peopleGroups[gn])}
+                              className="text-[8px] font-black uppercase tracking-wider text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                            >
+                              + Todos
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {available.map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                disabled={savingMember}
+                                onClick={() => addOrSelectMember(p)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-muted/60 border border-border/60 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all"
+                              >
+                                + {p}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1773,13 +1888,36 @@ export default function SaldamosGroupDetail({
               </div>
             </div>
 
+            {/* Yo pagué la cancha toggle */}
+            {myMemberId && selectedPlayers.has(myMemberId) && (
+              <button
+                type="button"
+                onClick={() => setIPaidCourt(!iPaidCourt)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold transition-all active:scale-[0.98] ${
+                  iPaidCourt
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-muted/40 border-border/50 text-muted-foreground hover:border-border'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                  iPaidCourt ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40 bg-transparent'
+                }`}>
+                  {iPaidCourt && <CheckCircle2 className="w-3 h-3 text-white" />}
+                </div>
+                <div className="text-left">
+                  <p className="font-black">Yo pagué la cancha 💳</p>
+                  <p className="text-[10px] font-medium opacity-70">Mi cuota quedará marcada como pagada automáticamente</p>
+                </div>
+              </button>
+            )}
+
             <Button
               className="w-full bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-bold h-11 rounded-2xl shadow-md transition-all active:scale-95"
               onClick={createSoccerMatch}
               disabled={loading || !soccerTotal || Number(soccerTotal) <= 0 || selectedPlayers.size === 0}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Registrar Partido de Fútbol ⚽ ({selectedPlayers.size} {selectedPlayers.size === 1 ? 'jugador' : 'jugadores'})
+              Registrar Partido ⚽ ({selectedPlayers.size} {selectedPlayers.size === 1 ? 'jugador' : 'jugadores'})
             </Button>
           </div>
 
@@ -2518,7 +2656,7 @@ export default function SaldamosGroupDetail({
                                         {c.is_settled ? 'PAGADO' : 'MARCAR PAGO'}
                                       </Button>
                                     )}
-                                    {isMe && c.amount_owed > 0 && !c.is_settled && (
+                                    {isMe && c.amount_owed > 0 && !c.is_settled && !parseDescription(ex.description).paymentMethod && (
                                       <Button
                                         size="sm"
                                         disabled={processingSettlements.has(c.id)}

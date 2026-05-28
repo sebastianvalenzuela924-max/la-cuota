@@ -345,7 +345,7 @@ export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved
               member_id: myMemberId,
               amount_paid: numAmount,
               amount_owed: numAmount, // personal: I spent it myself
-              is_settled: false
+              is_settled: paymentMethod !== null
             });
           } else {
             // Fallback: just record as personal with amount
@@ -354,7 +354,7 @@ export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved
               member_id: members[0]?.id ?? null,
               amount_paid: numAmount,
               amount_owed: numAmount,
-              is_settled: false
+              is_settled: paymentMethod !== null
             });
           }
         } else {

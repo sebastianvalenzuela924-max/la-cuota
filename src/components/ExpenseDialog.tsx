@@ -435,6 +435,7 @@ export function ExpenseDialog({
           member_id: personalPayer,
           amount_paid: totalNum,
           amount_owed: totalNum,
+          is_settled: paymentMethod !== null,
         }]
       : Array.from(selected).map((mid) => ({
           expense_id: expenseId!,
