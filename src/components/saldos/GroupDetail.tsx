@@ -236,7 +236,10 @@ export default function SaldamosGroupDetail({
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isPlayersInitialized, setIsPlayersInitialized] = useState(false);
   const [isTeamExpanded, setIsTeamExpanded] = useState(false);
-  const [iPaidCourt, setIPaidCourt] = useState(false);
+  const [soccerPaymentType, setSoccerPaymentType] = useState<'none' | 'cash' | 'card'>('none');
+  const [soccerSelectedCard, setSoccerSelectedCard] = useState<string>('');
+  const [soccerNewCardName, setSoccerNewCardName] = useState('');
+  const [showSoccerAddCard, setShowSoccerAddCard] = useState(false);
   const [soccerSearch, setSoccerSearch] = useState('');
 
   const filteredSoccerMembers = useMemo(() => {
@@ -445,10 +448,24 @@ export default function SaldamosGroupDetail({
 
   useEffect(() => {
     if (members.length > 0 && !isPlayersInitialized) {
-      setSelectedPlayers(new Set());
+      setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
       setIsPlayersInitialized(true);
     }
-  }, [members, isPlayersInitialized]);
+  }, [members, isPlayersInitialized, myMemberId]);
+
+  useEffect(() => {
+    if (myMemberId) {
+      setSelectedPlayers(prev => {
+        const next = new Set(prev);
+        const res = new Set<string>();
+        res.add(myMemberId);
+        next.forEach(id => {
+          if (id !== myMemberId) res.add(id);
+        });
+        return res;
+      });
+    }
+  }, [myMemberId]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivities();
@@ -1362,7 +1379,11 @@ export default function SaldamosGroupDetail({
   };
 
   const selectAllPlayers = () => {
-    const allIds = new Set(members.map(m => m.id));
+    const allIds = new Set<string>();
+    if (myMemberId) allIds.add(myMemberId);
+    members.forEach(m => {
+      if (m.id !== myMemberId) allIds.add(m.id);
+    });
     setSelectedPlayers(allIds);
     const numTotal = Number(soccerTotal);
     if (numTotal > 0 && allIds.size > 0) {
@@ -1376,12 +1397,16 @@ export default function SaldamosGroupDetail({
   };
 
   const deselectAllPlayers = () => {
-    setSelectedPlayers(new Set());
+    setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
     setSoccerPerPerson('');
     setSoccerTotal('');
   };
 
   const togglePlayerSelection = (id: string) => {
+    if (id === myMemberId) {
+      toast.info('Tú debes estar seleccionado siempre');
+      return;
+    }
     setSelectedPlayers(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -1407,6 +1432,23 @@ export default function SaldamosGroupDetail({
     });
   };
 
+  const handleAddSoccerCard = () => {
+    const trimmed = soccerNewCardName.trim();
+    if (!trimmed) return;
+    if (savedCards.includes(trimmed)) {
+      toast.error('Ya existe una tarjeta con ese nombre');
+      return;
+    }
+    const updated = [...savedCards, trimmed];
+    setSavedCards(updated);
+    const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+    localStorage.setItem(cardsKey, JSON.stringify(updated));
+    setSoccerSelectedCard(trimmed);
+    setSoccerNewCardName('');
+    setShowSoccerAddCard(false);
+    toast.success(`Tarjeta "${trimmed}" agregada`);
+  };
+
   const createSoccerMatch = async () => {
     const total = Number(soccerTotal);
     if (!total || total <= 0) {
@@ -1419,13 +1461,25 @@ export default function SaldamosGroupDetail({
       return;
     }
     
+    if (soccerPaymentType === 'card' && !soccerSelectedCard) {
+      toast.error('Selecciona la tarjeta con la que pagaste');
+      return;
+    }
+    
     setLoading(true);
     try {
+      let tag = '';
+      if (soccerPaymentType === 'cash') {
+        tag = ' [Efectivo]';
+      } else if (soccerPaymentType === 'card' && soccerSelectedCard) {
+        tag = ` [Tarjeta: ${soccerSelectedCard}]`;
+      }
+
       const { data: exp, error: expErr } = await saldamosSupabase
         .from('expenses')
         .insert({
           group_id: groupId,
-          description: `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}`,
+          description: `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}${tag}`,
           total_amount: total,
           track_payments: true,
           is_settlement: false
@@ -1438,13 +1492,14 @@ export default function SaldamosGroupDetail({
       const share = Math.round(total / playingMembers.length);
       const remainder = total - (share * playingMembers.length);
       
+      const iPaidCourt = soccerPaymentType !== 'none';
       const contribs = playingMembers.map((m, idx) => {
         const owedShare = idx === 0 ? share + remainder : share;
         const iAmPayer = iPaidCourt && myMemberId && m.id === myMemberId;
         return {
           expense_id: (exp as any).id,
           member_id: m.id,
-          amount_paid: iAmPayer ? owedShare : 0,
+          amount_paid: iAmPayer ? total : 0,
           amount_owed: owedShare,
           is_settled: !!iAmPayer
         };
@@ -1453,12 +1508,12 @@ export default function SaldamosGroupDetail({
       const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
       if (cErr) throw cErr;
       
-      // Auto-save local football status as paid for me if iPaidCourt
-      if (iPaidCourt && myMemberId && selectedPlayers.has(myMemberId)) {
+      // Auto-save local football status as paid for me if I paid
+      if (soccerPaymentType !== 'none' && myMemberId && selectedPlayers.has(myMemberId)) {
         try {
           const storageKey = `saldamos_football_status_${groupId}`;
           const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
-          current[`${(exp as any).id}:${myMemberId}`] = 'efectivo';
+          current[`${(exp as any).id}:${myMemberId}`] = soccerPaymentType === 'cash' ? 'efectivo' : 'tarjeta';
           localStorage.setItem(storageKey, JSON.stringify(current));
         } catch (e) { console.error(e); }
       }
@@ -1475,8 +1530,9 @@ export default function SaldamosGroupDetail({
 
       setSoccerTotal('');
       setSoccerPerPerson('');
-      setIPaidCourt(false);
-      setSelectedPlayers(new Set());
+      setSoccerPaymentType('none');
+      setSoccerSelectedCard('');
+      setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
       setIsTeamExpanded(false);
       await load(true);
     } catch (err: any) {
@@ -1929,27 +1985,134 @@ export default function SaldamosGroupDetail({
               </div>
             </div>
 
-            {/* Yo pagué la cancha toggle */}
+            {/* ¿Quién pagó la cancha? UI */}
             {myMemberId && selectedPlayers.has(myMemberId) && (
-              <button
-                type="button"
-                onClick={() => setIPaidCourt(!iPaidCourt)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold transition-all active:scale-[0.98] ${
-                  iPaidCourt
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-muted/40 border-border/50 text-muted-foreground hover:border-border'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
-                  iPaidCourt ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40 bg-transparent'
-                }`}>
-                  {iPaidCourt && <CheckCircle2 className="w-3 h-3 text-white" />}
+              <div className="space-y-3 pt-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">¿Quién pagó la cancha?</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant={soccerPaymentType === 'none' ? 'default' : 'outline'}
+                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                      soccerPaymentType === 'none'
+                        ? 'bg-slate-800 text-white border-slate-800 hover:bg-slate-900'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                    }`}
+                    onClick={() => { setSoccerPaymentType('none'); setSoccerSelectedCard(''); }}
+                  >
+                    <span className="text-base">❌</span>
+                    <span className="text-[9px] uppercase font-black tracking-wider">No la pagué yo</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={soccerPaymentType === 'cash' ? 'default' : 'outline'}
+                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                      soccerPaymentType === 'cash'
+                        ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                    }`}
+                    onClick={() => { setSoccerPaymentType('cash'); setSoccerSelectedCard(''); }}
+                  >
+                    <span className="text-base">💵</span>
+                    <span className="text-[9px] uppercase font-black tracking-wider">Pagué en Efectivo</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={soccerPaymentType === 'card' ? 'default' : 'outline'}
+                    className={`rounded-2xl h-12 text-xs font-bold flex flex-col items-center justify-center gap-0.5 border ${
+                      soccerPaymentType === 'card'
+                        ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                    }`}
+                    onClick={() => {
+                      setSoccerPaymentType('card');
+                      if (savedCards.length > 0 && !soccerSelectedCard) {
+                        setSoccerSelectedCard(savedCards[0]);
+                      }
+                    }}
+                  >
+                    <span className="text-base">💳</span>
+                    <span className="text-[9px] uppercase font-black tracking-wider">Pagué con Tarjeta</span>
+                  </Button>
                 </div>
-                <div className="text-left">
-                  <p className="font-black">Yo pagué la cancha 💳</p>
-                  <p className="text-[10px] font-medium opacity-70">Mi cuota quedará marcada como pagada automáticamente</p>
-                </div>
-              </button>
+
+                {soccerPaymentType === 'card' && (
+                  <div className="pt-2 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <Label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block text-center">Selecciona la Tarjeta:</Label>
+                    
+                    {savedCards.length === 0 && !showSoccerAddCard && (
+                      <div className="text-center p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                        No tienes tarjetas guardadas.
+                        <button
+                          type="button"
+                          className="block mx-auto mt-1.5 text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+                          onClick={() => setShowSoccerAddCard(true)}
+                        >
+                          + Agregar Tarjeta Rápida
+                        </button>
+                      </div>
+                    )}
+
+                    {savedCards.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 justify-center">
+                        {savedCards.map(cardName => (
+                          <button
+                            key={cardName}
+                            type="button"
+                            onClick={() => setSoccerSelectedCard(cardName)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                              soccerSelectedCard === cardName
+                                ? 'bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-400'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                            }`}
+                          >
+                            {cardName}
+                          </button>
+                        ))}
+                        {!showSoccerAddCard && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSoccerAddCard(true)}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-dashed border-border/80 text-indigo-600 hover:bg-muted transition-all"
+                          >
+                            + Agregar
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {showSoccerAddCard && (
+                      <div className="flex gap-2 w-full pt-1 max-w-[320px] mx-auto animate-in zoom-in-95 duration-150">
+                        <Input
+                          placeholder="Ej: Banco Estado, Visa..."
+                          value={soccerNewCardName}
+                          onChange={e => setSoccerNewCardName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddSoccerCard()}
+                          className="rounded-xl h-9 text-xs font-semibold flex-1"
+                        />
+                        <Button
+                          onClick={handleAddSoccerCard}
+                          disabled={!soccerNewCardName.trim()}
+                          size="sm"
+                          className="rounded-xl h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0"
+                        >
+                          Agregar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => { setShowSoccerAddCard(false); setSoccerNewCardName(''); }}
+                          size="sm"
+                          className="rounded-xl h-9 px-2 text-xs font-bold text-muted-foreground"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             <Button
