@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { saldamosSupabase } from '@/integrations/supabase/saldamos-client';
 import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
-  ArrowLeft, Coins, TrendingUp, TrendingDown, Scale, 
-  Loader2, User, CheckCircle2, ChevronDown, ChevronUp, AlertCircle 
+  ArrowLeft, Coins, TrendingUp, TrendingDown,
+  Loader2, User, CheckCircle2, ChevronDown, ChevronUp, AlertCircle,
+  CreditCard, Plus, Trash2, Banknote, Wallet, UserCheck, Pencil, Check
 } from 'lucide-react';
 import { formatMoney, computeBalances, simplifyDebts } from '@/lib/balances';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,8 +36,24 @@ interface GroupSummary {
   membersList: Member[];
 }
 
+interface PaymentMethodSummary {
+  method: string; // 'Efectivo', card names, or 'Sin etiqueta'
+  type: 'cash' | 'card' | 'untagged';
+  currency: string;
+  total: number;
+}
+
 interface MyProfileDashboardProps {
   onBack: () => void;
+}
+
+// Helper to parse payment method from expense description
+function parsePaymentMethod(description: string): { type: 'cash' | 'card' | 'untagged'; label: string } {
+  const cashMatch = description.match(/\[Efectivo\]/i);
+  const cardMatch = description.match(/\[Tarjeta:\s*([^\]]+)\]/i);
+  if (cashMatch) return { type: 'cash', label: 'Efectivo' };
+  if (cardMatch) return { type: 'card', label: cardMatch[1].trim() };
+  return { type: 'untagged', label: 'Sin etiqueta' };
 }
 
 export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) {
@@ -46,6 +64,89 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
   const [expenses, setExpenses] = useState<any[]>([]);
   const [identities, setIdentities] = useState<Record<string, string>>({}); // groupId -> memberId
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Cards state
+  const [savedCards, setSavedCards] = useState<string[]>([]);
+  const [newCardName, setNewCardName] = useState('');
+  const [cardsExpanded, setCardsExpanded] = useState(true);
+  const [paymentExpanded, setPaymentExpanded] = useState(true);
+
+  // Global name state
+  const [globalName, setGlobalName] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const globalNameKey = user?.id ? `saldamos_my_name_${user.id}` : 'saldamos_my_name';
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const saved = localStorage.getItem(globalNameKey);
+    if (saved) setGlobalName(saved);
+  }, [user?.id]);
+
+  const saveGlobalName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    localStorage.setItem(globalNameKey, trimmed);
+    setGlobalName(trimmed);
+    setEditingName(false);
+
+    // Auto-assign identity in groups where a member name matches
+    let assigned = 0;
+    groups.forEach(g => {
+      if (identities[g.id]) return; // Skip if already assigned
+      const groupMembers = members.filter(m => m.group_id === g.id);
+      const match = groupMembers.find(m =>
+        m.name.toLowerCase() === trimmed.toLowerCase() ||
+        m.name.toLowerCase().startsWith(trimmed.toLowerCase()) ||
+        trimmed.toLowerCase().startsWith(m.name.toLowerCase())
+      );
+      if (match) {
+        localStorage.setItem(`saldamos_id_${g.id}`, match.id);
+        setIdentities(prev => ({ ...prev, [g.id]: match.id }));
+        assigned++;
+      }
+    });
+
+    toast.success(`✅ Nombre guardado${assigned > 0 ? ` · Asignado en ${assigned} grupo${assigned > 1 ? 's' : ''}` : ''}`);
+  };
+
+  const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+
+  // Load cards
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const stored = localStorage.getItem(cardsKey);
+      setSavedCards(stored ? JSON.parse(stored) : []);
+    } catch {
+      setSavedCards([]);
+    }
+  }, [user?.id, cardsKey]);
+
+  const saveCards = (cards: string[]) => {
+    setSavedCards(cards);
+    localStorage.setItem(cardsKey, JSON.stringify(cards));
+  };
+
+  const handleAddCard = () => {
+    const trimmed = newCardName.trim();
+    if (!trimmed) return;
+    if (savedCards.includes(trimmed)) {
+      toast.error('Ya existe una tarjeta con ese nombre');
+      return;
+    }
+    const updated = [...savedCards, trimmed];
+    saveCards(updated);
+    setNewCardName('');
+    toast.success(`Tarjeta "${trimmed}" agregada`);
+  };
+
+  const handleDeleteCard = (card: string) => {
+    const updated = savedCards.filter(c => c !== card);
+    saveCards(updated);
+    toast.success(`Tarjeta "${card}" eliminada`);
+  };
 
   // Load identities from localStorage
   const loadIdentities = (groupList: Group[]) => {
@@ -81,6 +182,30 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
           .in('group_id', groupIds);
         if (mErr) throw mErr;
         setMembers(memberList || []);
+
+        // Auto-assign identity using global name for groups that don't have one yet
+        const myName = localStorage.getItem(globalNameKey)?.trim().toLowerCase();
+        if (myName) {
+          const updatedIds: Record<string, string> = {};
+          loadedGroups.forEach(g => {
+            const existing = localStorage.getItem(`saldamos_id_${g.id}`);
+            if (existing) {
+              updatedIds[g.id] = existing;
+            } else {
+              const groupMembers = (memberList || []).filter((m: any) => m.group_id === g.id);
+              const match = groupMembers.find((m: any) =>
+                m.name.toLowerCase() === myName ||
+                m.name.toLowerCase().startsWith(myName) ||
+                myName.startsWith(m.name.toLowerCase())
+              );
+              if (match) {
+                localStorage.setItem(`saldamos_id_${g.id}`, match.id);
+                updatedIds[g.id] = match.id;
+              }
+            }
+          });
+          setIdentities(updatedIds);
+        }
 
         // 3. Fetch expenses with contributions
         const { data: expenseList, error: eErr } = await saldamosSupabase
@@ -142,14 +267,34 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
       const myMember = groupMembers.find(m => m.id === myId);
       const myName = myMember ? myMember.name : '(Sin seleccionar)';
 
-      // Calculate total spent by user (sum of amount_owed where c.member_id === myId)
+      // Calculate total spent by user (sum of consumed share where c.member_id === myId)
       let totalSpent = 0;
       if (myId) {
         groupExpenses.forEach(ex => {
-          if (ex.is_personal || ex.is_settlement) return;
+          if (ex.is_settlement) return;
+          
+          if (ex.is_personal) {
+            // If it's a personal expense, the payer is the one who consumed it.
+            const userContrib = ex.contributions.find((c: any) => c.member_id === myId);
+            if (userContrib) {
+              totalSpent += Number(ex.total_amount) || 0;
+            }
+            return;
+          }
+          
           const userContrib = ex.contributions.find((c: any) => c.member_id === myId);
           if (userContrib) {
-            totalSpent += Number(userContrib.amount_owed) || 0;
+            // Determine if there are specific non-zero owed amounts registered
+            const sumOwed = ex.contributions.reduce((s: number, cc: any) => s + (Number(cc.amount_owed) || 0), 0);
+            const useOwed = sumOwed > 0.01;
+            
+            // If specific owed amounts exist, use the user's specific amount_owed.
+            // Otherwise, fallback to equal share of the total expense amount.
+            const consumed = useOwed 
+              ? (Number(userContrib.amount_owed) || 0) 
+              : (ex.contributions.length > 0 ? (Number(ex.total_amount) / ex.contributions.length) : 0);
+              
+            totalSpent += consumed;
           }
         });
       }
@@ -210,6 +355,81 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
     }));
   }, [summaries]);
 
+  // Payment method spending breakdown
+  // Reads from expense descriptions tagged with [Efectivo] or [Tarjeta: X]
+  // Only includes expenses where myId was the payer (amount_paid > 0)
+  const paymentMethodSummaries = useMemo((): PaymentMethodSummary[] => {
+    const map: Record<string, { type: 'cash' | 'card' | 'untagged'; currency: string; total: number }> = {};
+
+    expenses.forEach(ex => {
+      const group = groups.find(g => g.id === ex.group_id);
+      if (!group) return;
+      const myId = identities[ex.group_id];
+      if (!myId) return;
+
+      const contributions = ex.expense_contributions || [];
+      const myContrib = contributions.find((c: any) => c.member_id === myId);
+      if (!myContrib || Number(myContrib.amount_paid) <= 0) return;
+
+      const paidAmount = Number(myContrib.amount_paid) || 0;
+      const { type, label } = parsePaymentMethod(ex.description || '');
+      const key = `${label}||${group.currency}`;
+
+      if (!map[key]) {
+        map[key] = { type, currency: group.currency, total: 0 };
+      }
+      map[key].total += paidAmount;
+    });
+
+    return Object.entries(map)
+      .map(([key, val]) => ({
+        method: key.split('||')[0],
+        type: val.type,
+        currency: val.currency,
+        total: val.total
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [expenses, groups, identities]);
+
+  // Card-specific spending breakdown for the "Mis Tarjetas" section
+  const cardSpendings = useMemo(() => {
+    const spendings: Record<string, Record<string, number>> = {};
+    
+    // Initialize spendings for all saved cards
+    savedCards.forEach(card => {
+      spendings[card] = {};
+    });
+
+    expenses.forEach(ex => {
+      const group = groups.find(g => g.id === ex.group_id);
+      if (!group) return;
+      
+      const myId = identities[ex.group_id];
+      if (!myId) return;
+
+      const contributions = ex.expense_contributions || [];
+      const myContrib = contributions.find((c: any) => c.member_id === myId);
+      if (!myContrib || Number(myContrib.amount_paid) <= 0) return;
+
+      const paidAmount = Number(myContrib.amount_paid) || 0;
+      const { type, label } = parsePaymentMethod(ex.description || '');
+      if (type === 'card' && label) {
+        // Find if label matches one of our saved cards (case-insensitive) or use exact label
+        const matchedCard = savedCards.find(c => c.toLowerCase() === label.toLowerCase()) || label;
+        
+        if (!spendings[matchedCard]) {
+          spendings[matchedCard] = {};
+        }
+        if (!spendings[matchedCard][group.currency]) {
+          spendings[matchedCard][group.currency] = 0;
+        }
+        spendings[matchedCard][group.currency] += paidAmount;
+      }
+    });
+
+    return spendings;
+  }, [expenses, groups, identities, savedCards]);
+
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center py-24 space-y-4">
@@ -255,6 +475,60 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
         </div>
       </div>
 
+      {/* ── MI NOMBRE GLOBAL ── */}
+      <div className="bg-card border border-border/60 rounded-3xl shadow-sm overflow-hidden">
+        <div className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tu nombre en todos los grupos</p>
+            {globalName && !editingName ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-base font-black text-foreground truncate">{globalName}</p>
+                <button
+                  onClick={() => { setNameInput(globalName); setEditingName(true); }}
+                  className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            ) : editingName ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveGlobalName(nameInput)}
+                  placeholder="Tu nombre..."
+                  className="h-8 rounded-xl text-sm font-bold flex-1"
+                />
+                <button
+                  onClick={() => saveGlobalName(nameInput)}
+                  className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 shrink-0"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setNameInput(''); setEditingName(true); }}
+                className="mt-1 text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Configurar mi nombre
+              </button>
+            )}
+          </div>
+        </div>
+        {globalName && !editingName && (
+          <div className="px-4 pb-3">
+            <p className="text-[10px] text-muted-foreground">
+              Se usa para calcular tu balance en cada grupo donde aparezca ese nombre. Edita por grupo si hay ambigüedad.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Global Stat Banners */}
       {totalsByCurrency.length > 0 && (
         <div className="space-y-3">
@@ -296,6 +570,157 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── MIS TARJETAS ── */}
+      <div className="bg-card border border-border/60 rounded-3xl shadow-sm overflow-hidden">
+        {/* Collapsible header */}
+        <button
+          className="w-full flex items-center justify-between p-4 select-none"
+          onClick={() => setCardsExpanded(p => !p)}
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <CreditCard className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-xs font-black text-foreground uppercase tracking-wider">Mis Tarjetas</span>
+            {savedCards.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[9px] font-black">{savedCards.length}</span>
+            )}
+          </div>
+          {cardsExpanded ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+
+        {cardsExpanded && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            {/* Card list */}
+            {savedCards.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground italic text-center py-2">
+                No tienes tarjetas guardadas. ¡Agrega una!
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {savedCards.map(card => (
+                  <div key={card} className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-muted/40 border border-border/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                        <CreditCard className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-foreground block">{card}</span>
+                        {Object.keys(cardSpendings[card] || {}).length > 0 ? (
+                          <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="text-[8px] font-black uppercase text-indigo-600">Gastado:</span>
+                            {Object.entries(cardSpendings[card]).map(([curr, amt]) => (
+                              <span key={curr} className="bg-indigo-50 dark:bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-bold text-[9px]">
+                                {formatMoney(amt, curr)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[9px] text-muted-foreground block mt-0.5">Sin gastos registrados</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteCard(card)}
+                      className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors active:scale-95"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new card */}
+            <div className="flex gap-2 pt-1">
+              <Input
+                placeholder="Ej: Banco Estado, Santander..."
+                value={newCardName}
+                onChange={e => setNewCardName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddCard()}
+                className="rounded-xl h-9 text-xs font-semibold flex-1"
+              />
+              <Button
+                onClick={handleAddCard}
+                disabled={!newCardName.trim()}
+                className="rounded-xl h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Agregar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── GASTOS POR MÉTODO DE PAGO ── */}
+      {paymentMethodSummaries.length > 0 && (
+        <div className="bg-card border border-border/60 rounded-3xl shadow-sm overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between p-4 select-none"
+            onClick={() => setPaymentExpanded(p => !p)}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 flex items-center justify-center">
+                <Wallet className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-xs font-black text-foreground uppercase tracking-wider">Gastos que pagué</span>
+              <span className="text-[9px] text-muted-foreground font-bold">(por método de pago)</span>
+            </div>
+            {paymentExpanded ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {paymentExpanded && (
+            <div className="px-4 pb-4 space-y-2 border-t border-border/30 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              {paymentMethodSummaries.map((pm, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-muted/30 border border-border/20">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
+                      pm.type === 'cash' 
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : pm.type === 'card'
+                          ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                          : 'bg-slate-500/10 text-slate-500'
+                    }`}>
+                      {pm.type === 'cash' 
+                        ? <Banknote className="w-3.5 h-3.5" />
+                        : pm.type === 'card'
+                          ? <CreditCard className="w-3.5 h-3.5" />
+                          : <Wallet className="w-3.5 h-3.5" />
+                      }
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{pm.method}</p>
+                      <p className="text-[9px] text-muted-foreground font-bold uppercase">{pm.currency}</p>
+                    </div>
+                  </div>
+                  <p className={`text-sm font-black tabular-nums ${
+                    pm.type === 'cash' 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : pm.type === 'card'
+                        ? 'text-indigo-600 dark:text-indigo-400'
+                        : 'text-muted-foreground'
+                  }`}>
+                    {formatMoney(pm.total, pm.currency)}
+                  </p>
+                </div>
+              ))}
+              <p className="text-[9px] text-muted-foreground italic text-center pt-1">
+                Solo incluye gastos donde fuiste el pagador con método registrado.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -367,24 +792,11 @@ export default function MyProfileDashboard({ onBack }: MyProfileDashboardProps) 
                 {isExpanded && (
                   <div className="border-t border-border/40 pt-3.5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                     
-                    {/* Identity setting/change selector */}
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">¿Quién eres tú en este grupo?</label>
-                      <Select 
-                        value={s.myMemberId || 'none'} 
-                        onValueChange={(val) => handleSetIdentity(s.group.id, val)}
-                      >
-                        <SelectTrigger className="h-8 text-[11px] rounded-xl bg-muted/40 border-none font-semibold">
-                          <User className="w-3.5 h-3.5 text-muted-foreground mr-1 shrink-0" />
-                          <SelectValue placeholder="Configura tu persona" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="none">(Nadie - Omitir balance)</SelectItem>
-                          {s.membersList.map(m => (
-                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {/* Identity display (read-only, set via Mi Nombre global) */}
+                    <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-muted/30 border border-border/20">
+                      <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-[10px] text-muted-foreground font-bold">Tú en este grupo:</span>
+                      <span className="text-[11px] font-black text-foreground">{s.myMemberName}</span>
                     </div>
 
                     {/* Detailed debts */}

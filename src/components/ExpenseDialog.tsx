@@ -32,6 +32,28 @@ import { useSaldamosAuth } from "@/contexts/SaldamosAuthContext";
 type Member = { id: string; name: string; joined_at: string };
 type ExpenseWithCategory = ExpenseWithContribs & { category_id: string | null; is_personal?: boolean };
 
+function parseDescription(description: string) {
+  if (!description) {
+    return { originalDescription: "", paymentMethod: null as 'cash' | 'card' | null, cardName: null as string | null };
+  }
+  const cardMatch = description.match(/\[Tarjeta:\s*([^\]]+)\]/);
+  if (cardMatch) {
+    return {
+      originalDescription: description.replace(/\[Tarjeta:\s*([^\]]+)\]/, "").trim(),
+      paymentMethod: "card" as const,
+      cardName: cardMatch[1].trim()
+    };
+  }
+  if (description.includes("[Efectivo]")) {
+    return {
+      originalDescription: description.replace("[Efectivo]", "").trim(),
+      paymentMethod: "cash" as const,
+      cardName: null
+    };
+  }
+  return { originalDescription: description.trim(), paymentMethod: null, cardName: null };
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -46,11 +68,13 @@ type Props = {
   initialImportText?: string | null;
   mode?: 'balance' | 'tracker';
   myMemberId?: string | null;
+  groupType?: string;
 };
 
 export function ExpenseDialog({ 
-  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId 
+  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId, groupType 
 }: Props) {
+  const isPersonalGroup = groupType === 'personal';
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [total, setTotal] = useState<string>("");
@@ -62,6 +86,10 @@ export function ExpenseDialog({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
+
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | null>(null);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [savedCards, setSavedCards] = useState<string[]>([]);
   const [trackPayments, setTrackPayments] = useState(false);
   const [personalPayer, setPersonalPayer] = useState<string>("");
   const [unmappedPersons, setUnmatchedPersons] = useState<any[]>([]);
@@ -91,6 +119,13 @@ export function ExpenseDialog({
       setPeopleGroups(savedGroups ? JSON.parse(savedGroups) : {});
     } catch {
       setPeopleGroups({});
+    }
+    const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+    try {
+      const stored = localStorage.getItem(cardsKey);
+      setSavedCards(stored ? JSON.parse(stored) : ['Banco Estado', 'Banco Itaú']);
+    } catch {
+      setSavedCards(['Banco Estado', 'Banco Itaú']);
     }
   }, [frequentPeopleKey, peopleGroupsKey, open]);
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
@@ -133,7 +168,10 @@ export function ExpenseDialog({
     if (!open) return;
     const defaultCat = categories.find((c) => c.is_default) ?? null;
     if (existing) {
-      setDescription(existing.description);
+      const parsedDesc = parseDescription(existing.description);
+      setDescription(parsedDesc.originalDescription);
+      setPaymentMethod(parsedDesc.paymentMethod);
+      setSelectedCard(parsedDesc.cardName);
       setTotal(String(existing.total_amount));
       setDate(new Date(existing.expense_date).toISOString().slice(0, 10));
       setCategoryId(existing.category_id ?? defaultCat?.id ?? null);
@@ -157,6 +195,8 @@ export function ExpenseDialog({
     } else if (initialImportText) {
       const parsed = parseLaCuotaMessage(initialImportText);
       setDescription(""); // Leave empty as requested
+      setPaymentMethod(null);
+      setSelectedCard(null);
       const sum = parsed.reduce((s, p) => s + p.amount, 0);
       setTotal(sum.toString());
       setDate(new Date().toISOString().slice(0, 10));
@@ -195,13 +235,15 @@ export function ExpenseDialog({
       }
     } else {
       setDescription("");
+      setPaymentMethod(null);
+      setSelectedCard(null);
       setTotal("");
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
       setTempMembers([]);
       const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
       
-      setTrackPayments(isTrackerMode || isFootball);
+      setTrackPayments(isTrackerMode || isFootball || isPersonalGroup);
       setPersonalPayer("");
       
       if (isTrackerMode) {
@@ -337,13 +379,21 @@ export function ExpenseDialog({
     setSaving(true);
     const isoDate = new Date(date + "T12:00:00").toISOString();
 
+    // Format description with payment method tags
+    let finalDescription = description.trim();
+    if (paymentMethod === 'cash') {
+      finalDescription = `${finalDescription} [Efectivo]`;
+    } else if (paymentMethod === 'card' && selectedCard) {
+      finalDescription = `${finalDescription} [Tarjeta: ${selectedCard}]`;
+    }
+
     let expenseId = existing?.id;
     const finalCategoryId = categoryId ?? categories.find((c) => c.is_default)?.id ?? null;
     if (existing) {
       const { error } = await saldamosSupabase
         .from("expenses")
         .update({
-          description: description.trim(),
+          description: finalDescription,
           total_amount: totalNum,
           expense_date: isoDate,
           category_id: finalCategoryId,
@@ -362,7 +412,7 @@ export function ExpenseDialog({
         .from("expenses")
         .insert({
           group_id: groupId,
-          description: description.trim(),
+          description: finalDescription,
           total_amount: totalNum,
           expense_date: isoDate,
           category_id: finalCategoryId,
@@ -421,7 +471,7 @@ export function ExpenseDialog({
 
     onSaved({
       id: expenseId,
-      description: description.trim(),
+      description: finalDescription,
       total_amount: totalNum
     });
     onOpenChange(false);
@@ -536,6 +586,68 @@ export function ExpenseDialog({
              />
           </div>
 
+          {/* Método de Pago Selector */}
+          <div className="space-y-2 p-3 rounded-2xl border border-border/50 bg-muted/10">
+            <Label className="text-[10px] font-black text-foreground dark:text-white uppercase tracking-widest block mb-1">¿Cómo se pagó? 💳</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                className={`flex-1 rounded-xl h-9 text-xs font-bold gap-1.5 ${paymentMethod === 'cash' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''}`}
+                onClick={() => { setPaymentMethod('cash'); setSelectedCard(null); }}
+              >
+                💵 Efectivo
+              </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                className={`flex-1 rounded-xl h-9 text-xs font-bold gap-1.5 ${paymentMethod === 'card' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''}`}
+                onClick={() => {
+                  setPaymentMethod('card');
+                  if (savedCards.length > 0 && !selectedCard) {
+                    setSelectedCard(savedCards[0]);
+                  }
+                }}
+              >
+                💳 Tarjeta
+              </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === null ? 'default' : 'outline'}
+                className={`rounded-xl h-9 text-xs font-bold px-3 ${paymentMethod === null ? 'bg-muted-foreground text-white hover:bg-muted-foreground/90' : ''}`}
+                onClick={() => { setPaymentMethod(null); setSelectedCard(null); }}
+              >
+                Omitir
+              </Button>
+            </div>
+
+            {paymentMethod === 'card' && (
+              <div className="pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                <Label className="text-[9px] font-bold text-muted-foreground uppercase">Selecciona la Tarjeta:</Label>
+                {savedCards.length === 0 ? (
+                  <p className="text-[10px] text-amber-600 font-semibold italic">No tienes tarjetas guardadas. Agrégalas en "Mi Perfil".</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {savedCards.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSelectedCard(c)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          selectedCard === c
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-400'
+                            : 'bg-background hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {!isTrackerMode && (
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-foreground dark:text-white uppercase tracking-widest px-1">Categoría</Label>
@@ -607,8 +719,8 @@ export function ExpenseDialog({
           )}
 
 
-          {/* Gasto Personal Section - Hidden in Tracker Mode */}
-          {!isTrackerMode ? (
+          {/* Gasto Personal Section - Hidden in Tracker Mode and Personal Group */}
+          {!isTrackerMode && !isPersonalGroup ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
               <div className="flex items-start gap-2">
                 <div className="flex items-center gap-2">
@@ -620,7 +732,7 @@ export function ExpenseDialog({
             </div>
           ) : null}
 
-          {!isPersonal && !isTrackerMode && (
+          {!isPersonal && !isTrackerMode && !isPersonalGroup && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
               <div className="flex items-start gap-2">
                 <HandCoins className="mt-0.5 h-4 w-4 text-amber-600" />
