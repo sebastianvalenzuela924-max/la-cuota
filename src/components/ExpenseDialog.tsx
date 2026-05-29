@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { saldamosSupabase } from "@/integrations/supabase/saldamos-client";
 import {
   Dialog,
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper, Mic } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
@@ -71,6 +71,11 @@ type Props = {
   groupType?: string;
 };
 
+const SpeechRecognition = typeof window !== 'undefined'
+  ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+  : null;
+const isSpeechSupported = !!SpeechRecognition;
+
 export function ExpenseDialog({ 
   open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId, groupType 
 }: Props) {
@@ -86,6 +91,65 @@ export function ExpenseDialog({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
+
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startListening = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (isListening) return;
+
+    try {
+      const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognitionClass) return;
+
+      const recognition = new SpeechRecognitionClass();
+      recognition.lang = 'es-CL';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        if ('vibrate' in navigator) {
+          navigator.vibrate(40);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          toast.error('Permiso de micrófono denegado');
+        }
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          const formattedText = transcript.charAt(0).toUpperCase() + transcript.slice(1);
+          setDescription(formattedText);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -578,13 +642,33 @@ export function ExpenseDialog({
                  />
                </div>
              </div>
-             <Input
-               id="desc"
-               value={description}
-               onChange={(e) => setDescription(e.target.value)}
-               placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
-               className="rounded-xl h-12 text-sm font-medium shadow-sm bg-background"
-             />
+              <div className="relative flex items-center">
+                <Input
+                  id="desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
+                  className="rounded-xl h-12 pr-12 text-sm font-medium shadow-sm bg-background flex-1"
+                />
+                {isSpeechSupported && (
+                  <button
+                    type="button"
+                    onMouseDown={startListening}
+                    onMouseUp={stopListening}
+                    onMouseLeave={stopListening}
+                    onTouchStart={startListening}
+                    onTouchEnd={stopListening}
+                    className={`absolute right-1.5 w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                      isListening 
+                        ? 'bg-red-500 text-white animate-pulse scale-105 shadow-sm' 
+                        : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                    }`}
+                    title="Mantén presionado para hablar 🎙️"
+                  >
+                    <Mic className="w-4.5 h-4.5" />
+                  </button>
+                )}
+              </div>
           </div>
 
           {/* Método de Pago Selector */}

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { 
   Loader2, Check, ArrowRight, ArrowLeft, 
-  Coins, ChevronRight, Tag, Sparkles, HandCoins, User, Users, Search
+  Coins, ChevronRight, Tag, Sparkles, HandCoins, User, Users, Search, Mic
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
@@ -48,6 +48,11 @@ const QUICK_CATEGORIES = [
 type GroupType = 'balance' | 'football' | 'personal';
 type FlowMode = 'ipaid' | 'iowe'; // For personal groups
 
+const SpeechRecognition = typeof window !== 'undefined'
+  ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+  : null;
+const isSpeechSupported = !!SpeechRecognition;
+
 export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved, fixedGroupId }: QuickExpenseDialogProps) {
   const [step, setStep] = useState(1);
   const [amount, setAmount] = useState('');
@@ -78,6 +83,65 @@ export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved
 
   const amountInputRef = useRef<HTMLInputElement>(null);
   const descInputRef = useRef<HTMLInputElement>(null);
+
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startListening = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (isListening) return;
+
+    try {
+      const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognitionClass) return;
+
+      const recognition = new SpeechRecognitionClass();
+      recognition.lang = 'es-CL';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        if ('vibrate' in navigator) {
+          navigator.vibrate(40);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          toast.error('Permiso de micrófono denegado');
+        }
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          const formattedText = transcript.charAt(0).toUpperCase() + transcript.slice(1);
+          setDescription(formattedText);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
 
   // Detect group type from localStorage
   const detectGroupType = (groupId: string): GroupType => {
@@ -1037,15 +1101,35 @@ export default function QuickExpenseDialog({ open, onOpenChange, groups, onSaved
 
               <div className="space-y-1.5">
                 <Label htmlFor="quick-desc-input" className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1">Descripción</Label>
-                <Input
-                  ref={descInputRef}
-                  id="quick-desc-input"
-                  placeholder="Ej: Pizza gigante, Asado, Combustible"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !saving && saveExpense()}
-                  className="rounded-xl h-10 text-xs font-semibold"
-                />
+                <div className="relative flex items-center">
+                  <Input
+                    ref={descInputRef}
+                    id="quick-desc-input"
+                    placeholder="Ej: Pizza gigante, Asado, Combustible"
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !saving && saveExpense()}
+                    className="rounded-xl h-10 text-xs font-semibold pr-10 flex-1 bg-background"
+                  />
+                  {isSpeechSupported && (
+                    <button
+                      type="button"
+                      onMouseDown={startListening}
+                      onMouseUp={stopListening}
+                      onMouseLeave={stopListening}
+                      onTouchStart={startListening}
+                      onTouchEnd={stopListening}
+                      className={`absolute right-1 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                        isListening 
+                          ? 'bg-red-500 text-white animate-pulse scale-105 shadow-sm' 
+                          : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                      }`}
+                      title="Mantén presionado para hablar 🎙️"
+                    >
+                      <Mic className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Summary for personal iowe */}
