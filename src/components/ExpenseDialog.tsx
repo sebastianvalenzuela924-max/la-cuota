@@ -658,9 +658,10 @@ export function ExpenseDialog({
                     onMouseLeave={stopListening}
                     onTouchStart={startListening}
                     onTouchEnd={stopListening}
-                    className={`absolute right-1.5 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ease-out ${
+                    onTouchCancel={stopListening}
+                    className={`absolute right-1.5 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ease-out touch-none ${
                       isListening 
-                        ? 'bg-red-500 text-white animate-pulse scale-125 z-10 shadow-md' 
+                        ? 'bg-red-600 text-white scale-[1.8] z-50 shadow-lg' 
                         : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                     }`}
                     title="Mantén presionado para hablar 🎙️"
