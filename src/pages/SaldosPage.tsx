@@ -4,6 +4,7 @@ import AuthWall from '@/components/saldos/AuthWall';
 import GroupsList from '@/components/saldos/GroupsList';
 import GroupDetail from '@/components/saldos/GroupDetail';
 import MyProfileDashboard from '@/components/saldos/MyProfileDashboard';
+import AdminDashboard from '@/components/saldos/AdminDashboard';
 import { Loader2 } from 'lucide-react';
 
 interface Props {
@@ -80,6 +81,10 @@ export default function SaldosPage({ pendingImportText, onClearPendingImport, bi
 
   if (selectedGroupId === 'my-profile') {
     return <MyProfileDashboard onBack={handleManualBack} />;
+  }
+
+  if (selectedGroupId === 'admin-dashboard' && user?.email === 'sebastianvalenzuela924@gmail.com') {
+    return <AdminDashboard onBack={handleManualBack} />;
   }
 
   if (selectedGroupId) {
