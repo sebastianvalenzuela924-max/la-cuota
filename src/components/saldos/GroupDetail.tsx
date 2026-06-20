@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
-  Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
+  Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt, Coins,
   MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy,
   Clock, Scale, ChevronDown, ChevronUp, Calendar, X
 } from 'lucide-react';
@@ -241,6 +241,8 @@ export default function SaldamosGroupDetail({
   const [soccerNewCardName, setSoccerNewCardName] = useState('');
   const [showSoccerAddCard, setShowSoccerAddCard] = useState(false);
   const [soccerSearch, setSoccerSearch] = useState('');
+  const [soccerDialogOpen, setSoccerDialogOpen] = useState(false);
+  const [soccerStep, setSoccerStep] = useState(1);
 
   const filteredSoccerMembers = useMemo(() => {
     if (!soccerSearch.trim()) return members;
@@ -1534,6 +1536,8 @@ export default function SaldamosGroupDetail({
       setSoccerSelectedCard('');
       setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
       setIsTeamExpanded(false);
+      setSoccerDialogOpen(false);
+      setSoccerStep(1);
       await load(true);
     } catch (err: any) {
       console.error(err);
@@ -1724,409 +1728,6 @@ export default function SaldamosGroupDetail({
 
       {isFootball ? (
         <div className="space-y-6">
-          {/* Section 1: Arma tu equipo / Quiénes jugaron ⚽ */}
-          <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
-            <div 
-              className="flex items-center justify-between gap-3 cursor-pointer select-none pb-1.5"
-              onClick={() => setIsTeamExpanded(!isTeamExpanded)}
-            >
-              <div className="min-w-0 flex-1">
-                <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 flex-wrap">
-                  <span>⚽ ¿Quiénes jugaron? / Arma tu equipo</span>
-                  {selectedPlayers.size > 0 && (
-                    <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] font-black px-2 py-0.5 rounded-lg border border-green-200 dark:border-green-900/30 shrink-0">
-                      {selectedPlayers.size} seleccionados
-                    </span>
-                  )}
-                </h3>
-                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Define quiénes participaron en este partido</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-muted/40 hover:bg-muted flex items-center justify-center shrink-0 transition-colors">
-                {isTeamExpanded ? (
-                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                )}
-              </div>
-            </div>
-
-            {isTeamExpanded && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="flex gap-2 flex-1">
-                    <Input
-                      placeholder="Buscar o agregar jugador..."
-                      className="rounded-xl h-10 text-xs font-medium"
-                      value={soccerSearch}
-                      onChange={(e) => setSoccerSearch(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter') {
-                          const val = soccerSearch.trim();
-                          if (val) {
-                            await addOrSelectMember(val);
-                          }
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-                      onClick={async () => {
-                        const val = soccerSearch.trim();
-                        if (val) {
-                          await addOrSelectMember(val);
-                        }
-                      }}
-                    >
-                      Agregar
-                    </Button>
-                  </div>
-                  <div className="flex gap-1.5 justify-end sm:justify-start">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 rounded-xl text-xs font-bold gap-1.5 border-dashed flex-1 sm:flex-initial"
-                      onClick={() => setImportOpen(true)}
-                    >
-                      <Wand2 className="w-3.5 h-3.5" /> Importar
-                    </Button>
-                    {members.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={savingMember}
-                        className="h-10 w-10 p-0 rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/30 shrink-0"
-                        onClick={deleteAllMembers}
-                        title="Eliminar todos los jugadores del grupo"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {members.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                        onClick={selectAllPlayers}
-                      >
-                        Todos
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
-                        onClick={deselectAllPlayers}
-                      >
-                        Ninguno
-                      </Button>
-                    </div>
-
-                    {filteredSoccerMembers.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-2xl">
-                        No se encontraron jugadores que coincidan.
-                        <br />
-                        Presiona "Agregar" para crear a "{soccerSearch}".
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
-                        {filteredSoccerMembers.map(m => {
-                          const isSelected = selectedPlayers.has(m.id);
-                          const selectionIndex = isSelected ? Array.from(selectedPlayers).indexOf(m.id) + 1 : 0;
-                          return (
-                            <div
-                              key={m.id}
-                              onClick={() => togglePlayerSelection(m.id)}
-                              className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
-                                isSelected
-                                  ? 'bg-green-600 border-green-600 text-white shadow-sm'
-                                  : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
-                                  isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
-                                }`}>
-                                  {isSelected ? selectionIndex : ''}
-                                </div>
-                                <span className="truncate">{m.name}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteMember(m.id, m.name);
-                                }}
-                                className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                                  isSelected 
-                                    ? 'hover:bg-white/20 text-white/80 hover:text-white' 
-                                    : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
-                                }`}
-                                title="Eliminar jugador"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Quick-add contacts from other groups */}
-                {(frequentNotInGroup.length > 0 || Object.keys(peopleGroups).length > 0) && (
-                  <div className="border-t border-border/40 pt-3 space-y-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Agregar desde mis contactos</p>
-
-                    {/* Frequent people not in group */}
-                    {frequentNotInGroup.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {frequentNotInGroup.map(p => (
-                          <button
-                            key={p}
-                            type="button"
-                            disabled={savingMember}
-                            onClick={() => addOrSelectMember(p)}
-                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 active:scale-95 transition-all"
-                          >
-                            + {p}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* People from saved groups — pick individual */}
-                    {Object.keys(peopleGroups).map(gn => {
-                      const available = peopleGroups[gn].filter(
-                        p => !members.some(m => m.name.toLowerCase() === p.toLowerCase())
-                      );
-                      if (available.length === 0) return null;
-                      return (
-                        <div key={gn} className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1">
-                              <Users className="w-2.5 h-2.5" /> {gn}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={savingMember}
-                              onClick={() => bulkAddMembers(peopleGroups[gn])}
-                              className="text-[8px] font-black uppercase tracking-wider text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-                            >
-                              + Todos
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {available.map(p => (
-                              <button
-                                key={p}
-                                type="button"
-                                disabled={savingMember}
-                                onClick={() => addOrSelectMember(p)}
-                                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-muted/60 border border-border/60 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all"
-                              >
-                                + {p}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: Costo de la Cancha 💸 */}
-          <div className="bg-card border border-border/60 rounded-3xl p-5 shadow-sm space-y-4">
-            <div>
-              <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
-                <span>Registrar Partido 💸</span>
-              </h3>
-              <p className="text-[10px] text-muted-foreground font-medium">Ingresa el costo total o el costo por jugador</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="soccer-total-input" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Costo Total Cancha</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
-                  <Input
-                    id="soccer-total-input"
-                    type="number"
-                    placeholder="Total"
-                    value={soccerTotal}
-                    onChange={e => handleTotalChange(e.target.value)}
-                    className="rounded-xl h-10 pl-7 text-xs font-semibold"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="soccer-person-input" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Por Jugador</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
-                  <Input
-                    id="soccer-person-input"
-                    type="number"
-                    placeholder="Por jugador"
-                    value={soccerPerPerson}
-                    onChange={e => handlePerPersonChange(e.target.value)}
-                    className="rounded-xl h-10 pl-7 text-xs font-semibold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ¿Quién pagó la cancha? UI */}
-            {myMemberId && selectedPlayers.has(myMemberId) && (
-              <div className="space-y-3 pt-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">¿Quién pagó la cancha?</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    type="button"
-                    variant={soccerPaymentType === 'none' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
-                      soccerPaymentType === 'none'
-                        ? 'bg-slate-800 text-white border-slate-800 hover:bg-slate-900'
-                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
-                    }`}
-                    onClick={() => { setSoccerPaymentType('none'); setSoccerSelectedCard(''); }}
-                  >
-                    <span className="text-sm shrink-0">❌</span>
-                    <span className="text-[10px] uppercase font-black tracking-wider truncate">No pagué</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant={soccerPaymentType === 'cash' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
-                      soccerPaymentType === 'cash'
-                        ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
-                    }`}
-                    onClick={() => { setSoccerPaymentType('cash'); setSoccerSelectedCard(''); }}
-                  >
-                    <span className="text-sm shrink-0">💵</span>
-                    <span className="text-[10px] uppercase font-black tracking-wider truncate">Efectivo</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant={soccerPaymentType === 'card' ? 'default' : 'outline'}
-                    className={`rounded-2xl h-11 text-xs font-bold flex items-center justify-center gap-1.5 border px-2 ${
-                      soccerPaymentType === 'card'
-                        ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                        : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
-                    }`}
-                    onClick={() => {
-                      setSoccerPaymentType('card');
-                      if (savedCards.length > 0 && !soccerSelectedCard) {
-                        setSoccerSelectedCard(savedCards[0]);
-                      }
-                    }}
-                  >
-                    <span className="text-sm shrink-0">💳</span>
-                    <span className="text-[10px] uppercase font-black tracking-wider truncate">Tarjeta</span>
-                  </Button>
-                </div>
-
-                {soccerPaymentType === 'card' && (
-                  <div className="pt-2 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <Label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block text-center">Selecciona la Tarjeta:</Label>
-                    
-                    {savedCards.length === 0 && !showSoccerAddCard && (
-                      <div className="text-center p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold">
-                        No tienes tarjetas guardadas.
-                        <button
-                          type="button"
-                          className="block mx-auto mt-1.5 text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
-                          onClick={() => setShowSoccerAddCard(true)}
-                        >
-                          + Agregar Tarjeta Rápida
-                        </button>
-                      </div>
-                    )}
-
-                    {savedCards.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 justify-center">
-                        {savedCards.map(cardName => (
-                          <button
-                            key={cardName}
-                            type="button"
-                            onClick={() => setSoccerSelectedCard(cardName)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                              soccerSelectedCard === cardName
-                                ? 'bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-400'
-                                : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
-                            }`}
-                          >
-                            {cardName}
-                          </button>
-                        ))}
-                        {!showSoccerAddCard && (
-                          <button
-                            type="button"
-                            onClick={() => setShowSoccerAddCard(true)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-dashed border-border/80 text-indigo-600 hover:bg-muted transition-all"
-                          >
-                            + Agregar
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {showSoccerAddCard && (
-                      <div className="flex gap-2 w-full pt-1 max-w-[320px] mx-auto animate-in zoom-in-95 duration-150">
-                        <Input
-                          placeholder="Ej: Banco Estado, Visa..."
-                          value={soccerNewCardName}
-                          onChange={e => setSoccerNewCardName(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleAddSoccerCard()}
-                          className="rounded-xl h-9 text-xs font-semibold flex-1"
-                        />
-                        <Button
-                          onClick={handleAddSoccerCard}
-                          disabled={!soccerNewCardName.trim()}
-                          size="sm"
-                          className="rounded-xl h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0"
-                        >
-                          Agregar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => { setShowSoccerAddCard(false); setSoccerNewCardName(''); }}
-                          size="sm"
-                          className="rounded-xl h-9 px-2 text-xs font-bold text-muted-foreground"
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <Button
-              className="w-full bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-bold h-11 rounded-2xl shadow-md transition-all active:scale-95"
-              onClick={createSoccerMatch}
-              disabled={loading || !soccerTotal || Number(soccerTotal) <= 0 || selectedPlayers.size === 0}
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Registrar Partido ⚽ ({selectedPlayers.size} {selectedPlayers.size === 1 ? 'jugador' : 'jugadores'})
-            </Button>
-          </div>
-
           {/* Section 3: Partidos Registrados 📋 */}
           <div className="space-y-4">
             <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 px-1">
@@ -2135,7 +1736,7 @@ export default function SaldamosGroupDetail({
 
             {expenses.filter(ex => !ex.is_settlement).length === 0 ? (
               <div className="bg-card border border-border/40 rounded-3xl p-8 text-center text-muted-foreground italic text-xs">
-                Aún no hay partidos registrados. ¡Ingresa el costo del partido arriba para empezar!
+                Aún no hay partidos registrados. ¡Presiona el botón + abajo para registrar el primero! ⚽
               </div>
             ) : (
               expenses.filter(ex => !ex.is_settlement).map(ex => {
@@ -3544,8 +3145,455 @@ export default function SaldamosGroupDetail({
           )}
         </DialogContent>
       </Dialog>
+      {/* Redesigned Football Match Dialog Wizard */}
+      <Dialog open={soccerDialogOpen} onOpenChange={(v) => { setSoccerDialogOpen(v); if(!v) setSoccerStep(1); }}>
+        <DialogContent className="max-w-md w-[92vw] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col max-h-[85vh]">
+          <DialogHeader className="p-5 pb-3 border-b border-border/40">
+            <DialogTitle className="text-base font-black flex items-center gap-1.5 uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span>⚽ Registrar Partido</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {soccerStep === 1 && "Paso 1 de 3: ¿Quiénes jugaron? / Arma tu equipo"}
+              {soccerStep === 2 && "Paso 2 de 3: ¿Cómo o quién pagó la cancha?"}
+              {soccerStep === 3 && "Paso 3 de 3: Costo de la cancha"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+            {/* STEP 1: PLAYERS SELECTION */}
+            {soccerStep === 1 && (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Buscar o agregar jugador..."
+                    className="rounded-xl h-10 text-xs font-medium"
+                    value={soccerSearch}
+                    onChange={(e) => setSoccerSearch(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        const val = soccerSearch.trim();
+                        if (val) {
+                          await addOrSelectMember(val);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                    onClick={async () => {
+                      const val = soccerSearch.trim();
+                      if (val) {
+                        await addOrSelectMember(val);
+                      }
+                    }}
+                  >
+                    Agregar
+                  </Button>
+                </div>
+
+                <div className="flex gap-1.5 justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
+                    onClick={() => setImportOpen(true)}
+                  >
+                    <Wand2 className="w-3.5 h-3.5" /> Importar
+                  </Button>
+                  {members.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={savingMember}
+                      className="h-8 w-8 p-0 rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 shrink-0"
+                      onClick={deleteAllMembers}
+                      title="Eliminar todos los jugadores del grupo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {members.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        className="text-[9px] font-black uppercase tracking-wider text-blue-600 hover:underline"
+                        onClick={selectAllPlayers}
+                      >
+                        Todos
+                      </button>
+                      <span className="text-[9px] text-muted-foreground/30">•</span>
+                      <button
+                        type="button"
+                        className="text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:underline"
+                        onClick={deselectAllPlayers}
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+
+                    {filteredSoccerMembers.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-2xl">
+                        No se encontraron jugadores.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1">
+                        {filteredSoccerMembers.map(m => {
+                          const isSelected = selectedPlayers.has(m.id);
+                          const selectionIndex = isSelected ? Array.from(selectedPlayers).indexOf(m.id) + 1 : 0;
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => togglePlayerSelection(m.id)}
+                              className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                                  : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                                  isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
+                                }`}>
+                                  {isSelected ? selectionIndex : ''}
+                                </div>
+                                <span className="truncate">{m.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteMember(m.id, m.name);
+                                }}
+                                className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected 
+                                    ? 'hover:bg-white/20 text-white/80 hover:text-white' 
+                                    : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+                                }`}
+                                title="Eliminar jugador"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Contacts Section */}
+                {(frequentNotInGroup.length > 0 || Object.keys(peopleGroups).length > 0) && (
+                  <div className="border-t border-border/40 pt-3 space-y-3 max-h-[150px] overflow-y-auto custom-scrollbar">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Agregar desde mis contactos</p>
+                    
+                    {frequentNotInGroup.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {frequentNotInGroup.map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={savingMember}
+                            onClick={() => addOrSelectMember(p)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 active:scale-95 transition-all"
+                          >
+                            + {p}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {Object.keys(peopleGroups).map(gn => {
+                      const available = peopleGroups[gn].filter(
+                        p => !members.some(m => m.name.toLowerCase() === p.toLowerCase())
+                      );
+                      if (available.length === 0) return null;
+                      return (
+                        <div key={gn} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5" /> {gn}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={savingMember}
+                              onClick={() => bulkAddMembers(peopleGroups[gn])}
+                              className="text-[8px] font-black uppercase tracking-wider text-blue-500 hover:text-blue-700 px-1.5 py-0.5"
+                            >
+                              + Todos
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {available.map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                disabled={savingMember}
+                                onClick={() => addOrSelectMember(p)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-muted/60 border border-border/60 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all"
+                              >
+                                + {p}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 2: PAYER SELECTION */}
+            {soccerStep === 2 && (
+              <div className="space-y-4">
+                <div className="text-center py-2">
+                  <p className="text-xs text-muted-foreground font-bold">¿Pagaste tú la cancha u otra persona?</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setSoccerPaymentType('cash'); }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-1.5 ${
+                      soccerPaymentType !== 'none'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 scale-[0.98]'
+                        : 'border-border/60 bg-background hover:bg-muted/40 text-muted-foreground'
+                    }`}
+                  >
+                    <span className="text-2xl">🙋‍♂️</span>
+                    <span className="text-xs font-black uppercase tracking-wider text-foreground">Yo pagué</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSoccerPaymentType('none'); setSoccerSelectedCard(''); }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-1.5 ${
+                      soccerPaymentType === 'none'
+                        ? 'border-slate-800 bg-slate-100 dark:bg-slate-900 scale-[0.98]'
+                        : 'border-border/60 bg-background hover:bg-muted/40 text-muted-foreground'
+                    }`}
+                  >
+                    <span className="text-2xl">❌</span>
+                    <span className="text-xs font-black uppercase tracking-wider text-foreground">No pagué yo</span>
+                  </button>
+                </div>
+
+                {soccerPaymentType !== 'none' && (
+                  <div className="space-y-3 pt-3 border-t border-border/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">¿Cómo pagaste?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={soccerPaymentType === 'cash' ? 'default' : 'outline'}
+                        className={`rounded-xl h-10 text-xs font-bold gap-1.5 ${soccerPaymentType === 'cash' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''}`}
+                        onClick={() => { setSoccerPaymentType('cash'); setSoccerSelectedCard(''); }}
+                      >
+                        💵 Efectivo
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={soccerPaymentType === 'card' ? 'default' : 'outline'}
+                        className={`rounded-xl h-10 text-xs font-bold gap-1.5 ${soccerPaymentType === 'card' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
+                        onClick={() => {
+                          setSoccerPaymentType('card');
+                          if (savedCards.length > 0 && !soccerSelectedCard) {
+                            setSoccerSelectedCard(savedCards[0]);
+                          }
+                        }}
+                      >
+                        💳 Tarjeta
+                      </Button>
+                    </div>
+
+                    {soccerPaymentType === 'card' && (
+                      <div className="pt-1.5 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase text-center">Selecciona la Tarjeta:</p>
+                        
+                        {savedCards.length === 0 && !showSoccerAddCard && (
+                          <div className="text-center p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 text-xs font-semibold">
+                            No tienes tarjetas guardadas.
+                            <button
+                              type="button"
+                              className="block mx-auto mt-1 text-indigo-600 hover:underline font-bold"
+                              onClick={() => setShowSoccerAddCard(true)}
+                            >
+                              + Agregar Tarjeta Rápida
+                            </button>
+                          </div>
+                        )}
+
+                        {savedCards.length > 0 && (
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {savedCards.map(cardName => (
+                              <button
+                                key={cardName}
+                                type="button"
+                                onClick={() => setSoccerSelectedCard(cardName)}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                  soccerSelectedCard === cardName
+                                    ? 'bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-400'
+                                    : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                                }`}
+                              >
+                                {cardName}
+                              </button>
+                            ))}
+                            {!showSoccerAddCard && (
+                              <button
+                                type="button"
+                                onClick={() => setShowSoccerAddCard(true)}
+                                className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold border border-dashed border-border/80 text-indigo-600 hover:bg-muted"
+                              >
+                                + Agregar
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {showSoccerAddCard && (
+                          <div className="flex gap-2 w-full pt-1 max-w-[280px] mx-auto animate-in zoom-in-95 duration-150">
+                            <Input
+                              placeholder="Ej: Banco Estado, Visa..."
+                              value={soccerNewCardName}
+                              onChange={e => setSoccerNewCardName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleAddSoccerCard()}
+                              className="rounded-xl h-8 text-[10px] font-semibold flex-1"
+                            />
+                            <Button
+                              onClick={handleAddSoccerCard}
+                              disabled={!soccerNewCardName.trim()}
+                              size="sm"
+                              className="rounded-xl h-8 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                            >
+                              +
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => { setShowSoccerAddCard(false); setSoccerNewCardName(''); }}
+                              size="sm"
+                              className="rounded-xl h-8 px-2 text-xs font-bold text-muted-foreground"
+                            >
+                              x
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: COST DEFINITION */}
+            {soccerStep === 3 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-total" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Costo Total Cancha</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                      <Input
+                        id="soccer-modal-total"
+                        type="number"
+                        placeholder="Total"
+                        value={soccerTotal}
+                        onChange={e => handleTotalChange(e.target.value)}
+                        className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-person" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Por Jugador</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                      <Input
+                        id="soccer-modal-person"
+                        type="number"
+                        placeholder="Por jugador"
+                        value={soccerPerPerson}
+                        onChange={e => handlePerPersonChange(e.target.value)}
+                        className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary box */}
+                <div className="rounded-2xl bg-muted/40 p-4 border border-border/30 space-y-2 text-xs">
+                  <p className="font-extrabold uppercase text-[10px] text-muted-foreground tracking-widest border-b pb-1">Resumen del Partido</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Jugadores participando:</span>
+                    <span className="font-black text-foreground">{selectedPlayers.size}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quién pagó:</span>
+                    <span className="font-black text-foreground">
+                      {soccerPaymentType === 'none' && 'No he pagado yo (Por cobrar)'}
+                      {soccerPaymentType === 'cash' && 'Yo (💵 Efectivo)'}
+                      {soccerPaymentType === 'card' && `Yo (💳 Tarjeta: ${soccerSelectedCard || 'Sin elegir'})`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-1 border-t border-dashed border-border/60">
+                    <span className="font-bold text-foreground">Costo por persona:</span>
+                    <span className="font-black text-blue-600 dark:text-blue-400">
+                      ${(Number(soccerPerPerson) || 0).toLocaleString('es-CL')} c/u
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-5 border-t border-border/40 flex flex-row gap-2 sm:gap-0 justify-between items-center bg-muted/10">
+            {soccerStep === 1 ? (
+              <Button variant="ghost" onClick={() => setSoccerDialogOpen(false)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold">
+                Cancelar
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => setSoccerStep(prev => prev - 1)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold gap-1">
+                Atrás
+              </Button>
+            )}
+
+            {soccerStep < 3 ? (
+              <Button
+                disabled={selectedPlayers.size === 0 || (soccerStep === 2 && soccerPaymentType === 'card' && !soccerSelectedCard)}
+                onClick={() => setSoccerStep(prev => prev + 1)}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 max-w-[150px] text-xs font-bold gap-1"
+              >
+                Siguiente
+              </Button>
+            ) : (
+              <Button
+                disabled={loading || !soccerTotal || Number(soccerTotal) <= 0}
+                onClick={createSoccerMatch}
+                className="bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white rounded-xl flex-1 max-w-[180px] text-xs font-bold shadow-md shadow-green-500/10"
+              >
+                {loading ? <Loader2 className="w-4.5 h-4.5 animate-spin mr-1.5" /> : null}
+                Registrar Partido ⚽
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Floating Action Button (FAB) */}
-      {!isFootball && (
+      {isFootball ? (
+        <button
+          onClick={() => { setSoccerStep(1); setSoccerDialogOpen(true); }}
+          className="fixed bottom-[90px] right-6 z-50 w-12 h-12 bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
+        >
+          <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
+          <Plus className="w-5 h-5 text-white" />
+        </button>
+      ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
