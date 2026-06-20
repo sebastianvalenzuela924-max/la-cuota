@@ -243,6 +243,12 @@ export default function SaldamosGroupDetail({
   const [soccerSearch, setSoccerSearch] = useState('');
   const [soccerDialogOpen, setSoccerDialogOpen] = useState(false);
   const [soccerStep, setSoccerStep] = useState(1);
+  const [soccerMatchName, setSoccerMatchName] = useState('');
+  const [soccerMatchScore, setSoccerMatchScore] = useState('');
+  const [soccerEditOpen, setSoccerEditOpen] = useState(false);
+  const [editingSoccerExpense, setEditingSoccerExpense] = useState<any>(null);
+  const [soccerEditName, setSoccerEditName] = useState('');
+  const [soccerEditScore, setSoccerEditScore] = useState('');
 
   const filteredSoccerMembers = useMemo(() => {
     if (!soccerSearch.trim()) return members;
@@ -1477,11 +1483,15 @@ export default function SaldamosGroupDetail({
         tag = ` [Tarjeta: ${soccerSelectedCard}]`;
       }
 
+      const matchLabel = soccerMatchName.trim() || `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}`;
+      const scoreTag = soccerMatchScore.trim() ? ` [Marcador: ${soccerMatchScore.trim()}]` : '';
+      const newDescription = `${matchLabel}${scoreTag}${tag}`;
+
       const { data: exp, error: expErr } = await saldamosSupabase
         .from('expenses')
         .insert({
           group_id: groupId,
-          description: `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}${tag}`,
+          description: newDescription,
           total_amount: total,
           track_payments: true,
           is_settlement: false
@@ -1534,6 +1544,8 @@ export default function SaldamosGroupDetail({
       setSoccerPerPerson('');
       setSoccerPaymentType('none');
       setSoccerSelectedCard('');
+      setSoccerMatchName('');
+      setSoccerMatchScore('');
       setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
       setIsTeamExpanded(false);
       setSoccerDialogOpen(false);
@@ -1542,6 +1554,45 @@ export default function SaldamosGroupDetail({
     } catch (err: any) {
       console.error(err);
       toast.error('Error al registrar partido: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSoccerEdit = async () => {
+    if (!editingSoccerExpense) return;
+    if (!soccerEditName.trim()) {
+      toast.error('El nombre del partido no puede estar vacío');
+      return;
+    }
+    setLoading(true);
+    try {
+      const parsed = parseDescription(editingSoccerExpense.description);
+      let newTag = '';
+      if (parsed.paymentMethod === 'cash') {
+        newTag = ' [Efectivo]';
+      } else if (parsed.paymentMethod === 'card' && parsed.cardName) {
+        newTag = ` [Tarjeta: ${parsed.cardName}]`;
+      }
+      
+      const matchLabel = soccerEditName.trim();
+      const scoreTag = soccerEditScore.trim() ? ` [Marcador: ${soccerEditScore.trim()}]` : '';
+      const newDescription = `${matchLabel}${scoreTag}${newTag}`;
+
+      const { error } = await saldamosSupabase
+        .from('expenses')
+        .update({ description: newDescription })
+        .eq('id', editingSoccerExpense.id);
+
+      if (error) throw error;
+
+      toast.success('⚽ Partido actualizado');
+      setSoccerEditOpen(false);
+      setEditingSoccerExpense(null);
+      await load(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al actualizar partido: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -1742,9 +1793,17 @@ export default function SaldamosGroupDetail({
               expenses.filter(ex => !ex.is_settlement).map(ex => {
                 const costPerPerson = Math.round(ex.total_amount / (ex.contributions?.length || 1));
                 const allPaid = ex.contributions && ex.contributions.length > 0 && ex.contributions.every((c: any) => c.is_settled);
+                
+                // Left accent border styling + subtle gradient backgrounds
                 const borderClass = allPaid
-                  ? 'border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-950/[0.05]'
-                  : 'border-2 border-amber-500/30 dark:border-amber-500/20 bg-amber-500/[0.02] dark:bg-amber-950/[0.05]';
+                  ? 'border-l-4 border-l-emerald-500 border-t border-r border-b border-border/40 bg-gradient-to-r from-emerald-500/[0.03] to-transparent dark:from-emerald-500/[0.02] dark:to-transparent'
+                  : 'border-l-4 border-l-amber-500 border-t border-r border-b border-border/40 bg-gradient-to-r from-amber-500/[0.03] to-transparent dark:from-amber-500/[0.02] dark:to-transparent';
+
+                // Total Recaudado computation
+                const totalRecaudado = ex.contributions
+                  ? ex.contributions.reduce((acc: number, c: any) => c.is_settled ? acc + c.amount_owed : acc, 0)
+                  : 0;
+
                 return (
                   <div key={ex.id} className={`bg-card rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300 ${borderClass}`}>
                     <div className="flex items-start justify-between gap-3">
@@ -1755,6 +1814,11 @@ export default function SaldamosGroupDetail({
                             return (
                               <>
                                 <span>⚽ {parsed.originalDescription}</span>
+                                {parsed.score && (
+                                  <span className="text-[10px] font-black bg-emerald-500/10 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-lg shrink-0 font-mono tracking-wider shadow-sm">
+                                    {parsed.score}
+                                  </span>
+                                )}
                                 {parsed.paymentMethod === 'card' && (
                                   <span className="text-[9px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
                                     💳 {parsed.cardName}
@@ -1771,31 +1835,72 @@ export default function SaldamosGroupDetail({
                           <span className="text-[10px] text-muted-foreground font-medium">
                             ({new Date(ex.expense_date).toLocaleDateString('es-CL')})
                           </span>
+                          
+                          {/* Complete vs Pending Badges */}
+                          {allPaid ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                              Saldado ⚽
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                              Pendiente ⏳
+                            </span>
+                          )}
+
                           {expandedExpenses.has(ex.id) ? (
                             <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           ) : (
                             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           )}
                         </h4>
-                        <div className="flex gap-2 items-center mt-1 text-[11px] font-bold text-muted-foreground">
-                          <span>Total: <strong className="text-foreground">{formatMoney(ex.total_amount, currency)}</strong></span>
-                          <span>•</span>
-                          <span>Cuota: <strong className="text-foreground">{formatMoney(costPerPerson, currency)} c/u</strong></span>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] font-bold text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Total Cancha:</span>
+                            <strong className="text-foreground">{formatMoney(ex.total_amount, currency)}</strong>
+                          </span>
+                          <span className="text-muted-foreground/30">•</span>
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Recaudado:</span>
+                            <strong className="text-emerald-600 dark:text-emerald-400">{formatMoney(totalRecaudado, currency)}</strong>
+                          </span>
+                          <span className="text-muted-foreground/30">•</span>
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Cuota:</span>
+                            <strong className="text-foreground">{formatMoney(costPerPerson, currency)} c/u</strong>
+                          </span>
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteExpense(ex.id);
-                        }}
-                        title="Borrar partido"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const parsed = parseDescription(ex.description);
+                            setEditingSoccerExpense(ex);
+                            setSoccerEditName(parsed.originalDescription);
+                            setSoccerEditScore(parsed.score || '');
+                            setSoccerEditOpen(true);
+                          }}
+                          title="Editar partido"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteExpense(ex.id);
+                          }}
+                          title="Borrar partido"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
 
                     {expandedExpenses.has(ex.id) && (
@@ -3524,6 +3629,29 @@ export default function SaldamosGroupDetail({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-name" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Rival / Nombre Partido</Label>
+                    <Input
+                      id="soccer-modal-name"
+                      placeholder="Ej: vs Bolson, Semanal"
+                      value={soccerMatchName}
+                      onChange={e => setSoccerMatchName(e.target.value)}
+                      className="rounded-xl h-10 text-xs font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-score" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Marcador (Opcional)</Label>
+                    <Input
+                      id="soccer-modal-score"
+                      placeholder="Ej: 4-1, 5-3"
+                      value={soccerMatchScore}
+                      onChange={e => setSoccerMatchScore(e.target.value)}
+                      className="rounded-xl h-10 text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
                 {/* Summary box */}
                 <div className="rounded-2xl bg-muted/40 p-4 border border-border/30 space-y-2 text-xs">
                   <p className="font-extrabold uppercase text-[10px] text-muted-foreground tracking-widest border-b pb-1">Resumen del Partido</p>
@@ -3550,7 +3678,7 @@ export default function SaldamosGroupDetail({
             )}
           </div>
 
-          <DialogFooter className="p-5 border-t border-border/40 flex flex-row gap-2 sm:gap-0 justify-between items-center bg-muted/10">
+          <div className="p-4 border-t border-border/40 flex justify-between items-center bg-muted/10 gap-3 shrink-0">
             {soccerStep === 1 ? (
               <Button variant="ghost" onClick={() => setSoccerDialogOpen(false)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold">
                 Cancelar
@@ -3579,9 +3707,65 @@ export default function SaldamosGroupDetail({
                 Registrar Partido ⚽
               </Button>
             )}
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Soccer Match Dialog */}
+      <Dialog open={soccerEditOpen} onOpenChange={setSoccerEditOpen}>
+        <DialogContent 
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="max-w-md w-[92vw] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col"
+        >
+          <DialogHeader className="p-5 pb-3 border-b border-border/40 shrink-0">
+            <DialogTitle className="text-base font-black flex items-center gap-1.5 uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span>⚽ Editar Partido</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Modifica los detalles o el marcador del partido
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-soccer-name" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Nombre del Partido / Rival</Label>
+              <Input
+                id="edit-soccer-name"
+                placeholder="Ej: vs Bolson, Partido Semanal..."
+                value={soccerEditName}
+                onChange={e => setSoccerEditName(e.target.value)}
+                className="rounded-xl h-10 text-xs font-semibold"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-soccer-score" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Marcador (Opcional)</Label>
+              <Input
+                id="edit-soccer-score"
+                placeholder="Ej: 4-1, 5-3..."
+                value={soccerEditScore}
+                onChange={e => setSoccerEditScore(e.target.value)}
+                className="rounded-xl h-10 text-xs font-semibold"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-border/40 flex justify-between items-center bg-muted/10 gap-3 shrink-0">
+            <Button variant="ghost" onClick={() => setSoccerEditOpen(false)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold">
+              Cancelar
+            </Button>
+            <Button
+              disabled={loading || !soccerEditName.trim()}
+              onClick={saveSoccerEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 max-w-[180px] text-xs font-bold gap-1"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Guardar Cambios
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Floating Action Button (FAB) */}
       {isFootball ? (
@@ -3626,22 +3810,34 @@ export default function SaldamosGroupDetail({
 
 function parseDescription(description: string) {
   if (!description) {
-    return { originalDescription: "", paymentMethod: null as 'cash' | 'card' | null, cardName: null as string | null };
+    return { originalDescription: "", paymentMethod: null as 'cash' | 'card' | null, cardName: null as string | null, score: null as string | null };
   }
-  const cardMatch = description.match(/\[Tarjeta:\s*([^\]]+)\]/);
+  
+  let tempDesc = description;
+  let score: string | null = null;
+  
+  const scoreMatch = tempDesc.match(/\[Marcador:\s*([^\]]+)\]/);
+  if (scoreMatch) {
+    score = scoreMatch[1].trim();
+    tempDesc = tempDesc.replace(/\[Marcador:\s*([^\]]+)\]/, "").trim();
+  }
+  
+  const cardMatch = tempDesc.match(/\[Tarjeta:\s*([^\]]+)\]/);
   if (cardMatch) {
     return {
-      originalDescription: description.replace(/\[Tarjeta:\s*([^\]]+)\]/, "").trim(),
+      originalDescription: tempDesc.replace(/\[Tarjeta:\s*([^\]]+)\]/, "").trim(),
       paymentMethod: "card" as const,
-      cardName: cardMatch[1].trim()
+      cardName: cardMatch[1].trim(),
+      score
     };
   }
-  if (description.includes("[Efectivo]")) {
+  if (tempDesc.includes("[Efectivo]")) {
     return {
-      originalDescription: description.replace("[Efectivo]", "").trim(),
+      originalDescription: tempDesc.replace("[Efectivo]", "").trim(),
       paymentMethod: "cash" as const,
-      cardName: null
+      cardName: null,
+      score
     };
   }
-  return { originalDescription: description.trim(), paymentMethod: null, cardName: null };
+  return { originalDescription: tempDesc.trim(), paymentMethod: null, cardName: null, score };
 }
