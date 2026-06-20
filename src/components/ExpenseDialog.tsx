@@ -21,11 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper, Mic } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper, Mic, Coins } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
-import { Textarea } from "@/components/ui/textarea";
 import confetti from "canvas-confetti";
 import { useSaldamosAuth } from "@/contexts/SaldamosAuthContext";
 
@@ -88,8 +87,6 @@ export function ExpenseDialog({
   const [contribs, setContribs] = useState<Record<string, string>>({});
   const [owed, setOwed] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
@@ -427,6 +424,48 @@ export function ExpenseDialog({
     setContribs(next);
   };
 
+  const canCalculateRemainder = useMemo(() => {
+    const totalNum = Number(total) || 0;
+    if (totalNum <= 0) return false;
+    const selMembers = allAvailableMembers.filter(m => selected.has(m.id));
+    const emptyMembers = selMembers.filter(m => {
+      const val = owed[m.id];
+      return !val || Number(val) === 0;
+    });
+    return emptyMembers.length === 1;
+  }, [total, selected, owed, allAvailableMembers]);
+
+  const distributeRemainder = () => {
+    const totalNum = Number(total) || 0;
+    const selMembers = allAvailableMembers.filter(m => selected.has(m.id));
+    const emptyMembers = selMembers.filter(m => {
+      const val = owed[m.id];
+      return !val || Number(val) === 0;
+    });
+
+    if (emptyMembers.length !== 1) {
+      toast.error("Debe faltar exactamente 1 persona por asignar consumo.");
+      return;
+    }
+
+    const targetId = emptyMembers[0].id;
+    const sumOthers = selMembers
+      .filter(m => m.id !== targetId)
+      .reduce((sum, m) => sum + (Number(owed[m.id]) || 0), 0);
+
+    const remainder = totalNum - sumOthers;
+    if (remainder < 0) {
+      toast.error("La suma de los consumos asignados supera el total del gasto.");
+      return;
+    }
+
+    setOwed(prev => ({
+      ...prev,
+      [targetId]: remainder.toString()
+    }));
+    toast.success(`Se asignó el resto ($${remainder.toLocaleString('es-CL')}) a ${emptyMembers[0].name}`);
+  };
+
   const save = async () => {
     if (!description.trim() || !totalNum) {
       toast.error("Completá descripción y monto total.");
@@ -540,39 +579,6 @@ export function ExpenseDialog({
       total_amount: totalNum
     });
     onOpenChange(false);
-  };
-
-  const handlePasteProcess = () => {
-    const parsed = parseLaCuotaMessage(pasteText);
-    if (parsed.length === 0) {
-      toast.error("No se detectaron personas en el texto.");
-      return;
-    }
-    const nextOwed = { ...owed };
-    const nextSelected = new Set(selected);
-    parsed.forEach(p => {
-      const matchId = findMemberMatch(p.name, members);
-      if (matchId) {
-        nextOwed[matchId] = p.amount.toString();
-        nextSelected.add(matchId);
-      }
-    });
-    setOwed(nextOwed);
-    setSelected(nextSelected);
-    
-    const sum = parsed.reduce((s, p) => s + p.amount, 0);
-    const finalTotal = (!total || Number(total) === 0) ? sum : Number(total);
-    if (!total || Number(total) === 0) setTotal(sum.toString());
-
-    if (isTrackerMode) {
-      const payerId = myMemberId || members[0]?.id;
-      if (payerId) {
-        setContribs(prev => ({ ...prev, [payerId]: finalTotal.toString() }));
-      }
-    }
-    
-    toast.success("Consumos importados");
-    setPasteOpen(false);
   };
 
   const saveMapping = (externalName: string, memberId: string) => {
@@ -1111,8 +1117,15 @@ export function ExpenseDialog({
                   <Label>Participantes ({selected.size})</Label>
                 </div>
                 <div className="flex gap-1">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] rounded-lg" onClick={() => setPasteOpen(true)}>
-                    <Wand2 className="h-3 w-3 mr-1" /> Pegar ticket
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-[10px] rounded-lg border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 transition-all" 
+                    onClick={distributeRemainder}
+                    disabled={!canCalculateRemainder}
+                  >
+                    <Coins className="h-3 w-3 mr-1 text-blue-500" /> Agregar el resto
                   </Button>
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={distributeEvenly}>Aportes =</Button>
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={distributeOwedEvenly}>Consumos =</Button>
@@ -1185,20 +1198,7 @@ export function ExpenseDialog({
         </DialogFooter>
       </DialogContent>
 
-      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader><DialogTitle>Pegar ticket</DialogTitle></DialogHeader>
-          <Textarea 
-            value={pasteText} 
-            onChange={e => setPasteText(e.target.value)} 
-            placeholder="Pega el mensaje de La Cuota aquí..." 
-            className="min-h-[150px] text-xs rounded-xl"
-          />
-          <DialogFooter>
-            <Button onClick={handlePasteProcess} className="rounded-xl">Procesar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </Dialog>
   );
 }
