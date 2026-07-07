@@ -15,12 +15,6 @@ jobs:
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnY3hqa2t3anl6bHlqeWhpbWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NjAwMjgsImV4cCI6MjA4NzQzNjAyOH0.MfAPl7ysDTRoXZ_25l8JkqaNa0clTR4Ej7tGcaWjmZw" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnY3hqa2t3anl6bHlqeWhpbWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NjAwMjgsImV4cCI6MjA4NzQzNjAyOH0.MfAPl7ysDTRoXZ_25l8JkqaNa0clTR4Ej7tGcaWjmZw"
 
-      - name: Ping Sharing Supabase (Sessions)
-        run: |
-          curl -s -o /dev/null -w "%{http_code}" -X GET "https://ujksaghejshxcltdzstp.supabase.co/rest/v1/bill_sessions?select=id&limit=1" \
-          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4" \
-          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqa3NhZ2hlanNoeGNsdGR6c3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDc4MTcsImV4cCI6MjA5MTgyMzgxN30.S2_hEyfVKhBKrvNmGdjVqolL6uk2beJaZYGE2nL2bS4"
-
       - name: Ping Saldamos2 Supabase (Groups)
         run: |
           curl -s -o /dev/null -w "%{http_code}" -X GET "https://atvkvzukbeifwinoxzli.supabase.co/rest/v1/groups?select=id&limit=1" \
