@@ -23,7 +23,7 @@ export function computeBalances(
   for (const m of members) map.set(m.id, 0);
 
   for (const exp of expenses) {
-    if (exp.is_personal) continue; // gastos personales no afectan balance grupal
+    if (exp.is_personal || exp.is_settlement) continue; // gastos personales y de reconciliación no afectan el balance de deuda pendiente
     const participants = exp.contributions;
     if (participants.length === 0) continue;
     
@@ -31,10 +31,28 @@ export function computeBalances(
     const hasSpecificOwed = participants.some(c => Math.abs(c.amount_owed) > 0.01);
     const equalShare = exp.total_amount / participants.length;
     
+    // Find the payer (who has amount_paid > 0)
+    const payer = participants.find(c => Number(c.amount_paid) > 0);
+    const payerId = payer ? payer.member_id : null;
+    let settledAmount = 0;
+    
     for (const c of participants) {
-      const owed = hasSpecificOwed ? (Number(c.amount_owed) || 0) : equalShare;
+      let owed = hasSpecificOwed ? (Number(c.amount_owed) || 0) : equalShare;
+      let paid = Number(c.amount_paid) || 0;
+      
+      if (c.is_settled) {
+        settledAmount += owed;
+        owed = 0;
+      }
+      
       const current = map.get(c.member_id) ?? 0;
-      map.set(c.member_id, current + (Number(c.amount_paid) - owed));
+      map.set(c.member_id, current + (paid - owed));
+    }
+    
+    // Subtract settled amount from the payer's outstanding balance since it has been collected
+    if (payerId && settledAmount > 0) {
+      const currentPayerBalance = map.get(payerId) ?? 0;
+      map.set(payerId, currentPayerBalance - settledAmount);
     }
   }
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles, Users, Scale, HandCoins } from 'lucide-react';
+import { Plus, Loader2, Trash2, LogOut, ChevronRight, Pencil, Check, X, Sparkles, Users, Scale, HandCoins, Zap, Receipt, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
@@ -16,8 +16,40 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
+import QuickExpenseDialog from './QuickExpenseDialog';
 
 type Group = { id: string; name: string; currency: string; owner_id: string; isOwner: boolean };
+type GroupType = 'balance' | 'football' | 'personal';
+
+const GROUP_TYPES: { type: GroupType; emoji: string; label: string; desc: string; gradient: string; mode: 'balance' | 'tracker'; templateIdx: number }[] = [
+  {
+    type: 'balance',
+    emoji: '🤝',
+    label: 'Balances',
+    desc: 'Viajes y gastos continuos con amigos. Acumula deudas entre todos.',
+    gradient: 'from-sky-500 to-blue-700',
+    mode: 'balance',
+    templateIdx: 3, // Viaje
+  },
+  {
+    type: 'football',
+    emoji: '⚽',
+    label: 'Fútbol',
+    desc: 'Gastos rápidos de cancha y partido. Divide al instante.',
+    gradient: 'from-emerald-600 to-teal-700',
+    mode: 'tracker',
+    templateIdx: 2, // Fútbol
+  },
+  {
+    type: 'personal',
+    emoji: '🧾',
+    label: 'Personal',
+    desc: 'Gastos diarios. Anota lo que gastas y lo que te deben.',
+    gradient: 'from-violet-600 to-purple-700',
+    mode: 'balance',
+    templateIdx: 0, // Pareja
+  },
+];
 
 const CURRENCIES = ['CLP', 'ARS', 'USD', 'EUR', 'BRL', 'UYU', 'MXN', 'COP'];
 
@@ -34,14 +66,18 @@ const TEMPLATES = [
 ];
 
 const COLOR_PRESETS = [
-  { name: 'Azul',     gradient: 'from-blue-600 to-indigo-700' },
-  { name: 'Naranja',  gradient: 'from-orange-500 to-red-600' },
-  { name: 'Verde',    gradient: 'from-emerald-600 to-teal-700' },
-  { name: 'Rojo',     gradient: 'from-rose-600 to-pink-700' },
-  { name: 'Morado',   gradient: 'from-blue-600 to-blue-700' }, // Replaced violet with blue for consistency
-  { name: 'Cielo',    gradient: 'from-sky-500 to-blue-600' },
-  { name: 'Negro',    gradient: 'from-slate-700 to-slate-900' },
-  { name: 'Turquesa', gradient: 'from-cyan-500 to-blue-600' },
+  { name: 'Azul',         gradient: 'from-blue-600 to-indigo-700' },
+  { name: 'Cielo',        gradient: 'from-sky-400 to-blue-500' },
+  { name: 'Turquesa',     gradient: 'from-cyan-500 to-teal-600' },
+  { name: 'Verde',        gradient: 'from-emerald-600 to-teal-700' },
+  { name: 'Verde Claro',  gradient: 'from-lime-500 to-emerald-600' },
+  { name: 'Amarillo',     gradient: 'from-amber-400 to-orange-500' },
+  { name: 'Naranja',      gradient: 'from-orange-500 to-red-600' },
+  { name: 'Rojo',         gradient: 'from-rose-600 to-pink-700' },
+  { name: 'Rosa',         gradient: 'from-pink-500 to-rose-600' },
+  { name: 'Violeta',      gradient: 'from-fuchsia-600 to-pink-700' },
+  { name: 'Morado',       gradient: 'from-purple-600 to-indigo-700' },
+  { name: 'Negro',        gradient: 'from-slate-700 to-slate-900' },
 ];
 
 const PEOPLE_GROUP_COLORS = [
@@ -94,11 +130,13 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('CLP');
   const [creating, setCreating] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<typeof TEMPLATES[0] | null>(null);
   const [groupMode, setGroupMode] = useState<'balance' | 'tracker'>('balance');
+  const [selectedGroupType, setSelectedGroupType] = useState<GroupType>('balance');
   const [memberInputs, setMemberInputs] = useState<string[]>(['', '']);
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -106,6 +144,8 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
   const [renameSaving, setRenameSaving] = useState(false);
   const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
   const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+  const [showAmigos, setShowAmigos] = useState(false);
+  const [amigosTab, setAmigosTab] = useState<'groups' | 'all'>('groups');
 
   // Load user-specific data from localStorage
   useEffect(() => {
@@ -282,6 +322,15 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
     if (t.gradient) setSelectedColor(t.gradient);
   };
 
+  const applyGroupType = (gt: typeof GROUP_TYPES[0]) => {
+    setSelectedGroupType(gt.type);
+    setGroupMode(gt.mode);
+    setSelectedColor(gt.gradient);
+    const tpl = TEMPLATES[gt.templateIdx];
+    setSelectedTemplate(tpl);
+    setName(tpl.name);
+  };
+
   const create = async () => {
     if (!name.trim() || !user || creating) return;
     setCreating(true);
@@ -295,22 +344,43 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       .single();
     if (error || !newGroup) { setCreating(false); toast.error(error?.message ?? 'Error'); return; }
     
-    // Add members
+    // Read global name and auto-include it
+    const globalNameKey = `saldamos_my_name_${uid}`;
+    const myGlobalName = localStorage.getItem(globalNameKey)?.trim() ?? '';
+
+    // Build final member list: manual inputs + auto-add self if not already included
     const validMembers = memberInputs.map(m => m.trim()).filter(Boolean);
+    const alreadyHasMe = myGlobalName && validMembers.some(m => m.toLowerCase() === myGlobalName.toLowerCase());
+    if (myGlobalName && !alreadyHasMe) {
+      validMembers.unshift(myGlobalName); // add self at the front
+    }
+
     if (validMembers.length > 0) {
-      await saldamosSupabase.from('group_members').insert(
-        validMembers.map(memberName => ({ group_id: (newGroup as any).id, name: memberName }))
-      );
+      const { data: insertedMembers } = await saldamosSupabase
+        .from('group_members')
+        .insert(validMembers.map(memberName => ({ group_id: (newGroup as any).id, name: memberName })))
+        .select('id, name');
+      
+      // Auto-set identity to my member record
+      if (myGlobalName && insertedMembers) {
+        const myMember = (insertedMembers as any[]).find(m => m.name.toLowerCase() === myGlobalName.toLowerCase());
+        if (myMember) {
+          localStorage.setItem(`saldamos_id_${(newGroup as any).id}`, myMember.id);
+        }
+      }
     }
     
     setCreating(false);
-    toast.success(`Grupo "${name.trim()}" creado 🎉${validMembers.length > 0 ? ` con ${validMembers.length} persona${validMembers.length > 1 ? 's' : ''}` : ''}`);
+    const selfAdded = myGlobalName && !alreadyHasMe;
+    toast.success(`Grupo "${name.trim()}" creado 🎉${validMembers.length > 0 ? ` con ${validMembers.length} persona${validMembers.length > 1 ? 's' : ''}` : ''}${selfAdded ? ` · Te agregué como "${myGlobalName}"` : ''}`);
     localStorage.setItem(`group_mode_${(newGroup as any).id}`, groupMode);
     localStorage.setItem(`group_color_${(newGroup as any).id}`, selectedColor);
+    localStorage.setItem(`group_type_${(newGroup as any).id}`, selectedGroupType);
     setCreateOpen(false);
     setName('');
     setSelectedTemplate(null);
     setMemberInputs(['', '']);
+    setSelectedGroupType('balance');
     load();
   };
 
@@ -376,57 +446,49 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       </div>
 
       {/* Mis Personas - Rediseñado Premium con Grupos */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-3xl p-5 border border-blue-100/50 dark:border-blue-900/30 shadow-sm">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-foreground leading-none">Mis Personas</h3>
-              <p className="text-[10px] text-blue-600/60 font-bold uppercase tracking-widest mt-1">Contactos y Grupos</p>
-            </div>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-2xl p-3 border border-blue-100/50 dark:border-blue-900/30 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <h3 className="text-xs font-black text-foreground">Mis Personas</h3>
           </div>
           <Button 
             size="sm" 
             variant="ghost" 
             onClick={() => setManagePeopleOpen(true)}
-            className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 px-3"
+            className="h-6 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 px-2"
           >
             Gestionar
           </Button>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
           {frequentPeople.length === 0 ? (
             <button 
               onClick={() => setManagePeopleOpen(true)}
-              className="flex items-center gap-4 py-3 px-2 text-left w-full hover:bg-blue-100/30 dark:hover:bg-blue-900/10 rounded-2xl transition-colors border border-dashed border-blue-200"
+              className="flex items-center gap-3 py-2 px-2 text-left w-full hover:bg-blue-100/30 dark:hover:bg-blue-900/10 rounded-xl transition-colors border border-dashed border-blue-200/60"
             >
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-300">
-                <Plus className="w-6 h-6" />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-300">
+                <Plus className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-foreground">Sin contactos aún</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Agrega amigos para armar grupos rápido.</p>
+                <p className="text-[10px] font-bold text-foreground leading-none">Sin contactos aún</p>
+                <p className="text-[8px] text-muted-foreground mt-0.5">Toca aquí para agregarlos.</p>
               </div>
             </button>
           ) : (
             <>
               {/* Render Groups first */}
               {Object.keys(peopleGroups).map(gn => (
-                <div key={gn} className="flex flex-col items-center gap-2 shrink-0 group">
-                  <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center text-xl font-black shadow-sm border transition-transform group-hover:scale-105 active:scale-95 ${getPeopleGroupStyle(gn)}`}>
+                <div key={gn} className="flex flex-col items-center gap-1 shrink-0 group">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shadow-sm border transition-transform group-hover:scale-105 active:scale-95 ${getPeopleGroupStyle(gn)}`}>
                     {gn.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[10px] font-black text-foreground max-w-[70px] truncate">{gn}</span>
-                    <span className="text-[8px] font-bold text-muted-foreground uppercase opacity-60">{peopleGroups[gn].length} pers.</span>
-                  </div>
+                  <span className="text-[9px] font-bold text-foreground max-w-[50px] truncate leading-tight">{gn}</span>
                 </div>
               ))}
 
-              {/* Unassigned people as "Otros" or individuals */}
+              {/* Unassigned people as "Otros" */}
               {(() => {
                 const assigned = new Set();
                 Object.values(peopleGroups).forEach(m => m.forEach(p => assigned.add(p)));
@@ -434,14 +496,11 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 
                 if (unassigned.length > 0) {
                   return (
-                    <div className="flex flex-col items-center gap-2 shrink-0 group">
-                      <div className="w-14 h-14 rounded-[22px] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700 transition-transform group-hover:scale-105 active:scale-95">
+                    <div className="flex flex-col items-center gap-1 shrink-0 group">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-sm font-black text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700 transition-transform group-hover:scale-105 active:scale-95">
                         ?
                       </div>
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] font-black text-slate-500 max-w-[70px] truncate">Otros</span>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase opacity-60">{unassigned.length} pers.</span>
-                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 max-w-[50px] truncate leading-tight">Otros</span>
                     </div>
                   );
                 }
@@ -450,12 +509,12 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
 
               <button 
                 onClick={() => setManagePeopleOpen(true)}
-                className="flex flex-col items-center gap-2 shrink-0"
+                className="flex flex-col items-center gap-1 shrink-0"
               >
-                <div className="w-14 h-14 rounded-[22px] border-2 border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all hover:border-blue-400">
-                  <Plus className="w-6 h-6" />
+                <div className="w-9 h-9 rounded-xl border border-dashed border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all hover:border-blue-400">
+                  <Plus className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-black text-blue-500">Añadir</span>
+                <span className="text-[9px] font-bold text-blue-500 leading-tight">Añadir</span>
               </button>
             </>
           )}
@@ -476,6 +535,72 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
+          {/* Special "Mi Perfil" Card */}
+          <div
+            className="relative rounded-2xl overflow-hidden cursor-pointer shadow-md transition-all duration-200 active:scale-[0.97] hover:shadow-lg bg-gradient-to-br from-purple-600 via-fuchsia-600 to-pink-600 text-white"
+            onClick={() => onSelectGroup('my-profile')}
+          >
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 text-6xl opacity-20 leading-none -mt-2 -mr-1 select-none pointer-events-none">
+              👤
+            </div>
+
+            <div className="relative z-10 p-4 flex flex-col gap-2 min-h-[110px]">
+              {/* Top row: emoji */}
+              <div className="flex items-start justify-between">
+                <span className="text-2xl leading-none">👤</span>
+                <span className="px-1.5 py-0.5 rounded-lg bg-white/25 text-[8px] font-black uppercase tracking-wider">
+                  Mi Perfil
+                </span>
+              </div>
+
+              {/* Name */}
+              <div className="mt-auto">
+                <div className="flex items-end justify-between gap-1">
+                  <div>
+                    <p className="text-white font-black text-sm leading-tight truncate">Mi Perfil</p>
+                    <p className="text-white/80 text-[10px] font-bold uppercase">Control de Gastos</p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 mb-0.5" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Special "Admin" Card */}
+          {user?.email === 'sebastianvalenzuela924@gmail.com' && (
+            <div
+              className="relative rounded-2xl overflow-hidden cursor-pointer shadow-md transition-all duration-200 active:scale-[0.97] hover:shadow-lg bg-gradient-to-br from-slate-800 via-neutral-700 to-zinc-950 text-white animate-fade-in"
+              onClick={() => onSelectGroup('admin-dashboard')}
+            >
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 text-6xl opacity-20 leading-none -mt-2 -mr-1 select-none pointer-events-none">
+                🛡️
+              </div>
+
+              <div className="relative z-10 p-4 flex flex-col gap-2 min-h-[110px]">
+                {/* Top row: emoji */}
+                <div className="flex items-start justify-between">
+                  <span className="text-2xl leading-none">🛡️</span>
+                  <span className="px-1.5 py-0.5 rounded-lg bg-white/25 text-[8px] font-black uppercase tracking-wider">
+                    Admin Panel
+                  </span>
+                </div>
+
+                {/* Name */}
+                <div className="mt-auto">
+                  <div className="flex items-end justify-between gap-1">
+                    <div>
+                      <p className="text-white font-black text-sm leading-tight truncate">Admin Panel</p>
+                      <p className="text-white/80 text-[10px] font-bold uppercase">Gestión de Cuentas</p>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 mb-0.5" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {groups.map(g => {
             const style = getGroupStyle(g.id);
             const emoji = getGroupEmoji(g.name) || ('emoji' in style ? style.emoji : '👋');
@@ -550,7 +675,17 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                       <div className="flex items-end justify-between gap-1">
                         <div>
                           <p className="text-white font-black text-sm leading-tight truncate">{g.name}</p>
-                          <p className="text-white/70 text-[10px] font-medium uppercase">{g.currency}{!g.isOwner && ' · Compartido'}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <p className="text-white/70 text-[10px] font-medium uppercase">{g.currency}</p>
+                            {(() => {
+                              const gt = localStorage.getItem(`group_type_${g.id}`);
+                              if (gt === 'football') return <span className="text-[8px] bg-white/20 text-white px-1 rounded-md font-black">⚽ Fútbol</span>;
+                              if (gt === 'personal') return <span className="text-[8px] bg-white/20 text-white px-1 rounded-md font-black">🧾 Personal</span>;
+                              if (gt === 'balance') return <span className="text-[8px] bg-white/20 text-white px-1 rounded-md font-black">🤝 Balances</span>;
+                              return null;
+                            })()}
+                            {!g.isOwner && <span className="text-[8px] text-white/60 font-medium">· Compartido</span>}
+                          </div>
                         </div>
                         <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0 mb-0.5" />
                       </div>
@@ -575,16 +710,38 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={createOpen} onOpenChange={v => { setCreateOpen(v); if (!v) { setSelectedTemplate(null); setName(''); } }}>
+      <Dialog open={createOpen} onOpenChange={v => { setCreateOpen(v); if (!v) { setSelectedTemplate(null); setName(''); setMemberInputs(['', '']); setShowAmigos(false); setAmigosTab('groups'); } }}>
         <DialogContent className="rounded-2xl max-w-sm max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0 border-none shadow-2xl">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-500" /> Nuevo grupo
             </DialogTitle>
-            <DialogDescription>Elige una plantilla o crea uno personalizado.</DialogDescription>
+            <DialogDescription>¿Qué tipo de grupo necesitas?</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
+            {/* Group Type Selector */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tipo de grupo</p>
+              <div className="grid grid-cols-3 gap-2">
+                {GROUP_TYPES.map(gt => (
+                  <button
+                    key={gt.type}
+                    onClick={() => applyGroupType(gt)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 transition-all text-center ${
+                      selectedGroupType === gt.type
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20 scale-[0.97]'
+                        : 'border-transparent bg-muted/40 hover:bg-muted/70'
+                    }`}
+                  >
+                    <span className="text-2xl leading-none">{gt.emoji}</span>
+                    <p className="text-[10px] font-black uppercase leading-none text-foreground">{gt.label}</p>
+                    <p className="text-[8px] text-muted-foreground leading-tight">{gt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Templates grid */}
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Plantillas rápidas</p>
@@ -614,45 +771,22 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && create()}
                 placeholder="Ej: Asado del viernes"
-                autoFocus
                 className="rounded-xl"
               />
             </div>
 
-            {/* Mode Selector */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Modo de grupo</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setGroupMode('balance')}
-                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
-                    groupMode === 'balance'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-transparent bg-muted/40 hover:bg-muted/70'
-                  }`}
-                >
-                  <Scale className="w-4 h-4 text-blue-600" />
-                  <div className="text-center">
-                    <p className="text-[10px] font-bold uppercase leading-none">Con Balance</p>
-                    <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Deudas acumuladas entre todos.</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGroupMode('tracker')}
-                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
-                    groupMode === 'tracker'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                      : 'border-transparent bg-muted/40 hover:bg-muted/70'
-                  }`}
-                >
-                  <HandCoins className={`w-4 h-4 ${groupMode === 'tracker' ? 'text-blue-600' : 'text-muted-foreground'}`} />
-                  <div className="text-center">
-                    <p className={`text-[10px] font-bold uppercase leading-none ${groupMode === 'tracker' ? 'text-blue-700 dark:text-blue-400' : ''}`}>Solo Cobros</p>
-                    <p className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Lista de pagos sin deuda total.</p>
-                  </div>
-                </button>
+            {/* Mode display (auto from type, not editable) */}
+            <div className="p-2.5 rounded-2xl bg-muted/30 border border-border/30 flex items-center gap-2.5">
+              {selectedGroupType === 'balance' && <Scale className="w-4 h-4 text-sky-600 shrink-0" />}
+              {selectedGroupType === 'football' && <HandCoins className="w-4 h-4 text-emerald-600 shrink-0" />}
+              {selectedGroupType === 'personal' && <Receipt className="w-4 h-4 text-violet-600 shrink-0" />}
+              <div>
+                <p className="text-[10px] font-black text-foreground">
+                  {selectedGroupType === 'balance' && 'Modo: Balance (deudas acumuladas)'}
+                  {selectedGroupType === 'football' && 'Modo: Cobros (fútbol / tracker)'}
+                  {selectedGroupType === 'personal' && 'Modo: Balance personal (pagué / debo)'}
+                </p>
+                <p className="text-[9px] text-muted-foreground">Configado automáticamente por el tipo</p>
               </div>
             </div>
 
@@ -687,64 +821,176 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
                 Personas del grupo <span className="font-normal text-muted-foreground/60">(opcional)</span>
               </Label>
               
-              {/* Frequent people picker - Rediseñado visual */}
+              {/* Frequent people picker - Rediseñado visual y colapsable */}
               {frequentPeople.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Tus Amigos</p>
-                    {Object.keys(peopleGroups).length > 0 && (
-                      <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[150px]">
-                        {Object.keys(peopleGroups).map(gn => (
-                          <button
-                            key={gn}
-                            type="button"
-                            onClick={() => {
-                              const members = peopleGroups[gn];
-                              const allSelected = members.every(m => memberInputs.some(mi => mi.trim() === m));
-                              if (allSelected) {
-                                // Deselect all of this group
-                                setMemberInputs(prev => {
-                                  const filtered = prev.filter(p => !members.includes(p.trim()));
-                                  return filtered.length < 2 ? [...filtered, ...Array(2 - filtered.length).fill('')] : filtered;
-                                });
-                              } else {
-                                // Add all of this group
-                                setMemberInputs(prev => {
-                                  const existing = prev.filter(p => p.trim() && !members.includes(p.trim()));
-                                  return [...existing, ...members];
-                                });
-                              }
-                            }}
-                            className="px-1.5 py-0.5 rounded-lg border border-blue-200 text-[8px] font-bold text-blue-600 bg-blue-50 whitespace-nowrap"
-                          >
-                            + {gn}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 py-1">
-                    {frequentPeople.map(p => {
-                      const isSelected = memberInputs.some(m => m.trim() === p);
-                      return (
+                <div className="space-y-2 border border-border/40 rounded-2xl p-2 bg-muted/10">
+                  <button
+                    type="button"
+                    onClick={() => setShowAmigos(!showAmigos)}
+                    className="w-full flex items-center justify-between p-1.5 select-none"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest">
+                        Tus Amigos ({frequentPeople.length})
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-bold text-blue-600 flex items-center gap-1">
+                      {showAmigos ? 'Ocultar' : 'Agregar amigos'}
+                      {showAmigos ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </span>
+                  </button>
+
+                  {showAmigos && (
+                    <div className="space-y-3 pt-2 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-200">
+                      {/* Tabs */}
+                      <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/40 shrink-0 items-center max-w-fit">
                         <button
-                          key={p}
                           type="button"
-                          onClick={() => togglePersonInGroup(p)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-[11px] font-bold transition-all border ${
-                            isSelected 
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-95' 
-                              : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                          onClick={() => setAmigosTab('groups')}
+                          className={`px-3 py-1 rounded-md text-[9px] font-bold transition-all ${
+                            amigosTab === 'groups'
+                              ? 'bg-card text-blue-700 shadow-sm font-black'
+                              : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
-                          <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>
-                            {isSelected ? '✓' : p.charAt(0).toUpperCase()}
-                          </div>
-                          {p}
+                          Por Grupos
                         </button>
-                      );
-                    })}
-                  </div>
+                        <button
+                          type="button"
+                          onClick={() => setAmigosTab('all')}
+                          className={`px-3 py-1 rounded-md text-[9px] font-bold transition-all ${
+                            amigosTab === 'all'
+                              ? 'bg-card text-blue-700 shadow-sm font-black'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                      </div>
+
+                      {/* Tab content */}
+                      {amigosTab === 'all' ? (
+                        <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto pr-1">
+                          {frequentPeople.map(p => {
+                            const isSelected = memberInputs.some(m => m.trim().toLowerCase() === p.trim().toLowerCase());
+                            return (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => togglePersonInGroup(p)}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${
+                                  isSelected 
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                                    : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-300'
+                                }`}
+                              >
+                                <div className={`w-4 h-4 rounded flex items-center justify-center text-[9px] ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                                  {isSelected ? '✓' : p.charAt(0).toUpperCase()}
+                                </div>
+                                <span>{p}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                          {/* Groups list */}
+                          {Object.keys(peopleGroups).map(gn => {
+                            const groupMembers = peopleGroups[gn];
+                            if (groupMembers.length === 0) return null;
+                            const allSelected = groupMembers.every(m => memberInputs.some(mi => mi.trim().toLowerCase() === m.trim().toLowerCase()));
+                            
+                            return (
+                              <div key={gn} className="space-y-1 bg-muted/20 p-2 rounded-xl border border-border/20">
+                                <div className="flex items-center justify-between px-0.5">
+                                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">{gn}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (allSelected) {
+                                        setMemberInputs(prev => {
+                                          const filtered = prev.filter(p => !groupMembers.map(gm => gm.toLowerCase()).includes(p.trim().toLowerCase()));
+                                          return filtered.length < 2 ? [...filtered, ...Array(2 - filtered.length).fill('')] : filtered;
+                                        });
+                                      } else {
+                                        setMemberInputs(prev => {
+                                          const existing = prev.filter(p => p.trim() && !groupMembers.map(gm => gm.toLowerCase()).includes(p.trim().toLowerCase()));
+                                          return [...existing, ...groupMembers];
+                                        });
+                                      }
+                                    }}
+                                    className="text-[8px] font-black text-blue-600 uppercase hover:underline"
+                                  >
+                                    {allSelected ? 'Quitar todo' : 'Añadir todo'}
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {groupMembers.map(p => {
+                                    const isSelected = memberInputs.some(m => m.trim().toLowerCase() === p.trim().toLowerCase());
+                                    return (
+                                      <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => togglePersonInGroup(p)}
+                                        className={`flex items-center gap-1.5 p-1.5 rounded-lg text-[10px] font-bold transition-all border ${
+                                          isSelected 
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-200'
+                                        }`}
+                                      >
+                                        <div className={`w-4 h-4 rounded flex items-center justify-center text-[8px] ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                                          {isSelected ? '✓' : p.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="truncate">{p}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Friends not in any group (Otros) */}
+                          {(() => {
+                            const groupedNames = new Set(Object.values(peopleGroups).flat().map(n => n.toLowerCase()));
+                            const ungrouped = frequentPeople.filter(p => !groupedNames.has(p.toLowerCase()));
+                            if (ungrouped.length === 0) return null;
+                            
+                            return (
+                              <div className="space-y-1 bg-muted/20 p-2 rounded-xl border border-border/20">
+                                <div className="px-0.5">
+                                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Otros Contactos</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {ungrouped.map(p => {
+                                    const isSelected = memberInputs.some(m => m.trim().toLowerCase() === p.trim().toLowerCase());
+                                    return (
+                                      <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => togglePersonInGroup(p)}
+                                        className={`flex items-center gap-1.5 p-1.5 rounded-lg text-[10px] font-bold transition-all border ${
+                                          isSelected 
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                                            : 'bg-white dark:bg-card border-blue-100 dark:border-blue-900 text-foreground hover:border-blue-200'
+                                        }`}
+                                      >
+                                        <div className={`w-4 h-4 rounded flex items-center justify-center text-[8px] ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                                          {isSelected ? '✓' : p.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="truncate">{p}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1027,6 +1273,24 @@ export default function SaldamosGroupsList({ onSelectGroup }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Action Button for Quick Add Expense */}
+      {groups.length > 0 && (
+        <button
+          onClick={() => setQuickExpenseOpen(true)}
+          className="fixed bottom-[90px] right-6 z-50 w-16 h-16 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50 animate-bounce hover:animate-none"
+          title="Gasto Rápido ⚡"
+        >
+          <Zap className="w-7 h-7 text-white fill-white animate-pulse" />
+        </button>
+      )}
+
+      <QuickExpenseDialog
+        open={quickExpenseOpen}
+        onOpenChange={setQuickExpenseOpen}
+        groups={groups}
+        onSaved={load}
+      />
     </div>
   );
 }

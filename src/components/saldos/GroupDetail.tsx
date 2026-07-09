@@ -8,15 +8,15 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, Plus, UserPlus, Loader2, CheckCircle2, ArrowRight,
-  Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt,
+  Trash2, Wand2, Sparkles, Users, HandCoins, History, Receipt, Coins,
   MoreVertical, Pencil, Filter, LayoutDashboard, User, Share2, Copy,
-  Clock, Scale, ChevronDown, ChevronUp
+  Clock, Scale, ChevronDown, ChevronUp, Calendar, X
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup
 } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -27,6 +27,7 @@ import {
 import { parseLaCuotaMessage, findMemberMatch, type ParsedPerson } from '@/lib/lacuota-parser';
 import { computeBalances, simplifyDebts, formatMoney, type ExpenseWithContribs, type Member, type Balance, type Settlement } from '@/lib/balances';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
+import QuickExpenseDialog from './QuickExpenseDialog';
 import { PersonalHistory } from '@/components/PersonalHistory';
 import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 import type { Category } from '@/components/CategoryPicker';
@@ -73,6 +74,13 @@ const CREATE_NEW = '__create__';
 const SKIP = '__skip__';
 type Assignment = { parsedName: string; amount: number; target: string };
 
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface Props {
   groupId: string;
   onBack: () => void;
@@ -104,6 +112,7 @@ export default function SaldamosGroupDetail({
   const [inviting, setInviting] = useState(false);
 
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [importTextForDialog, setImportTextForDialog] = useState<string | null>(null);
 
@@ -113,6 +122,18 @@ export default function SaldamosGroupDetail({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [importing, setImporting] = useState(false);
   const [footballTotal, setFootballTotal] = useState('');
+  const [footballPerPerson, setFootballPerPerson] = useState('');
+  const [lastEditedInput, setLastEditedInput] = useState<'total' | 'perPerson'>('total');
+  const [soccerTotal, setSoccerTotal] = useState('');
+  const [soccerPerPerson, setSoccerPerPerson] = useState('');
+
+  // Settlement payment dialog states
+  const [settlementPaymentOpen, setSettlementPaymentOpen] = useState(false);
+  const [activeSettlementData, setActiveSettlementData] = useState<{ contribution: any; currentStatus: boolean; expense: any } | null>(null);
+  const [settlementMethod, setSettlementMethod] = useState<'cash' | 'card' | null>(null);
+  const [settlementCard, setSettlementCard] = useState<string | null>(null);
+  const [savedCards, setSavedCards] = useState<string[]>([]);
+
 
   const [payFrom, setPayFrom] = useState('');
   const [payTo, setPayTo] = useState('');
@@ -138,22 +159,124 @@ export default function SaldamosGroupDetail({
     } catch {
       setPeopleGroups({});
     }
-  }, [frequentPeopleKey, peopleGroupsKey]);
+    try {
+      const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+      const saved = localStorage.getItem(cardsKey);
+      setSavedCards(saved ? JSON.parse(saved) : []);
+    } catch {
+      setSavedCards([]);
+    }
+  }, [frequentPeopleKey, peopleGroupsKey, user?.id]);
+
+  const frequentNotInGroup = useMemo(() => {
+    const namesInGroups = new Set<string>();
+    Object.values(peopleGroups).forEach(names => {
+      names.forEach(name => namesInGroups.add(name.toLowerCase()));
+    });
+    return frequentPeople.filter(p => 
+      !members.some(m => m.name.toLowerCase() === p.toLowerCase()) &&
+      !namesInGroups.has(p.toLowerCase())
+    );
+  }, [frequentPeople, members, peopleGroups]);
 
   const groupEmoji = localStorage.getItem(`group_emoji_${groupId}`);
   const isFootball = groupEmoji === '⚽' || group?.name.toLowerCase().includes('futbol') || group?.name.toLowerCase().includes('fútbol');
   const rawGroupMode = localStorage.getItem(`group_mode_${groupId}`);
   const groupMode = rawGroupMode || (isFootball ? 'tracker' : 'balance');
+  const groupType = localStorage.getItem(`group_type_${groupId}`) || '';
   const hasTrackerExpenses = useMemo(() => expenses.some(ex => ex.track_payments), [expenses]);
   const isTracker = groupMode === 'tracker' || hasTrackerExpenses;
+
+  const groupBgClass = useMemo(() => {
+    if (isFootball) return 'text-white';
+    const savedColor = localStorage.getItem(`group_color_${groupId}`);
+    if (savedColor) return `bg-gradient-to-br ${savedColor} text-white`;
+    try {
+      const TEMPLATE_GRADIENTS = [
+        'from-pink-500 to-rose-600',
+        'from-amber-500 to-orange-600',
+        'from-blue-500 to-indigo-600',
+        'from-sky-500 to-blue-700',
+        'from-blue-600 to-slate-800',
+        'from-orange-400 to-red-500',
+        'from-slate-500 to-gray-700',
+        'from-teal-500 to-cyan-600',
+      ];
+      const idx = parseInt(groupId.replace(/-/g, '').slice(0, 8), 16) % TEMPLATE_GRADIENTS.length;
+      return `bg-gradient-to-br ${TEMPLATE_GRADIENTS[idx]} text-white`;
+    } catch {
+      return 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white';
+    }
+  }, [groupId, isFootball]);
 
   // Filters and search
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<'general' | 'day' | 'custom'>('general');
+  const [customDate, setCustomDate] = useState<string>(() => getLocalDateString());
   const [displayCurrency, setDisplayCurrency] = useState<string>(group?.currency ?? 'CLP');
   const [showConverter, setShowConverter] = useState(false);
   const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
+
+  const toggleExpenseExpanded = (id: string) => {
+    setExpandedExpenses(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   const [myMemberId, setMyMemberId] = useState<string | null>(() => localStorage.getItem(`saldamos_id_${groupId}`));
+  const activeMyMemberId = useMemo(() => {
+    return members.some(m => m.id === myMemberId) ? myMemberId : null;
+  }, [members, myMemberId]);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
+  const [isPlayersInitialized, setIsPlayersInitialized] = useState(false);
+  const [isTeamExpanded, setIsTeamExpanded] = useState(false);
+  const [soccerPaymentType, setSoccerPaymentType] = useState<'none' | 'cash' | 'card'>('none');
+  const [soccerSelectedCard, setSoccerSelectedCard] = useState<string>('');
+  const [soccerNewCardName, setSoccerNewCardName] = useState('');
+  const [showSoccerAddCard, setShowSoccerAddCard] = useState(false);
+  const [soccerSearch, setSoccerSearch] = useState('');
+  const [soccerDialogOpen, setSoccerDialogOpen] = useState(false);
+  const [soccerStep, setSoccerStep] = useState(1);
+  const [soccerMatchName, setSoccerMatchName] = useState('');
+  const [soccerMatchScore, setSoccerMatchScore] = useState('');
+  const [soccerEditOpen, setSoccerEditOpen] = useState(false);
+  const [editingSoccerExpense, setEditingSoccerExpense] = useState<any>(null);
+  const [soccerEditName, setSoccerEditName] = useState('');
+  const [soccerEditScore, setSoccerEditScore] = useState('');
+
+  const filteredSoccerMembers = useMemo(() => {
+    if (!soccerSearch.trim()) return members;
+    return members.filter(m => m.name.toLowerCase().includes(soccerSearch.toLowerCase().trim()));
+  }, [members, soccerSearch]);
+
+  const addOrSelectMember = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const existing = members.find(m => m.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setSelectedPlayers(prev => {
+        const next = new Set(prev);
+        next.add(existing.id);
+        const numTotal = Number(soccerTotal);
+        if (numTotal > 0 && next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        }
+        return next;
+      });
+      setSoccerSearch('');
+      toast.success(`${existing.name} seleccionado`);
+    } else {
+      await addMemberByName(trimmed);
+      setSoccerSearch('');
+    }
+  };
+
   const [processingSettlements, setProcessingSettlements] = useState<Set<string>>(new Set());
   const [isCollaborator, setIsCollaborator] = useState<boolean>(false);
   const [joining, setJoining] = useState(false);
@@ -190,7 +313,35 @@ export default function SaldamosGroupDetail({
         }
       }
       
-      setMembers(m.data ?? []);
+      let currentMembers = m.data ?? [];
+      const globalNameKey = user?.id ? `saldamos_my_name_${user.id}` : 'saldamos_my_name';
+      const profileName = localStorage.getItem(globalNameKey)?.trim();
+      
+      if (profileName) {
+        const hasMe = currentMembers.some(member => member.name.toLowerCase() === profileName.toLowerCase());
+        if (!hasMe) {
+          const { data: newMem, error: insertErr } = await saldamosSupabase
+            .from('group_members')
+            .insert({ group_id: groupId, name: profileName })
+            .select()
+            .single();
+          
+          if (!insertErr && newMem) {
+            currentMembers = [...currentMembers, newMem];
+            await logActivity('MEMBER_ADDED', { name: profileName });
+          } else if (insertErr) {
+            console.error('Error auto-inserting profile user to group:', insertErr);
+          }
+        }
+        
+        const myMem = currentMembers.find(member => member.name.toLowerCase() === profileName.toLowerCase());
+        if (myMem && myMemberId !== myMem.id) {
+          localStorage.setItem(`saldamos_id_${groupId}`, myMem.id);
+          setMyMemberId(myMem.id);
+        }
+      }
+      
+      setMembers(currentMembers);
       if (e.data) {
         const mappedExpenses = e.data.map((ex: any) => ({
           ...ex,
@@ -298,8 +449,31 @@ export default function SaldamosGroupDetail({
   };
 
   useEffect(() => { 
+    setIsPlayersInitialized(false);
+    setSelectedPlayers(new Set());
     load(); 
   }, [groupId]);
+
+  useEffect(() => {
+    if (members.length > 0 && !isPlayersInitialized) {
+      setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
+      setIsPlayersInitialized(true);
+    }
+  }, [members, isPlayersInitialized, myMemberId]);
+
+  useEffect(() => {
+    if (myMemberId) {
+      setSelectedPlayers(prev => {
+        const next = new Set(prev);
+        const res = new Set<string>();
+        res.add(myMemberId);
+        next.forEach(id => {
+          if (id !== myMemberId) res.add(id);
+        });
+        return res;
+      });
+    }
+  }, [myMemberId]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivities();
@@ -317,6 +491,26 @@ export default function SaldamosGroupDetail({
 
   const balances = useMemo(() => computeBalances(members, expenses), [members, expenses]);
   const settlements = useMemo(() => simplifyDebts(balances), [balances]);
+
+  const myCardsBreakdown = useMemo(() => {
+    if (!activeMyMemberId) return null;
+    const map: Record<string, number> = {};
+    expenses.forEach(ex => {
+      if (ex.is_personal || ex.is_settlement) return;
+      const myContrib = ex.contributions.find((c: any) => c.member_id === activeMyMemberId);
+      if (myContrib && myContrib.amount_owed > 0) {
+        const parsed = parseDescription(ex.description);
+        const method = parsed.paymentMethod === 'card' && parsed.cardName
+          ? parsed.cardName
+          : parsed.paymentMethod === 'cash'
+            ? 'Efectivo'
+            : 'Otros / Sin registrar';
+        map[method] = (map[method] || 0) + myContrib.amount_owed;
+      }
+    });
+    return Object.entries(map).map(([method, amount]) => ({ method, amount }));
+  }, [expenses, activeMyMemberId]);
+
   
   const reconciliationExpenses = useMemo(() => 
     expenses.filter(ex => ex.is_settlement).sort((a, b) => 
@@ -401,7 +595,19 @@ export default function SaldamosGroupDetail({
     
     if (error) { toast.error(error.message); setSavingMember(false); return; }
     
-    setMembers(prev => [...prev, data as any]);
+    const newMember = data as any;
+    setMembers(prev => [...prev, newMember]);
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      next.add(newMember.id);
+      
+      // Update soccer cost calculations based on the new count of selected players
+      const numTotal = Number(soccerTotal);
+      if (numTotal > 0 && next.size > 0) {
+        setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+      }
+      return next;
+    });
     toast.success(`${name.trim()} agregado`);
     await logActivity('MEMBER_ADDED', { name: name.trim() });
     
@@ -430,9 +636,50 @@ export default function SaldamosGroupDetail({
     setSavingMember(false);
     if (error) { toast.error(error.message); return; }
     
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      
+      // Update soccer cost calculations
+      const numTotal = Number(soccerTotal);
+      if (numTotal > 0) {
+        if (next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        } else {
+          setSoccerPerPerson('');
+        }
+      }
+      return next;
+    });
     toast.success(`${name} eliminado del grupo`);
     await logActivity('MEMBER_DELETED', { name });
     await load(true);
+  };
+
+  const deleteAllMembers = async () => {
+    if (members.length === 0) {
+      toast.info('No hay jugadores que eliminar');
+      return;
+    }
+    if (!confirm(`¿Eliminar a TODOS los ${members.length} jugadores del grupo?\nEsta acción no se puede deshacer y borrará todo el historial asociado.`)) return;
+    setSavingMember(true);
+    try {
+      const { error } = await saldamosSupabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId);
+      if (error) throw error;
+      setSelectedPlayers(new Set());
+      setSoccerTotal('');
+      setSoccerPerPerson('');
+      toast.success('Todos los jugadores han sido eliminados');
+      await logActivity('MEMBERS_DELETED_ALL', { count: members.length });
+      await load(true);
+    } catch (err: any) {
+      toast.error('Error al eliminar jugadores: ' + err.message);
+    } finally {
+      setSavingMember(false);
+    }
   };
 
   const startEditMember = (m: any) => {
@@ -469,12 +716,21 @@ export default function SaldamosGroupDetail({
   };
 
   const filteredExpenses = useMemo(() => {
+    const todayStr = getLocalDateString();
     return expenses.filter(ex => {
       const matchesSearch = (ex.description || '').toLowerCase().includes(historySearch.toLowerCase());
       const matchesCategory = historyCategory === 'all' || ex.category_id === historyCategory;
-      return matchesSearch && matchesCategory;
+      
+      let matchesTime = true;
+      if (timeFilter === 'day') {
+        matchesTime = !!(ex.expense_date && (ex.expense_date === todayStr || ex.expense_date.startsWith(todayStr)));
+      } else if (timeFilter === 'custom') {
+        matchesTime = !!(ex.expense_date && (ex.expense_date === customDate || ex.expense_date.startsWith(customDate)));
+      }
+      
+      return matchesSearch && matchesCategory && matchesTime;
     });
-  }, [expenses, historySearch, historyCategory]);
+  }, [expenses, historySearch, historyCategory, timeFilter, customDate]);
 
   const categoryTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -510,13 +766,17 @@ export default function SaldamosGroupDetail({
     const parsed = parseLaCuotaMessage(importText);
     if (parsed.length === 0) { toast.error('No se detectaron personas. Pega el resumen tal como lo genera La Cuota.'); return; }
     setImportParsed(parsed);
-    setAssignments(
-      parsed.map(p => ({
-        parsedName: p.name,
-        amount: p.amount,
-        target: findMemberMatch(p.name, members) ?? CREATE_NEW,
-      }))
-    );
+    setFootballTotal('');
+    setFootballPerPerson('');
+    setLastEditedInput('total');
+    
+    const initialAssignments = parsed.map(p => ({
+      parsedName: p.name,
+      amount: p.amount,
+      target: findMemberMatch(p.name, members) ?? CREATE_NEW,
+    }));
+    
+    setAssignments(initialAssignments);
     
     // 🎉 Confetti for detection
     confetti({ 
@@ -527,79 +787,171 @@ export default function SaldamosGroupDetail({
     });
   };
 
+  const recalculateImportShares = (totalStr: string, currentAssignments: Assignment[]) => {
+    const total = Number(totalStr) || 0;
+    if (total <= 0) return currentAssignments.map(a => ({ ...a, amount: 0 }));
+    
+    const activeAssignments = currentAssignments.filter(a => a.target !== SKIP);
+    const activeCount = activeAssignments.length;
+    const share = activeCount > 0 ? Math.floor(total / activeCount) : 0;
+    
+    // Calculate remainder for rounding
+    let remainder = total - (share * activeCount);
+    
+    // Find the first active assignment's index/name to add the remainder
+    const firstActiveName = activeAssignments[0]?.parsedName;
+    
+    return currentAssignments.map(a => {
+      if (a.target === SKIP) {
+        return { ...a, amount: 0 };
+      }
+      let personShare = share;
+      if (a.parsedName === firstActiveName && remainder > 0) {
+        personShare += remainder;
+        remainder = 0; // Only add once
+      }
+      return { ...a, amount: personShare };
+    });
+  };
+
   const handleApplyImport = async () => {
     if (!importParsed) return;
     setImporting(true);
 
+    const normalizeKey = (s: string) => {
+      return s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
     // 1. Create new members
-    const toCreate = assignments
-      .filter(a => a.target === CREATE_NEW)
-      .map(a => a.parsedName.trim())
-      .filter((n, i, arr) => n && arr.indexOf(n) === i);
+    const toCreate: string[] = [];
+    assignments.forEach(a => {
+      if (a.target === CREATE_NEW) {
+        toCreate.push(a.parsedName.trim());
+      } else if (a.target.startsWith('frequent:')) {
+        const freqName = a.target.substring('frequent:'.length).trim();
+        toCreate.push(freqName);
+      }
+    });
+
+    const uniqueToCreate = toCreate.filter((n, i, arr) => n && arr.indexOf(n) === i);
 
     const createdMap: Record<string, string> = {};
-    if (toCreate.length > 0) {
+    if (uniqueToCreate.length > 0) {
       const { data, error } = await saldamosSupabase
         .from('group_members')
-        .insert(toCreate.map(name => ({ group_id: groupId, name })))
+        .insert(uniqueToCreate.map(name => ({ group_id: groupId, name: name.trim() })))
         .select('id, name');
       if (error || !data) { setImporting(false); toast.error('No se pudieron crear miembros'); return; }
-      (data as any[]).forEach((m: any) => (createdMap[m.name] = m.id));
+      (data as any[]).forEach((m: any) => {
+        createdMap[normalizeKey(m.name)] = m.id;
+      });
     }
 
     // 2. Build consumed map
     const consumed: Record<string, number> = {};
     for (const a of assignments) {
       if (a.target === SKIP) continue;
-      const id = a.target === CREATE_NEW ? createdMap[a.parsedName.trim()] : a.target;
+      
+      let id = '';
+      if (a.target === CREATE_NEW) {
+        id = createdMap[normalizeKey(a.parsedName)];
+      } else if (a.target.startsWith('frequent:')) {
+        const freqName = a.target.substring('frequent:'.length);
+        id = createdMap[normalizeKey(freqName)];
+      } else {
+        id = a.target;
+      }
+      
       if (!id) continue;
       consumed[id] = (consumed[id] ?? 0) + a.amount;
     }
 
+    // Verify payerId exists in the current group members or the newly created ones
+    const allMembersIds = new Set([
+      ...members.map(m => m.id),
+      ...Object.values(createdMap)
+    ]);
+    
+    const validMyMemberId = activeMyMemberId && allMembersIds.has(activeMyMemberId) ? activeMyMemberId : null;
+    let payerId = validMyMemberId || Object.keys(consumed)[0] || members[0]?.id;
+    
+    if ((!payerId || payerId === 'undefined') && allMembersIds.size > 0) {
+      payerId = Array.from(allMembersIds)[0];
+    }
+    
+    if (!payerId || payerId === 'undefined') {
+      setImporting(false);
+      toast.error('No se pudo determinar un pagador. Agrega al menos una persona.');
+      return;
+    }
+
+    const finalTotal = footballTotal ? Number(footballTotal) : Object.values(consumed).reduce((s, v) => s + v, 0);
+
+    // Calculate sum of amount_owed for everyone except payer to adjust rounding remainder
+    let othersOwedSum = 0;
+    Object.entries(consumed).forEach(([member_id, amount]) => {
+      if (member_id !== payerId) {
+        othersOwedSum += amount;
+      }
+    });
+
+    const payerOwed = Math.max(0, finalTotal - othersOwedSum);
+
     // 3. Create expense with individual contributions
-    const total = Object.values(consumed).reduce((s, v) => s + v, 0);
     const { data: exp, error: expErr } = await saldamosSupabase
       .from('expenses')
       .insert({ 
         group_id: groupId, 
-        description: 'Importado desde La Cuota', 
-        total_amount: total,
+        description: footballTotal ? 'Partido de fútbol' : 'Importado desde La Cuota', 
+        total_amount: finalTotal,
         track_payments: isTracker 
       })
       .select('id').single();
     if (expErr || !exp) { setImporting(false); toast.error(expErr?.message ?? 'Error al crear gasto'); return; }
 
-    // Each person: amount_paid = 0 (nobody "paid" the bill via the app), amount_owed = their share
-    // In tracker mode, the payerId gets amount_paid = total
-    const payerId = myMemberId || Object.keys(consumed)[0] || members[0]?.id;
+    // Each person: amount_paid = 0, amount_owed = their share
     const contribsMap: Record<string, { amount_paid: number; amount_owed: number }> = {};
     
     Object.entries(consumed).forEach(([member_id, amount]) => {
       contribsMap[member_id] = {
         amount_paid: 0,
-        amount_owed: amount,
+        amount_owed: member_id === payerId ? payerOwed : amount,
       };
     });
 
-    if (isTracker && payerId) {
-      if (!contribsMap[payerId]) {
-        contribsMap[payerId] = { amount_paid: total, amount_owed: 0 };
-      } else {
-        contribsMap[payerId].amount_paid = total;
-      }
+    if (!contribsMap[payerId]) {
+      contribsMap[payerId] = { amount_paid: 0, amount_owed: payerOwed };
     }
 
-    const contribs = Object.entries(contribsMap).map(([member_id, data]) => ({
-      expense_id: (exp as any).id,
-      member_id,
-      amount_paid: data.amount_paid,
-      amount_owed: data.amount_owed,
-    }));
+    if (isTracker && payerId && !isFootball) {
+      contribsMap[payerId].amount_paid = finalTotal;
+    }
+
+    const contribs = Object.entries(contribsMap)
+      .filter(([member_id, data]) => {
+        // Must be a valid member ID in the group
+        if (!member_id || member_id === 'undefined' || !allMembersIds.has(member_id)) {
+          return false;
+        }
+        // If football, filter out members with no involvement (0 paid, 0 owed)
+        if (isFootball && data.amount_paid === 0 && data.amount_owed === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map(([member_id, data]) => ({
+        expense_id: (exp as any).id,
+        member_id,
+        amount_paid: isFootball ? 0 : data.amount_paid,
+        amount_owed: data.amount_owed,
+        is_settled: false
+      }));
+
     const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
     setImporting(false);
     if (cErr) { toast.error(cErr.message); return; }
 
-    toast.success('✅ Consumos importados desde La Cuota');
+    toast.success(isFootball ? '⚽ ¡Partido importado y registrado!' : '✅ Consumos importados desde La Cuota');
     
     // 🎉 Success confetti
     confetti({ 
@@ -609,11 +961,21 @@ export default function SaldamosGroupDetail({
       colors: ['#2563eb', '#10b981', '#f59e0b', '#3b82f6']
     });
 
-    await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total });
+    await logActivity('EXPENSE_IMPORTED', { count: assignments.length, total: finalTotal });
+    if (isFootball) {
+      setExpandedExpenses(prev => {
+        const next = new Set(prev);
+        next.add((exp as any).id);
+        return next;
+      });
+    }
     setImportOpen(false);
     setImportText('');
     setImportParsed(null);
     setAssignments([]);
+    setFootballTotal('');
+    setFootballPerPerson('');
+    setLastEditedInput('total');
     load();
   };
 
@@ -677,6 +1039,77 @@ export default function SaldamosGroupDetail({
     }
   };
 
+  const clearExpenses = async (type: 'all' | 'settled') => {
+    if (type === 'settled' && !isTracker) {
+      toast.error('La opción "Limpiar todo lo saldado" solo está disponible en grupos de "Solo Cobros" (Tracker).', {
+        description: 'En el modo Balance, borrar transacciones individuales alteraría el historial y los balances actuales. Para reiniciar, utiliza "Limpiar todo".',
+        duration: 6000
+      });
+      return;
+    }
+
+    if (type === 'all') {
+      if (!confirm('¿Seguro que quieres borrar TODOS los gastos y pagos de este grupo? Esta acción no se puede deshacer.')) return;
+      
+      setLoading(true);
+      try {
+        const { error } = await saldamosSupabase
+          .from('expenses')
+          .delete()
+          .eq('group_id', groupId);
+          
+        if (error) throw error;
+        
+        toast.success('Todos los gastos han sido eliminados');
+        await logActivity('EXPENSES_CLEARED_ALL', { count: expenses.length });
+        await load();
+      } catch (err: any) {
+        toast.error('Error al limpiar gastos: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    } else if (type === 'settled') {
+      // Find settled expenses:
+      // 1. is_settlement = true (payment register, reconciliation log)
+      // OR 
+      // 2. all contributions with active unpaid debts are settled
+      const settledExpenses = expenses.filter(ex => {
+        if (ex.is_settlement) return true;
+        
+        const contribs = ex.contributions || [];
+        // A contribution is an active unpaid debt if amount_owed > amount_paid and it is not settled
+        const hasUnsettledDebt = contribs.some((c: any) => c.amount_owed > c.amount_paid && !c.is_settled);
+        return !hasUnsettledDebt;
+      });
+
+      if (settledExpenses.length === 0) {
+        toast.info('No hay gastos saldados para limpiar.');
+        return;
+      }
+
+      if (!confirm(`¿Seguro que quieres borrar los ${settledExpenses.length} gastos/pagos totalmente saldados? Los gastos con deudas pendientes se conservarán.`)) return;
+
+      setLoading(true);
+      try {
+        const settledIds = settledExpenses.map(e => e.id);
+        const { error } = await saldamosSupabase
+          .from('expenses')
+          .delete()
+          .in('id', settledIds);
+
+        if (error) throw error;
+
+        toast.success(`${settledExpenses.length} gastos saldados eliminados`);
+        await logActivity('EXPENSES_CLEARED_SETTLED', { count: settledExpenses.length });
+        await load();
+      } catch (err: any) {
+        toast.error('Error al limpiar gastos saldados: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const toggleExpand = (id: string) => {
     const next = new Set(expandedExpenses);
     if (next.has(id)) next.delete(id);
@@ -686,10 +1119,20 @@ export default function SaldamosGroupDetail({
 
   const handleViewDetail = (id: string) => {
     setActiveTab('history');
-    setExpandedExpenses(prev => new Set(prev).add(id));
+    setExpandedExpenses(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     setTimeout(() => {
       const el = document.getElementById(`expense-${id}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-blue-500', 'animate-pulse');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-blue-500', 'animate-pulse');
+        }, 2000);
+      }
     }, 150);
   };
 
@@ -701,7 +1144,13 @@ export default function SaldamosGroupDetail({
     }
   };
 
-  const toggleSettlement = async (contribution: any, currentStatus: boolean, expense: any) => {
+  const toggleSettlement = async (
+    contribution: any, 
+    currentStatus: boolean, 
+    expense: any,
+    method?: 'cash' | 'card' | null,
+    cardName?: string | null
+  ) => {
     const contributionId = contribution.id;
     if (processingSettlements.has(contributionId)) return;
     
@@ -732,48 +1181,68 @@ export default function SaldamosGroupDetail({
       
       if (error) throw error;
 
-      // 3. Handle Balance Reconciliations (Only in Balance Mode)
-      if (newStatus && !isTracker) {
+      // 3. Handle Balance Reconciliations
+      if (newStatus) {
         const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
         const payerContrib = (expense.contributions || []).find((c: any) => c.amount_paid > 0);
         const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
         const payerId = payerContrib?.member_id || myMemberId;
 
-        const { data: exp, error: expErr } = await saldamosSupabase
-          .from('expenses')
-          .insert({ 
-            group_id: groupId, 
-            description: `Reconciliación: ${fromName} → ${toName} (${expense.description})`, 
-            total_amount: contribution.amount_owed, 
-            is_settlement: true 
-          })
-          .select('id').single();
-        
-        if (expErr) console.warn('Error creating reconciliation:', expErr);
-        
-        if (!expErr && exp) {
-          await saldamosSupabase.from('expense_contributions').insert([
-            { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
-            { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
-          ]);
+        // In tracker mode, only create reconciliation logs if it is ME paying
+        const shouldCreateReconciliation = !isTracker || (contribution.member_id === myMemberId);
+
+        if (shouldCreateReconciliation) {
+          let reconciliationDesc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
+          if (method === 'cash') {
+            reconciliationDesc += ' [Efectivo]';
+          } else if (method === 'card' && cardName) {
+            reconciliationDesc += ` [Tarjeta: ${cardName}]`;
+          }
+
+          const { data: exp, error: expErr } = await saldamosSupabase
+            .from('expenses')
+            .insert({ 
+              group_id: groupId, 
+              description: reconciliationDesc, 
+              total_amount: contribution.amount_owed, 
+              is_settlement: true 
+            })
+            .select('id').single();
+          
+          if (expErr) console.warn('Error creating reconciliation:', expErr);
+          
+          if (!expErr && exp) {
+            await saldamosSupabase.from('expense_contributions').insert([
+              { expense_id: (exp as any).id, member_id: contribution.member_id, amount_paid: contribution.amount_owed, amount_owed: 0 },
+              { expense_id: (exp as any).id, member_id: payerId, amount_paid: 0, amount_owed: contribution.amount_owed },
+            ]);
+          }
         }
-      } else if (!newStatus && !isTracker) {
-        // Un-toggling in balance mode: delete the auto-generated settlement
+      } else if (!newStatus) {
+        // Un-toggling: delete the auto-generated settlement
         const fromName = members.find(m => m.id === contribution.member_id)?.name ?? '?';
         const payerContrib = (expense.contributions || []).find((c: any) => c.amount_paid > 0);
         const toName = members.find(m => m.id === (payerContrib?.member_id || myMemberId))?.name ?? '?';
-        const desc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
+        const baseDesc = `Reconciliación: ${fromName} → ${toName} (${expense.description})`;
         
         await saldamosSupabase
           .from('expenses')
           .delete()
           .eq('group_id', groupId)
           .eq('is_settlement', true)
-          .eq('description', desc);
+          .like('description', `${baseDesc}%`);
       }
 
       // Reload group data to update balances, settlements, and history
       await load(true);
+
+      await logActivity('SETTLEMENT_TOGGLED', {
+        debtor: members.find(m => m.id === contribution.member_id)?.name ?? 'Desconocido',
+        payer: members.find(m => m.id === (expense.contributions?.find((ct: any) => ct.amount_paid > 0)?.member_id || myMemberId))?.name ?? 'Desconocido',
+        amount: contribution.amount_owed,
+        expense: expense.description,
+        is_settled: newStatus
+      });
 
       // Success messages
       if (newStatus) {
@@ -878,6 +1347,279 @@ export default function SaldamosGroupDetail({
     toast.success('Copiado al portapapeles');
   };
 
+  const handleUpdatePlayerStatus = async (
+    expenseId: string, 
+    contributionId: string, 
+    memberId: string, 
+    status: 'pendiente' | 'tarjeta' | 'efectivo' | 'va_tarjeta' | 'va_efectivo'
+  ) => {
+    const isSettled = status === 'tarjeta' || status === 'efectivo';
+    
+    const { error } = await saldamosSupabase
+      .from('expense_contributions')
+      .update({ is_settled: isSettled })
+      .eq('id', contributionId);
+      
+    if (error) {
+      toast.error('Error al actualizar pago: ' + error.message);
+      return;
+    }
+    
+    if (isSettled) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+    
+    try {
+      const storageKey = `saldamos_football_status_${groupId}`;
+      const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      current[`${expenseId}:${memberId}`] = status;
+      localStorage.setItem(storageKey, JSON.stringify(current));
+    } catch (e) {
+      console.error(e);
+    }
+    
+    await load(true);
+    toast.success('Pago actualizado');
+  };
+
+  const selectAllPlayers = () => {
+    const allIds = new Set<string>();
+    if (myMemberId) allIds.add(myMemberId);
+    members.forEach(m => {
+      if (m.id !== myMemberId) allIds.add(m.id);
+    });
+    setSelectedPlayers(allIds);
+    const numTotal = Number(soccerTotal);
+    if (numTotal > 0 && allIds.size > 0) {
+      setSoccerPerPerson(Math.round(numTotal / allIds.size).toString());
+    } else {
+      const numPerPerson = Number(soccerPerPerson);
+      if (numPerPerson > 0) {
+        setSoccerTotal((numPerPerson * allIds.size).toString());
+      }
+    }
+  };
+
+  const deselectAllPlayers = () => {
+    setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
+    setSoccerPerPerson('');
+    setSoccerTotal('');
+  };
+
+  const togglePlayerSelection = (id: string) => {
+    if (id === myMemberId) {
+      toast.info('Tú debes estar seleccionado siempre');
+      return;
+    }
+    setSelectedPlayers(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      
+      const numTotal = Number(soccerTotal);
+      const numPerPerson = Number(soccerPerPerson);
+      
+      if (numTotal > 0) {
+        if (next.size > 0) {
+          setSoccerPerPerson(Math.round(numTotal / next.size).toString());
+        } else {
+          setSoccerPerPerson('');
+        }
+      } else if (numPerPerson > 0) {
+        setSoccerTotal((numPerPerson * next.size).toString());
+      }
+      
+      return next;
+    });
+  };
+
+  const handleAddSoccerCard = () => {
+    const trimmed = soccerNewCardName.trim();
+    if (!trimmed) return;
+    if (savedCards.includes(trimmed)) {
+      toast.error('Ya existe una tarjeta con ese nombre');
+      return;
+    }
+    const updated = [...savedCards, trimmed];
+    setSavedCards(updated);
+    const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+    localStorage.setItem(cardsKey, JSON.stringify(updated));
+    setSoccerSelectedCard(trimmed);
+    setSoccerNewCardName('');
+    setShowSoccerAddCard(false);
+    toast.success(`Tarjeta "${trimmed}" agregada`);
+  };
+
+  const createSoccerMatch = async () => {
+    const total = Number(soccerTotal);
+    if (!total || total <= 0) {
+      toast.error('Ingresa un monto válido para la cancha');
+      return;
+    }
+    const playingMembers = members.filter(m => selectedPlayers.has(m.id));
+    if (playingMembers.length === 0) {
+      toast.error('Selecciona al menos un jugador que haya participado');
+      return;
+    }
+    
+    if (soccerPaymentType === 'card' && !soccerSelectedCard) {
+      toast.error('Selecciona la tarjeta con la que pagaste');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      let tag = '';
+      if (soccerPaymentType === 'cash') {
+        tag = ' [Efectivo]';
+      } else if (soccerPaymentType === 'card' && soccerSelectedCard) {
+        tag = ` [Tarjeta: ${soccerSelectedCard}]`;
+      }
+
+      const matchLabel = soccerMatchName.trim() || `Partido ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'numeric' })}`;
+      const scoreTag = soccerMatchScore.trim() ? ` [Marcador: ${soccerMatchScore.trim()}]` : '';
+      const newDescription = `${matchLabel}${scoreTag}${tag}`;
+
+      const { data: exp, error: expErr } = await saldamosSupabase
+        .from('expenses')
+        .insert({
+          group_id: groupId,
+          description: newDescription,
+          total_amount: total,
+          track_payments: true,
+          is_settlement: false
+        })
+        .select('id')
+        .single();
+        
+      if (expErr || !exp) throw expErr || new Error('Gasto no creado');
+      
+      const share = Math.round(total / playingMembers.length);
+      const remainder = total - (share * playingMembers.length);
+      
+      const iPaidCourt = soccerPaymentType !== 'none';
+      const contribs = playingMembers.map((m, idx) => {
+        const owedShare = idx === 0 ? share + remainder : share;
+        const iAmPayer = iPaidCourt && myMemberId && m.id === myMemberId;
+        return {
+          expense_id: (exp as any).id,
+          member_id: m.id,
+          amount_paid: iAmPayer ? total : 0,
+          amount_owed: owedShare,
+          is_settled: !!iAmPayer
+        };
+      });
+      
+      const { error: cErr } = await saldamosSupabase.from('expense_contributions').insert(contribs);
+      if (cErr) throw cErr;
+      
+      // Auto-save local football status as paid for me if I paid
+      if (soccerPaymentType !== 'none' && myMemberId && selectedPlayers.has(myMemberId)) {
+        try {
+          const storageKey = `saldamos_football_status_${groupId}`;
+          const current = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          current[`${(exp as any).id}:${myMemberId}`] = soccerPaymentType === 'cash' ? 'efectivo' : 'tarjeta';
+          localStorage.setItem(storageKey, JSON.stringify(current));
+        } catch (e) { console.error(e); }
+      }
+      
+      toast.success('⚽ ¡Partido registrado con éxito!');
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      
+      // Auto-expand the newly created match
+      setExpandedExpenses(prev => {
+        const next = new Set(prev);
+        next.add((exp as any).id);
+        return next;
+      });
+
+      setSoccerTotal('');
+      setSoccerPerPerson('');
+      setSoccerPaymentType('none');
+      setSoccerSelectedCard('');
+      setSoccerMatchName('');
+      setSoccerMatchScore('');
+      setSelectedPlayers(myMemberId ? new Set([myMemberId]) : new Set());
+      setIsTeamExpanded(false);
+      setSoccerDialogOpen(false);
+      setSoccerStep(1);
+      await load(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al registrar partido: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSoccerEdit = async () => {
+    if (!editingSoccerExpense) return;
+    if (!soccerEditName.trim()) {
+      toast.error('El nombre del partido no puede estar vacío');
+      return;
+    }
+    setLoading(true);
+    try {
+      const parsed = parseDescription(editingSoccerExpense.description);
+      let newTag = '';
+      if (parsed.paymentMethod === 'cash') {
+        newTag = ' [Efectivo]';
+      } else if (parsed.paymentMethod === 'card' && parsed.cardName) {
+        newTag = ` [Tarjeta: ${parsed.cardName}]`;
+      }
+      
+      const matchLabel = soccerEditName.trim();
+      const scoreTag = soccerEditScore.trim() ? ` [Marcador: ${soccerEditScore.trim()}]` : '';
+      const newDescription = `${matchLabel}${scoreTag}${newTag}`;
+
+      const { error } = await saldamosSupabase
+        .from('expenses')
+        .update({ description: newDescription })
+        .eq('id', editingSoccerExpense.id);
+
+      if (error) throw error;
+
+      toast.success('⚽ Partido actualizado');
+      setSoccerEditOpen(false);
+      setEditingSoccerExpense(null);
+      await load(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al actualizar partido: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTotalChange = (val: string) => {
+    setSoccerTotal(val);
+    const num = Number(val);
+    const selectedCount = selectedPlayers.size;
+    if (num > 0 && selectedCount > 0) {
+      setSoccerPerPerson(Math.round(num / selectedCount).toString());
+    } else {
+      setSoccerPerPerson('');
+    }
+  };
+
+  const handlePerPersonChange = (val: string) => {
+    setSoccerPerPerson(val);
+    const num = Number(val);
+    const selectedCount = selectedPlayers.size;
+    if (num > 0 && selectedCount > 0) {
+      setSoccerTotal((num * selectedCount).toString());
+    } else {
+      setSoccerTotal('');
+    }
+  };
+
   const handleSetIdentity = (id: string) => {
     const finalId = id === 'none' ? null : id;
     setMyMemberId(finalId);
@@ -892,11 +1634,7 @@ export default function SaldamosGroupDetail({
     <div className="space-y-5 animate-slide-right pb-10">
       {/* Unified Dashboard Header Card */}
       <div 
-        className={`relative overflow-hidden rounded-[24px] shadow-lg border border-white/10 ${
-          isFootball 
-            ? 'text-white' 
-            : 'bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white'
-        }`}
+        className={`relative overflow-hidden rounded-[24px] shadow-lg border border-white/10 ${groupBgClass}`}
         style={isFootball ? {
           background: 'linear-gradient(180deg, #166534 0%, #15803d 18%, #166534 36%, #15803d 54%, #166534 72%, #15803d 90%, #166534 100%)',
         } : undefined}
@@ -906,19 +1644,19 @@ export default function SaldamosGroupDetail({
           <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
             {/* Center circle */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full border-2 border-white" />
-              <div className="absolute w-1.5 h-1.5 rounded-full bg-white" />
+              <div className="w-12 h-12 rounded-full border-2 border-white" />
+              <div className="absolute w-1 h-1 rounded-full bg-white" />
             </div>
             {/* Center line */}
             <div className="absolute top-1/2 left-0 right-0 h-px bg-white" />
             {/* Left penalty box */}
-            <div className="absolute top-1/2 -translate-y-1/2 left-0 w-8 h-10 border-r-2 border-t-2 border-b-2 border-white rounded-r" />
+            <div className="absolute top-1/2 -translate-y-1/2 left-0 w-6 h-8 border-r-2 border-t-2 border-b-2 border-white rounded-r" />
             {/* Right penalty box */}
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-8 h-10 border-l-2 border-t-2 border-b-2 border-white rounded-l" />
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-6 h-8 border-l-2 border-t-2 border-b-2 border-white rounded-l" />
           </div>
         )}
 
-        <div className="relative z-10 p-5 space-y-4">
+        <div className="relative z-10 p-3.5 sm:p-4 space-y-2.5">
           {/* Top Bar: Nav Back & Secondary Actions */}
           <div className="flex items-center justify-between gap-3">
             <button 
@@ -977,7 +1715,7 @@ export default function SaldamosGroupDetail({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-2xl sm:text-3xl drop-shadow-sm font-black tracking-tight leading-tight block break-words">
+                <span className="drop-shadow-sm font-black tracking-tight leading-tight block break-words text-lg sm:text-xl">
                   {isFootball && <span className="mr-1">⚽</span>}
                   {group?.name || 'Cargando...'}
                 </span>
@@ -995,15 +1733,34 @@ export default function SaldamosGroupDetail({
 
             {/* Main Primary Actions */}
             <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-              <Button
-                size="sm"
-                className="rounded-xl h-8 px-4 text-xs font-black gap-1.5 bg-white text-blue-700 hover:bg-white/90 shadow-md border-none shrink-0"
-                onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-              >
-                <Plus className="w-4 h-4 text-blue-700" /> GASTO
-              </Button>
+              {!isFootball && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      className="rounded-xl h-8 px-3 text-[11px] font-black gap-1 bg-white text-blue-700 hover:bg-white/90 shadow-md border-none shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-blue-700" /> GASTO
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="top" className="rounded-xl p-1.5 min-w-[150px] z-50">
+                    <DropdownMenuItem 
+                      onClick={() => setQuickExpenseOpen(true)}
+                      className="text-xs font-bold gap-1.5 rounded-lg py-2 cursor-pointer"
+                    >
+                      ⚡ Añadido Rápido
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+                      className="text-xs font-bold gap-1.5 rounded-lg py-2 cursor-pointer"
+                    >
+                      📋 Añadido Detallado
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               
-              <Select value={myMemberId || 'none'} onValueChange={handleSetIdentity}>
+              <Select value={activeMyMemberId || 'none'} onValueChange={handleSetIdentity}>
                 <SelectTrigger className="h-8 text-[10px] rounded-xl bg-white/15 border-none hover:bg-white/25 text-white font-black px-3 gap-1.5 min-w-[110px] shadow-sm [&>svg]:text-white">
                   <User className="w-3 h-3 text-white/90" />
                   <SelectValue placeholder="¿Quién eres?" />
@@ -1020,7 +1777,222 @@ export default function SaldamosGroupDetail({
 
 
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+      {isFootball ? (
+        <div className="space-y-6">
+          {/* Section 3: Partidos Registrados 📋 */}
+          <div className="space-y-4">
+            <h3 className="font-extrabold text-base text-foreground flex items-center gap-2 px-1">
+              <span>Partidos Registrados 📋</span>
+            </h3>
+
+            {expenses.filter(ex => !ex.is_settlement).length === 0 ? (
+              <div className="bg-card border border-border/40 rounded-3xl p-8 text-center text-muted-foreground italic text-xs">
+                Aún no hay partidos registrados. ¡Presiona el botón + abajo para registrar el primero! ⚽
+              </div>
+            ) : (
+              expenses.filter(ex => !ex.is_settlement).map(ex => {
+                const costPerPerson = Math.round(ex.total_amount / (ex.contributions?.length || 1));
+                const allPaid = ex.contributions && ex.contributions.length > 0 && ex.contributions.every((c: any) => c.is_settled);
+                
+                // Left accent border styling + subtle gradient backgrounds
+                const borderClass = allPaid
+                  ? 'border-l-4 border-l-emerald-500 border-t border-r border-b border-border/40 bg-gradient-to-r from-emerald-500/[0.03] to-transparent dark:from-emerald-500/[0.02] dark:to-transparent'
+                  : 'border-l-4 border-l-amber-500 border-t border-r border-b border-border/40 bg-gradient-to-r from-amber-500/[0.03] to-transparent dark:from-amber-500/[0.02] dark:to-transparent';
+
+                // Total Recaudado computation
+                const totalRecaudado = ex.contributions
+                  ? ex.contributions.reduce((acc: number, c: any) => c.is_settled ? acc + c.amount_owed : acc, 0)
+                  : 0;
+
+                return (
+                  <div key={ex.id} className={`bg-card rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-300 ${borderClass}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={() => toggleExpenseExpanded(ex.id)}>
+                        <h4 className="font-black text-sm text-foreground flex items-center gap-2 flex-wrap">
+                          {(() => {
+                            const parsed = parseDescription(ex.description);
+                            return (
+                              <>
+                                <span>⚽ {parsed.originalDescription}</span>
+                                {parsed.score && (
+                                  <span className="text-[10px] font-black bg-emerald-500/10 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-lg shrink-0 font-mono tracking-wider shadow-sm">
+                                    {parsed.score}
+                                  </span>
+                                )}
+                                {parsed.paymentMethod === 'card' && (
+                                  <span className="text-[9px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                                    💳 {parsed.cardName}
+                                  </span>
+                                )}
+                                {parsed.paymentMethod === 'cash' && (
+                                  <span className="text-[9px] font-bold bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/20 px-1.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                                    💵 Efectivo
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            ({new Date(ex.expense_date).toLocaleDateString('es-CL')})
+                          </span>
+                          
+                          {/* Complete vs Pending Badges */}
+                          {allPaid ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                              Saldado ⚽
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                              Pendiente ⏳
+                            </span>
+                          )}
+
+                          {expandedExpenses.has(ex.id) ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] font-bold text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Total Cancha:</span>
+                            <strong className="text-foreground">{formatMoney(ex.total_amount, currency)}</strong>
+                          </span>
+                          <span className="text-muted-foreground/30">•</span>
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Recaudado:</span>
+                            <strong className="text-emerald-600 dark:text-emerald-400">{formatMoney(totalRecaudado, currency)}</strong>
+                          </span>
+                          <span className="text-muted-foreground/30">•</span>
+                          <span className="flex items-center gap-1">
+                            <span className="text-muted-foreground/80">Cuota:</span>
+                            <strong className="text-foreground">{formatMoney(costPerPerson, currency)} c/u</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const parsed = parseDescription(ex.description);
+                            setEditingSoccerExpense(ex);
+                            setSoccerEditName(parsed.originalDescription);
+                            setSoccerEditScore(parsed.score || '');
+                            setSoccerEditOpen(true);
+                          }}
+                          title="Editar partido"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteExpense(ex.id);
+                          }}
+                          title="Borrar partido"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {expandedExpenses.has(ex.id) && (
+                      <div className="border-t border-border/40 pt-4 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Estado de los jugadores:</p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {ex.contributions?.map((c: any) => {
+                            const mName = members.find(m => m.id === c.member_id)?.name || 'Jugador';
+                            
+                            // Get local storage detailed status
+                            const localStatusMap = (() => {
+                              try {
+                                  return JSON.parse(localStorage.getItem(`saldamos_football_status_${groupId}`) || '{}');
+                              } catch { return {}; }
+                            })();
+                            const localStatus = localStatusMap[`${ex.id}:${c.member_id}`] || (c.is_settled ? 'tarjeta' : 'pendiente');
+                            
+                            // Determine status display details
+                            const statusDetails = (() => {
+                              switch (localStatus) {
+                                case 'tarjeta':
+                                  return { label: 'Pagado (Tarjeta) 💳', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                                case 'efectivo':
+                                  return { label: 'Pagado (Efectivo) 💵', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' };
+                                case 'va_tarjeta':
+                                  return { label: 'Va a pagar (Tarjeta) 💳', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                                case 'va_efectivo':
+                                  return { label: 'Va a pagar (Efectivo) 💵', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' };
+                                case 'pendiente':
+                                default:
+                                  return { label: 'Sin Pagar ❌', color: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400' };
+                              }
+                            })();
+
+                            return (
+                              <div key={c.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border/40 bg-accent/20">
+                                <span className="text-xs font-black text-foreground truncate max-w-[120px]">{mName}</span>
+                                
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className={`px-2.5 py-1 text-[9px] font-black rounded-lg border cursor-pointer hover:opacity-90 active:scale-95 transition-all select-none ${statusDetails.color}`}>
+                                      {statusDetails.label}
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-xl">
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'pendiente')}
+                                    >
+                                      Sin Pagar ❌
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-emerald-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'tarjeta')}
+                                    >
+                                      Pagado (Tarjeta) 💳
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-emerald-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'efectivo')}
+                                    >
+                                      Pagado (Efectivo) 💵
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-amber-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_tarjeta')}
+                                    >
+                                      Va a pagar (Tarjeta) 💳
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      className="text-[10px] font-black text-amber-600"
+                                      onClick={() => handleUpdatePlayerStatus(ex.id, c.id, c.member_id, 'va_efectivo')}
+                                    >
+                                      Va a pagar (Efectivo) 💵
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1 h-12">
           <TabsTrigger value="history" className="rounded-lg text-[11px] font-bold gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-blue-700 data-[state=active]:font-black text-muted-foreground">
             <History className="w-3.5 h-3.5" /> Gastos
@@ -1063,7 +2035,7 @@ export default function SaldamosGroupDetail({
 
                     return (
                       <div key={ex.id} className="space-y-2 pb-2 border-b border-border/50 last:border-0 last:pb-0">
-                        <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground truncate">{parseDescription(ex.description).originalDescription}</p>
                         {pending.map(c => {
                           const m = members.find(mem => mem.id === c.member_id);
                           return (
@@ -1078,6 +2050,15 @@ export default function SaldamosGroupDetail({
                                   onClick={() => toggleSettlement(c, false, ex)}
                                 >
                                   {processingSettlements.has(c.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : '¿PAGÓ?'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700"
+                                  onClick={() => handleViewDetail(ex.id)}
+                                  title="Ver detalle del gasto"
+                                >
+                                  🔗
                                 </Button>
                               </div>
                             </div>
@@ -1117,10 +2098,21 @@ export default function SaldamosGroupDetail({
                     return (
                       <div key={ex.id} className="flex items-center justify-between bg-red-50 dark:bg-red-950/20 p-3 rounded-xl border border-red-100 dark:border-red-900/30">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-bold text-muted-foreground truncate">{ex.description}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground truncate">{parseDescription(ex.description).originalDescription}</p>
                           <p className="text-[11px] font-medium text-foreground">Debes a <span className="font-bold text-red-500">{payerName}</span></p>
                         </div>
-                        <span className="text-sm font-black text-red-600 dark:text-red-400 tabular-nums">{fmt(myContrib.amount_owed)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm font-black text-red-600 dark:text-red-400 tabular-nums mr-1">{fmt(myContrib.amount_owed)}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700"
+                            onClick={() => handleViewDetail(ex.id)}
+                            title="Ver detalle del gasto"
+                          >
+                            🔗
+                          </Button>
+                        </div>
                       </div>
                     );
                   }).filter(Boolean);
@@ -1208,6 +2200,25 @@ export default function SaldamosGroupDetail({
               </div>
             </div>
           )}
+
+          {/* Payment Methods spending summary */}
+          {myCardsBreakdown && myCardsBreakdown.length > 0 && (
+            <div className="rounded-2xl bg-card border border-border p-4 space-y-2.5 animate-in fade-in duration-200">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5 tracking-wider">
+                💳 Tus Consumos por Medio de Pago
+              </h3>
+              <div className="space-y-1.5">
+                {myCardsBreakdown.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs font-bold py-1.5 border-b border-border/40 last:border-0 last:pb-0">
+                    <span className="text-muted-foreground">
+                      {item.method === 'Efectivo' ? '💵 Efectivo' : item.method.startsWith('Otros') ? '📦 Otros / Sin registrar' : `💳 ${item.method}`}
+                    </span>
+                    <span className="text-foreground tabular-nums">{fmt(item.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4 pt-4">
@@ -1242,6 +2253,92 @@ export default function SaldamosGroupDetail({
                   {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex bg-muted/65 p-0.5 rounded-lg border border-border/40 shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={() => setTimeFilter('general')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    timeFilter === 'general'
+                      ? 'bg-card text-blue-700 shadow-sm font-black'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  General
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeFilter('day')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    timeFilter === 'day'
+                      ? 'bg-card text-blue-700 shadow-sm font-black'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Del Día
+                </button>
+                <div className="relative flex items-center shrink-0">
+                  <input
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCustomDate(e.target.value);
+                        setTimeFilter('custom');
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <button
+                    type="button"
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${
+                      timeFilter === 'custom'
+                        ? 'bg-card text-blue-700 shadow-sm font-black'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Calendar className="w-3 h-3" />
+                    <span>
+                      {timeFilter === 'custom' && customDate
+                        ? `${customDate.split('-')[2]}/${customDate.split('-')[1]}`
+                        : 'Fecha'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px] rounded-lg border-red-200/40 text-red-500 hover:text-red-600 hover:bg-red-50/50 gap-1 px-2.5 font-bold"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                    Limpiar Gastos
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl border border-border/80 p-1 min-w-[170px] shadow-lg">
+                  <DropdownMenuItem
+                    onClick={() => clearExpenses('settled')}
+                    className={`rounded-lg text-[11px] font-bold p-2 ${
+                      isTracker
+                        ? 'text-red-500 focus:text-red-600 focus:bg-red-50'
+                        : 'text-muted-foreground/60 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    Limpiar saldados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => clearExpenses('all')}
+                    className="rounded-lg text-[11px] font-bold text-red-600 focus:text-red-700 focus:bg-red-50 p-2"
+                  >
+                    Limpiar todo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {categoryTotals.length > 0 && historyCategory === 'all' && (
@@ -1287,8 +2384,8 @@ export default function SaldamosGroupDetail({
                 const hasPendingCollections = iPaid && ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled && c.member_id !== myMemberId);
                 const hasPendingDebt = iOwe && myContrib && !myContrib.is_settled;
                 
-                const showYellow = ex.track_payments && hasPendingCollections;
-                const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > 0 && !c.is_settled);
+                const showYellow = (ex.track_payments && hasPendingCollections) || hasPendingDebt;
+                const allSettled = !ex.contributions?.some((c: any) => c.amount_owed > c.amount_paid && !c.is_settled);
 
                 return (
                   <div 
@@ -1314,7 +2411,10 @@ export default function SaldamosGroupDetail({
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-sm font-bold truncate pr-2">
-                            {ex.description || (isSettlement ? 'Pago/Ajuste' : 'Gasto sin descripción')}
+                            {(() => {
+                              const parsed = parseDescription(ex.description);
+                              return parsed.originalDescription || (isSettlement ? 'Pago/Ajuste' : 'Gasto sin descripción');
+                            })()}
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5 whitespace-nowrap overflow-hidden">
                             <div className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded-lg border border-border/50">
@@ -1330,6 +2430,23 @@ export default function SaldamosGroupDetail({
                                 {categories.find(c => c.id === ex.category_id)?.name}
                               </span>
                             )}
+                            {(() => {
+                              const parsed = parseDescription(ex.description);
+                              return (
+                                <>
+                                  {parsed.paymentMethod === 'card' && (
+                                    <span className="text-[9px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                                      💳 {parsed.cardName}
+                                    </span>
+                                  )}
+                                  {parsed.paymentMethod === 'cash' && (
+                                    <span className="text-[9px] font-bold bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/20 px-1.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                                      💵 Efectivo
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                             {showYellow && (
                               <span className="flex items-center gap-1 text-[9px] text-emerald-700 font-black bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
                                 COBRO
@@ -1451,6 +2568,24 @@ export default function SaldamosGroupDetail({
                                         {c.is_settled ? 'PAGADO' : 'MARCAR PAGO'}
                                       </Button>
                                     )}
+                                    {isMe && c.amount_owed > 0 && !c.is_settled && !parseDescription(ex.description).paymentMethod && (
+                                      <Button
+                                        size="sm"
+                                        disabled={processingSettlements.has(c.id)}
+                                        variant="outline"
+                                        className="h-7 px-2 rounded-lg text-[10px] font-bold text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30"
+                                        onClick={(e) => { 
+                                          e.stopPropagation(); 
+                                          setActiveSettlementData({ contribution: c, currentStatus: c.is_settled, expense: ex });
+                                          setSettlementMethod(null);
+                                          setSettlementCard(null);
+                                          setSettlementPaymentOpen(true);
+                                        }}
+                                      >
+                                        {processingSettlements.has(c.id) ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                        YA PAGUÉ
+                                      </Button>
+                                    )}
                                     {!owesMe && c.amount_owed > 0 && c.is_settled && (
                                       <div className="flex items-center text-emerald-500 dark:text-emerald-400 gap-1 text-[10px] font-bold pr-1">
                                         <CheckCircle2 className="w-3 h-3" />
@@ -1537,10 +2672,17 @@ export default function SaldamosGroupDetail({
                       <span className="font-bold">{a.user_name.split('@')[0]}</span>{' '}
                       {a.action === 'EXPENSE_ADDED' && `añadió el gasto "${a.details?.description || 'sin nombre'}"`}
                       {a.action === 'EXPENSE_UPDATED' && `editó el gasto "${a.details?.description || 'sin nombre'}"`}
-                      {a.action === 'EXPENSE_DELETED' && `eliminó el gasto "${a.details?.description || 'sin nombre'}"`}
+                      {a.action === 'EXPENSE_DELETED' && `eliminó el gasto "${a.details?.description || 'sin nombre'}"${a.details?.amount ? ` por ${formatMoney(a.details.amount, currency)}` : ''}`}
                       {a.action === 'MEMBER_ADDED' && `agregó a ${a.details?.name || 'alguien'}`}
+                      {a.action === 'MEMBER_DELETED' && `eliminó a "${a.details?.name || 'alguien'}" del grupo`}
                       {a.action === 'PAYMENT_REGISTERED' && `registró un pago de ${a.details?.from} a ${a.details?.to}`}
                       {a.action === 'EXPENSE_IMPORTED' && `importó ${a.details?.count} consumos por ${formatMoney(a.details?.total || 0, currency)}`}
+                      {a.action === 'EXPENSES_CLEARED_ALL' && `limpió todos los gastos del grupo (borró ${a.details?.count || 0} transacciones)`}
+                      {a.action === 'EXPENSES_CLEARED_SETTLED' && `limpió los gastos saldados del grupo (borró ${a.details?.count || 0} transacciones)`}
+                      {a.action === 'SETTLEMENT_TOGGLED' && (a.details?.is_settled 
+                        ? `marcó que ${a.details?.debtor} le pagó ${formatMoney(a.details?.amount || 0, currency)} a ${a.details?.payer} por "${a.details?.expense}"`
+                        : `marcó como pendiente el pago de ${a.details?.debtor} a ${a.details?.payer} por "${a.details?.expense}"`
+                      )}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {new Date(a.created_at).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -1552,6 +2694,7 @@ export default function SaldamosGroupDetail({
           </div>
         </TabsContent>
       </Tabs>
+      )}
 
       <ExpenseDialog 
         open={expenseOpen} 
@@ -1564,6 +2707,7 @@ export default function SaldamosGroupDetail({
         initialImportText={importTextForDialog}
         mode={isTracker ? 'tracker' : 'balance'}
         myMemberId={myMemberId}
+        groupType={groupType}
         onSaved={async (expense) => {
           await logActivity(selectedExpense ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', { 
             id: expense.id, 
@@ -1574,6 +2718,137 @@ export default function SaldamosGroupDetail({
         }} 
         onCategoriesChanged={load} 
       />
+
+      <QuickExpenseDialog 
+        open={quickExpenseOpen} 
+        onOpenChange={setQuickExpenseOpen} 
+        groups={group ? [{
+          id: group.id,
+          name: group.name,
+          currency: group.currency,
+          owner_id: group.owner_id || '',
+          isOwner: group.owner_id === user?.id
+        }] : []}
+        onSaved={load} 
+        fixedGroupId={groupId} 
+      />
+
+      {/* Settlement Payment Method Selection Dialog */}
+      <Dialog open={settlementPaymentOpen} onOpenChange={setSettlementPaymentOpen}>
+        <DialogContent className="max-w-sm w-[92vw] rounded-3xl p-5 border-none shadow-2xl overflow-hidden flex flex-col gap-4">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-base font-black flex items-center justify-center gap-1.5">
+              <span>💳 ¿Cómo pagaste esta deuda?</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Registra el método de pago para tener el control en tus tarjetas y efectivo en tu perfil.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3 py-2">
+            <Button
+              type="button"
+              variant={settlementMethod === 'cash' ? 'default' : 'outline'}
+              className={`w-full rounded-2xl h-12 text-xs font-bold gap-2 flex items-center justify-center ${
+                settlementMethod === 'cash' 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-background hover:bg-muted border border-border text-foreground'
+              }`}
+              onClick={() => {
+                setSettlementMethod('cash');
+                setSettlementCard(null);
+              }}
+            >
+              <span className="text-base">💵</span> Pago en Efectivo
+            </Button>
+            
+            <Button
+              type="button"
+              variant={settlementMethod === 'card' ? 'default' : 'outline'}
+              className={`w-full rounded-2xl h-12 text-xs font-bold gap-2 flex items-center justify-center ${
+                settlementMethod === 'card' 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-background hover:bg-muted border border-border text-foreground'
+              }`}
+              onClick={() => {
+                setSettlementMethod('card');
+                if (savedCards.length > 0 && !settlementCard) {
+                  setSettlementCard(savedCards[0]);
+                }
+              }}
+            >
+              <span className="text-base">💳</span> Pago con Tarjeta
+            </Button>
+
+            {settlementMethod === 'card' && (
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                <Label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block text-center">Selecciona la Tarjeta:</Label>
+                {savedCards.length === 0 ? (
+                  <p className="text-[10px] text-amber-600 font-semibold italic text-center py-1">
+                    No tienes tarjetas guardadas. Agrégalas en tu Perfil.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-[100px] overflow-y-auto pr-1">
+                    {savedCards.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSettlementCard(c)}
+                        className={`w-full p-2 rounded-xl text-xs font-bold border transition-all text-center ${
+                          settlementCard === c
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-400'
+                            : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-0 mt-2">
+            <Button
+              variant="ghost"
+              className="rounded-xl text-xs font-bold text-muted-foreground flex-1"
+              onClick={() => {
+                if (activeSettlementData) {
+                  toggleSettlement(
+                    activeSettlementData.contribution,
+                    activeSettlementData.currentStatus,
+                    activeSettlementData.expense,
+                    null,
+                    null
+                  );
+                }
+                setSettlementPaymentOpen(false);
+              }}
+            >
+              Omitir / Sin etiqueta
+            </Button>
+            <Button
+              disabled={settlementMethod === 'card' && !settlementCard}
+              className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
+              onClick={() => {
+                if (activeSettlementData) {
+                  toggleSettlement(
+                    activeSettlementData.contribution,
+                    activeSettlementData.currentStatus,
+                    activeSettlementData.expense,
+                    settlementMethod,
+                    settlementCard
+                  );
+                }
+                setSettlementPaymentOpen(false);
+              }}
+            >
+              Confirmar Pago
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Manage Members Dialog */}
       <Dialog open={memberOpen} onOpenChange={(v) => { setMemberOpen(v); if(!v) { setEditingMemberId(null); setMemberName(''); } }}>
@@ -1829,7 +3104,7 @@ export default function SaldamosGroupDetail({
       </Dialog>
 
       {/* Import from La Cuota Dialog */}
-      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); setFootballTotal(''); } }}>
+      <Dialog open={importOpen} onOpenChange={v => { setImportOpen(v); if (!v) { setImportParsed(null); setImportText(''); setFootballTotal(''); setFootballPerPerson(''); setLastEditedInput('total'); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-blue-500" /> Importar</DialogTitle>
@@ -1849,32 +3124,62 @@ export default function SaldamosGroupDetail({
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Football mode: amounts are 0, ask user for total */}
-              {assignments.every(a => a.amount === 0) && (
-                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 space-y-2">
-                  <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    ⚽ Lista de jugadores detectada — {assignments.length} personas
+              {/* Football mode: amounts are 0, ask user for total or per person */}
+              {importParsed && importParsed.every(p => p.amount === 0) && (
+                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3.5 space-y-3">
+                  <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5 mb-1">
+                    ⚽ Lista de jugadores — {assignments.filter(a => a.target !== SKIP).length} activos ({assignments.length} total)
                   </p>
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      type="number"
-                      placeholder="Total a dividir ($)"
-                      value={footballTotal}
-                      onChange={e => {
-                        setFootballTotal(e.target.value);
-                        const total = Number(e.target.value);
-                        if (total > 0) {
-                          const share = Math.round(total / assignments.length);
-                          setAssignments(prev => prev.map(a => ({ ...a, amount: share })));
-                        }
-                      }}
-                      className="rounded-xl text-sm h-9 flex-1"
-                    />
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {footballTotal && Number(footballTotal) > 0
-                        ? `= $${Math.round(Number(footballTotal) / assignments.length).toLocaleString('es-CL')} c/u`
-                        : 'por persona'}
-                    </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="football-total-input" className="text-[10px] font-black uppercase text-green-800 dark:text-green-300 tracking-wider">Total Cancha</Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          id="football-total-input"
+                          type="number"
+                          placeholder="Monto total"
+                          value={footballTotal}
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFootballTotal(val);
+                            setLastEditedInput('total');
+                            const activeCount = assignments.filter(a => a.target !== SKIP).length;
+                            const perPerson = (Number(val) && activeCount > 0) ? Math.round(Number(val) / activeCount).toString() : '';
+                            setFootballPerPerson(perPerson);
+                            setAssignments(prev => recalculateImportShares(val, prev));
+                          }}
+                          className="rounded-xl text-xs h-9 pl-6 font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="football-perperson-input" className="text-[10px] font-black uppercase text-green-800 dark:text-green-300 tracking-wider">Por Persona</Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          id="football-perperson-input"
+                          type="number"
+                          placeholder="Costo c/u"
+                          value={footballPerPerson}
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFootballPerPerson(val);
+                            setLastEditedInput('perPerson');
+                            const activeCount = assignments.filter(a => a.target !== SKIP).length;
+                            const total = (Number(val) && activeCount > 0) ? (Number(val) * activeCount).toString() : '';
+                            setFootballTotal(total);
+                            setAssignments(prev => recalculateImportShares(total, prev));
+                          }}
+                          className="rounded-xl text-xs h-9 pl-6 font-semibold"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1886,12 +3191,49 @@ export default function SaldamosGroupDetail({
                     <p className="text-[10px] text-muted-foreground tabular-nums">{a.amount > 0 ? fmt(a.amount) : '—'}</p>
                   </div>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                  <Select value={a.target} onValueChange={v => setAssignments(prev => prev.map((p, i) => i === idx ? { ...p, target: v } : p))}>
+                  <Select value={a.target} onValueChange={v => {
+                    const updated = assignments.map((p, i) => i === idx ? { ...p, target: v } : p);
+                    const activeCount = updated.filter(p => p.target !== SKIP).length;
+                    
+                    if (lastEditedInput === 'perPerson' && footballPerPerson) {
+                      const newTotal = (Number(footballPerPerson) * activeCount).toString();
+                      setFootballTotal(newTotal);
+                      const finalAssignments = recalculateImportShares(newTotal, updated);
+                      setAssignments(finalAssignments);
+                    } else {
+                      // default to 'total'
+                      if (footballTotal) {
+                        const newPerPerson = activeCount > 0 ? Math.round(Number(footballTotal) / activeCount).toString() : '';
+                        setFootballPerPerson(newPerPerson);
+                      }
+                      const finalAssignments = recalculateImportShares(footballTotal, updated);
+                      setAssignments(finalAssignments);
+                    }
+                  }}>
                     <SelectTrigger className="text-xs rounded-xl h-8"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={CREATE_NEW}>+ Crear "{a.parsedName}"</SelectItem>
                       <SelectItem value={SKIP}>Omitir</SelectItem>
-                      {members.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                      
+                      {members.length > 0 && (
+                        <SelectGroup>
+                          <SelectSeparator />
+                          <SelectLabel className="text-[9px] font-bold text-muted-foreground uppercase py-1 pl-8">En el grupo</SelectLabel>
+                          {members.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      
+                      {frequentNotInGroup.length > 0 && (
+                        <SelectGroup>
+                          <SelectSeparator />
+                          <SelectLabel className="text-[9px] font-bold text-blue-600 uppercase py-1 pl-8">Tus Frecuentes</SelectLabel>
+                          {frequentNotInGroup.map(name => (
+                            <SelectItem key={name} value={`frequent:${name}`}>+ Agregar {name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1908,17 +3250,594 @@ export default function SaldamosGroupDetail({
           )}
         </DialogContent>
       </Dialog>
+      {/* Redesigned Football Match Dialog Wizard */}
+      <Dialog open={soccerDialogOpen} onOpenChange={(v) => { setSoccerDialogOpen(v); if(!v) setSoccerStep(1); }}>
+        <DialogContent className="max-w-md w-[92vw] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col max-h-[85vh]">
+          <DialogHeader className="p-5 pb-3 border-b border-border/40">
+            <DialogTitle className="text-base font-black flex items-center gap-1.5 uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span>⚽ Registrar Partido</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {soccerStep === 1 && "Paso 1 de 3: ¿Quiénes jugaron? / Arma tu equipo"}
+              {soccerStep === 2 && "Paso 2 de 3: ¿Cómo o quién pagó la cancha?"}
+              {soccerStep === 3 && "Paso 3 de 3: Costo de la cancha"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+            {/* STEP 1: PLAYERS SELECTION */}
+            {soccerStep === 1 && (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Buscar o agregar jugador..."
+                    className="rounded-xl h-10 text-xs font-medium"
+                    value={soccerSearch}
+                    onChange={(e) => setSoccerSearch(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        const val = soccerSearch.trim();
+                        if (val) {
+                          await addOrSelectMember(val);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-10 rounded-xl px-4 font-bold bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                    onClick={async () => {
+                      const val = soccerSearch.trim();
+                      if (val) {
+                        await addOrSelectMember(val);
+                      }
+                    }}
+                  >
+                    Agregar
+                  </Button>
+                </div>
+
+                <div className="flex gap-1.5 justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-xl text-xs font-bold gap-1.5 border-dashed"
+                    onClick={() => setImportOpen(true)}
+                  >
+                    <Wand2 className="w-3.5 h-3.5" /> Importar
+                  </Button>
+                  {members.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={savingMember}
+                      className="h-8 w-8 p-0 rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 shrink-0"
+                      onClick={deleteAllMembers}
+                      title="Eliminar todos los jugadores del grupo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {members.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center italic py-4">Aún no hay jugadores. ¡Agrega algunos arriba!</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        className="text-[9px] font-black uppercase tracking-wider text-blue-600 hover:underline"
+                        onClick={selectAllPlayers}
+                      >
+                        Todos
+                      </button>
+                      <span className="text-[9px] text-muted-foreground/30">•</span>
+                      <button
+                        type="button"
+                        className="text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:underline"
+                        onClick={deselectAllPlayers}
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+
+                    {filteredSoccerMembers.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-2xl">
+                        No se encontraron jugadores.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1">
+                        {filteredSoccerMembers.map(m => {
+                          const isSelected = selectedPlayers.has(m.id);
+                          const selectionIndex = isSelected ? Array.from(selectedPlayers).indexOf(m.id) + 1 : 0;
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => togglePlayerSelection(m.id)}
+                              className={`flex items-center justify-between gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl border text-xs font-black cursor-pointer select-none transition-all duration-200 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                                  : 'bg-accent/40 border-border/40 text-muted-foreground hover:border-border'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                                  isSelected ? 'bg-white text-green-700 font-bold' : 'bg-muted-foreground/20 text-muted-foreground'
+                                }`}>
+                                  {isSelected ? selectionIndex : ''}
+                                </div>
+                                <span className="truncate">{m.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteMember(m.id, m.name);
+                                }}
+                                className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected 
+                                    ? 'hover:bg-white/20 text-white/80 hover:text-white' 
+                                    : 'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+                                }`}
+                                title="Eliminar jugador"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Contacts Section */}
+                {(frequentNotInGroup.length > 0 || Object.keys(peopleGroups).length > 0) && (
+                  <div className="border-t border-border/40 pt-3 space-y-3 max-h-[150px] overflow-y-auto custom-scrollbar">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Agregar desde mis contactos</p>
+                    
+                    {frequentNotInGroup.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {frequentNotInGroup.map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={savingMember}
+                            onClick={() => addOrSelectMember(p)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 active:scale-95 transition-all"
+                          >
+                            + {p}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {Object.keys(peopleGroups).map(gn => {
+                      const available = peopleGroups[gn].filter(
+                        p => !members.some(m => m.name.toLowerCase() === p.toLowerCase())
+                      );
+                      if (available.length === 0) return null;
+                      return (
+                        <div key={gn} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5" /> {gn}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={savingMember}
+                              onClick={() => bulkAddMembers(peopleGroups[gn])}
+                              className="text-[8px] font-black uppercase tracking-wider text-blue-500 hover:text-blue-700 px-1.5 py-0.5"
+                            >
+                              + Todos
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {available.map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                disabled={savingMember}
+                                onClick={() => addOrSelectMember(p)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-muted/60 border border-border/60 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all"
+                              >
+                                + {p}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 2: PAYER SELECTION */}
+            {soccerStep === 2 && (
+              <div className="space-y-4">
+                <div className="text-center py-2">
+                  <p className="text-xs text-muted-foreground font-bold">¿Pagaste tú la cancha u otra persona?</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setSoccerPaymentType('cash'); }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-1.5 ${
+                      soccerPaymentType !== 'none'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 scale-[0.98]'
+                        : 'border-border/60 bg-background hover:bg-muted/40 text-muted-foreground'
+                    }`}
+                  >
+                    <span className="text-2xl">🙋‍♂️</span>
+                    <span className="text-xs font-black uppercase tracking-wider text-foreground">Yo pagué</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSoccerPaymentType('none'); setSoccerSelectedCard(''); }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-1.5 ${
+                      soccerPaymentType === 'none'
+                        ? 'border-slate-800 bg-slate-100 dark:bg-slate-900 scale-[0.98]'
+                        : 'border-border/60 bg-background hover:bg-muted/40 text-muted-foreground'
+                    }`}
+                  >
+                    <span className="text-2xl">❌</span>
+                    <span className="text-xs font-black uppercase tracking-wider text-foreground">No pagué yo</span>
+                  </button>
+                </div>
+
+                {soccerPaymentType !== 'none' && (
+                  <div className="space-y-3 pt-3 border-t border-border/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">¿Cómo pagaste?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={soccerPaymentType === 'cash' ? 'default' : 'outline'}
+                        className={`rounded-xl h-10 text-xs font-bold gap-1.5 ${soccerPaymentType === 'cash' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''}`}
+                        onClick={() => { setSoccerPaymentType('cash'); setSoccerSelectedCard(''); }}
+                      >
+                        💵 Efectivo
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={soccerPaymentType === 'card' ? 'default' : 'outline'}
+                        className={`rounded-xl h-10 text-xs font-bold gap-1.5 ${soccerPaymentType === 'card' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
+                        onClick={() => {
+                          setSoccerPaymentType('card');
+                          if (savedCards.length > 0 && !soccerSelectedCard) {
+                            setSoccerSelectedCard(savedCards[0]);
+                          }
+                        }}
+                      >
+                        💳 Tarjeta
+                      </Button>
+                    </div>
+
+                    {soccerPaymentType === 'card' && (
+                      <div className="pt-1.5 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase text-center">Selecciona la Tarjeta:</p>
+                        
+                        {savedCards.length === 0 && !showSoccerAddCard && (
+                          <div className="text-center p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 text-xs font-semibold">
+                            No tienes tarjetas guardadas.
+                            <button
+                              type="button"
+                              className="block mx-auto mt-1 text-indigo-600 hover:underline font-bold"
+                              onClick={() => setShowSoccerAddCard(true)}
+                            >
+                              + Agregar Tarjeta Rápida
+                            </button>
+                          </div>
+                        )}
+
+                        {savedCards.length > 0 && (
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {savedCards.map(cardName => (
+                              <button
+                                key={cardName}
+                                type="button"
+                                onClick={() => setSoccerSelectedCard(cardName)}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                  soccerSelectedCard === cardName
+                                    ? 'bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-400'
+                                    : 'bg-background hover:bg-muted text-muted-foreground border-border/60'
+                                }`}
+                              >
+                                {cardName}
+                              </button>
+                            ))}
+                            {!showSoccerAddCard && (
+                              <button
+                                type="button"
+                                onClick={() => setShowSoccerAddCard(true)}
+                                className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold border border-dashed border-border/80 text-indigo-600 hover:bg-muted"
+                              >
+                                + Agregar
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {showSoccerAddCard && (
+                          <div className="flex gap-2 w-full pt-1 max-w-[280px] mx-auto animate-in zoom-in-95 duration-150">
+                            <Input
+                              placeholder="Ej: Banco Estado, Visa..."
+                              value={soccerNewCardName}
+                              onChange={e => setSoccerNewCardName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleAddSoccerCard()}
+                              className="rounded-xl h-8 text-[10px] font-semibold flex-1"
+                            />
+                            <Button
+                              onClick={handleAddSoccerCard}
+                              disabled={!soccerNewCardName.trim()}
+                              size="sm"
+                              className="rounded-xl h-8 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                            >
+                              +
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => { setShowSoccerAddCard(false); setSoccerNewCardName(''); }}
+                              size="sm"
+                              className="rounded-xl h-8 px-2 text-xs font-bold text-muted-foreground"
+                            >
+                              x
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: COST DEFINITION */}
+            {soccerStep === 3 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-total" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Costo Total Cancha</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                      <Input
+                        id="soccer-modal-total"
+                        type="number"
+                        placeholder="Total"
+                        value={soccerTotal}
+                        onChange={e => handleTotalChange(e.target.value)}
+                        className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-person" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Por Jugador</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">$</span>
+                      <Input
+                        id="soccer-modal-person"
+                        type="number"
+                        placeholder="Por jugador"
+                        value={soccerPerPerson}
+                        onChange={e => handlePerPersonChange(e.target.value)}
+                        className="rounded-xl h-10 pl-7 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-name" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Rival / Nombre Partido</Label>
+                    <Input
+                      id="soccer-modal-name"
+                      placeholder="Ej: vs Bolson, Semanal"
+                      value={soccerMatchName}
+                      onChange={e => setSoccerMatchName(e.target.value)}
+                      className="rounded-xl h-10 text-xs font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="soccer-modal-score" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Marcador (Opcional)</Label>
+                    <Input
+                      id="soccer-modal-score"
+                      placeholder="Ej: 4-1, 5-3"
+                      value={soccerMatchScore}
+                      onChange={e => setSoccerMatchScore(e.target.value)}
+                      className="rounded-xl h-10 text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Summary box */}
+                <div className="rounded-2xl bg-muted/40 p-4 border border-border/30 space-y-2 text-xs">
+                  <p className="font-extrabold uppercase text-[10px] text-muted-foreground tracking-widest border-b pb-1">Resumen del Partido</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Jugadores participando:</span>
+                    <span className="font-black text-foreground">{selectedPlayers.size}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quién pagó:</span>
+                    <span className="font-black text-foreground">
+                      {soccerPaymentType === 'none' && 'No he pagado yo (Por cobrar)'}
+                      {soccerPaymentType === 'cash' && 'Yo (💵 Efectivo)'}
+                      {soccerPaymentType === 'card' && `Yo (💳 Tarjeta: ${soccerSelectedCard || 'Sin elegir'})`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-1 border-t border-dashed border-border/60">
+                    <span className="font-bold text-foreground">Costo por persona:</span>
+                    <span className="font-black text-blue-600 dark:text-blue-400">
+                      ${(Number(soccerPerPerson) || 0).toLocaleString('es-CL')} c/u
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-border/40 flex justify-between items-center bg-muted/10 gap-3 shrink-0">
+            {soccerStep === 1 ? (
+              <Button variant="ghost" onClick={() => setSoccerDialogOpen(false)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold">
+                Cancelar
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => setSoccerStep(prev => prev - 1)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold gap-1">
+                Atrás
+              </Button>
+            )}
+
+            {soccerStep < 3 ? (
+              <Button
+                disabled={selectedPlayers.size === 0 || (soccerStep === 2 && soccerPaymentType === 'card' && !soccerSelectedCard)}
+                onClick={() => setSoccerStep(prev => prev + 1)}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 max-w-[150px] text-xs font-bold gap-1"
+              >
+                Siguiente
+              </Button>
+            ) : (
+              <Button
+                disabled={loading || !soccerTotal || Number(soccerTotal) <= 0}
+                onClick={createSoccerMatch}
+                className="bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white rounded-xl flex-1 max-w-[180px] text-xs font-bold shadow-md shadow-green-500/10"
+              >
+                {loading ? <Loader2 className="w-4.5 h-4.5 animate-spin mr-1.5" /> : null}
+                Registrar Partido ⚽
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Soccer Match Dialog */}
+      <Dialog open={soccerEditOpen} onOpenChange={setSoccerEditOpen}>
+        <DialogContent 
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="max-w-md w-[92vw] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col"
+        >
+          <DialogHeader className="p-5 pb-3 border-b border-border/40 shrink-0">
+            <DialogTitle className="text-base font-black flex items-center gap-1.5 uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <span>⚽ Editar Partido</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Modifica los detalles o el marcador del partido
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-soccer-name" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Nombre del Partido / Rival</Label>
+              <Input
+                id="edit-soccer-name"
+                placeholder="Ej: vs Bolson, Partido Semanal..."
+                value={soccerEditName}
+                onChange={e => setSoccerEditName(e.target.value)}
+                className="rounded-xl h-10 text-xs font-semibold"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-soccer-score" className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Marcador (Opcional)</Label>
+              <Input
+                id="edit-soccer-score"
+                placeholder="Ej: 4-1, 5-3..."
+                value={soccerEditScore}
+                onChange={e => setSoccerEditScore(e.target.value)}
+                className="rounded-xl h-10 text-xs font-semibold"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-border/40 flex justify-between items-center bg-muted/10 gap-3 shrink-0">
+            <Button variant="ghost" onClick={() => setSoccerEditOpen(false)} className="rounded-xl flex-1 max-w-[120px] text-xs font-bold">
+              Cancelar
+            </Button>
+            <Button
+              disabled={loading || !soccerEditName.trim()}
+              onClick={saveSoccerEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 max-w-[180px] text-xs font-bold gap-1"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Guardar Cambios
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
       {/* Floating Action Button (FAB) */}
-      <button
-        onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
-        className="fixed bottom-[90px] right-6 z-50 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
-      >
-        <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
-        <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
-        <p className="text-3xl font-black shadow-black/20 drop-shadow-md tracking-tighter pointer-events-none mt-[-2px]">
-          $
-        </p>
-      </button>
+      {isFootball ? (
+        <button
+          onClick={() => { setSoccerStep(1); setSoccerDialogOpen(true); }}
+          className="fixed bottom-[90px] right-6 z-50 w-12 h-12 bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
+        >
+          <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
+          <Plus className="w-5 h-5 text-white" />
+        </button>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="fixed bottom-[90px] right-6 z-50 w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group ring-4 ring-white/50 dark:ring-background/50"
+            >
+              <span className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full animate-pulse border-2 border-white dark:border-background shadow-sm"></span>
+              <Plus className="w-5 h-5 text-white" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="rounded-xl p-1.5 min-w-[150px] mb-2 mr-2 z-50">
+            <DropdownMenuItem 
+              onClick={() => setQuickExpenseOpen(true)}
+              className="text-xs font-bold gap-1.5 rounded-lg py-2 cursor-pointer"
+            >
+              ⚡ Añadido Rápido
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => { setSelectedExpense(null); setExpenseOpen(true); }}
+              className="text-xs font-bold gap-1.5 rounded-lg py-2 cursor-pointer"
+            >
+              📋 Añadido Detallado
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
+}
+
+function parseDescription(description: string) {
+  if (!description) {
+    return { originalDescription: "", paymentMethod: null as 'cash' | 'card' | null, cardName: null as string | null, score: null as string | null };
+  }
+  
+  let tempDesc = description;
+  let score: string | null = null;
+  
+  const scoreMatch = tempDesc.match(/\[Marcador:\s*([^\]]+)\]/);
+  if (scoreMatch) {
+    score = scoreMatch[1].trim();
+    tempDesc = tempDesc.replace(/\[Marcador:\s*([^\]]+)\]/, "").trim();
+  }
+  
+  const cardMatch = tempDesc.match(/\[Tarjeta:\s*([^\]]+)\]/);
+  if (cardMatch) {
+    return {
+      originalDescription: tempDesc.replace(/\[Tarjeta:\s*([^\]]+)\]/, "").trim(),
+      paymentMethod: "card" as const,
+      cardName: cardMatch[1].trim(),
+      score
+    };
+  }
+  if (tempDesc.includes("[Efectivo]")) {
+    return {
+      originalDescription: tempDesc.replace("[Efectivo]", "").trim(),
+      paymentMethod: "cash" as const,
+      cardName: null,
+      score
+    };
+  }
+  return { originalDescription: tempDesc.trim(), paymentMethod: null, cardName: null, score };
 }

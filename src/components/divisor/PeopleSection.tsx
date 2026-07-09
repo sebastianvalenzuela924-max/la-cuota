@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Users, X, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Person } from '@/lib/types';
 import { generateId, getInitials, PERSON_COLORS } from '@/lib/bill-utils';
+import { useSaldamosAuth } from '@/contexts/SaldamosAuthContext';
 
 interface Props {
   people: Person[];
@@ -14,18 +15,29 @@ interface Props {
 
 export default function PeopleSection({ people, onAdd, onRemove }: Props) {
   const [name, setName] = useState('');
-  const [frequentPeople] = useState<string[]>(() => {
+  const { user } = useSaldamosAuth();
+  
+  const frequentPeopleKey = user?.id ? `saldamos_frequent_people_${user.id}` : 'saldamos_frequent_people';
+  const peopleGroupsKey = user?.id ? `saldamos_people_groups_${user.id}` : 'saldamos_people_groups';
+
+  const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem('saldamos_frequent_people');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [peopleGroups] = useState<Record<string, string[]>>(() => {
+      const savedPeople = localStorage.getItem(frequentPeopleKey);
+      setFrequentPeople(savedPeople ? JSON.parse(savedPeople) : []);
+    } catch {
+      setFrequentPeople([]);
+    }
     try {
-      const saved = localStorage.getItem('saldamos_people_groups');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+      const savedGroups = localStorage.getItem(peopleGroupsKey);
+      setPeopleGroups(savedGroups ? JSON.parse(savedGroups) : {});
+    } catch {
+      setPeopleGroups({});
+    }
+  }, [frequentPeopleKey, peopleGroupsKey]);
+
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(false);
 

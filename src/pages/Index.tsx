@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Receipt, Scale, Scissors, Trash2, Moon, Sun } from 'lucide-react';
 import type { Product, Person, TipType, BankData, Currency } from '@/lib/types';
 import { calculatePersonTotals, formatCurrency, getCurrencyFlag, roundValue, generateSummaryText } from '@/lib/bill-utils';
@@ -37,6 +37,7 @@ export default function Index() {
   });
   const [pendingImportText, setPendingImportText] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [shareAppOpen, setShareAppOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
@@ -58,6 +59,29 @@ export default function Index() {
 
   const fmt = (n: number) => formatCurrency(n, currency);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('install') === 'true') {
+        setShareAppOpen(true);
+        const newUrl = window.location.pathname + window.location.search.replace(/[?&]install=true/, '').replace(/^&/, '?');
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, []);
+
+  const getChromeLink = () => {
+    if (typeof window === 'undefined') return 'https://la-cuota.vercel.app/?install=true';
+    const ua = navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua)) {
+      return 'googlechromes://la-cuota.vercel.app?install=true';
+    }
+    if (/android/.test(ua)) {
+      return 'intent://la-cuota.vercel.app/?install=true#Intent;scheme=https;package=com.android.chrome;end';
+    }
+    return 'https://la-cuota.vercel.app/?install=true';
+  };
+
   const addProduct = (p: Product) => setProducts(prev => [...prev, p]);
   const removeProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
@@ -72,24 +96,79 @@ export default function Index() {
 
   const addPerson = (p: Person) => setPeople(prev => [...prev, p]);
   const removePerson = (id: string) => {
-    setPeople(prev => prev.filter(p => p.id !== id));
+    setPeople(prev => prev.filter(p => p.id !== id && !p.id.startsWith(`${id}_share`)));
     setAssignments(prev => {
       const next: Record<string, string[]> = {};
       for (const [k, v] of Object.entries(prev)) {
-        next[k] = v.filter(pid => pid !== id);
+        next[k] = v.filter(pid => pid !== id && !pid.startsWith(`${id}_share`));
       }
       return next;
     });
   };
 
-  const toggleAssignment = (productId: string, personId: string) => {
+  const cleanupVirtualPeople = (newAssignments: Record<string, string[]>) => {
+    setPeople(prevPeople => {
+      const virtualPeople = prevPeople.filter(p => p.id.includes('_share'));
+      if (virtualPeople.length === 0) return prevPeople;
+      const assignedIds = new Set(Object.values(newAssignments).flat());
+      return prevPeople.filter(p => !p.id.includes('_share') || assignedIds.has(p.id));
+    });
+  };
+
+  const toggleAssignment = (productId: string, personId: string, action?: 'increment' | 'clear') => {
+    if (action === 'clear') {
+      setAssignments(prev => {
+        const current = prev[productId] || [];
+        const nextAssignments = {
+          ...prev,
+          [productId]: current.filter(id => id !== personId && !id.startsWith(`${personId}_share`))
+        };
+        setTimeout(() => cleanupVirtualPeople(nextAssignments), 0);
+        return nextAssignments;
+      });
+      return;
+    }
+
     setAssignments(prev => {
       const current = prev[productId] || [];
-      const exists = current.includes(personId);
-      return {
+      const matches = current.filter(id => id === personId || id.startsWith(`${personId}_share`));
+      const count = matches.length;
+
+      let nextAssigned: string[];
+      if (count === 0) {
+        nextAssigned = [...current, personId];
+      } else {
+        const virtualId = `${personId}_share${count}`;
+        nextAssigned = [...current, virtualId];
+
+        setPeople(prevPeople => {
+          if (prevPeople.some(p => p.id === virtualId)) return prevPeople;
+          const basePerson = prevPeople.find(p => p.id === personId);
+          if (!basePerson) return prevPeople;
+          return [...prevPeople, {
+            id: virtualId,
+            name: basePerson.name,
+            colorIndex: basePerson.colorIndex
+          }];
+        });
+      }
+
+      const nextAssignments = {
         ...prev,
-        [productId]: exists ? current.filter(id => id !== personId) : [...current, personId],
+        [productId]: nextAssigned
       };
+      return nextAssignments;
+    });
+  };
+
+  const clearProductAssignments = (productId: string) => {
+    setAssignments(prev => {
+      const nextAssignments = {
+        ...prev,
+        [productId]: []
+      };
+      setTimeout(() => cleanupVirtualPeople(nextAssignments), 0);
+      return nextAssignments;
     });
   };
 
@@ -206,19 +285,28 @@ export default function Index() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border px-4 py-4 card-shadow">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity active:scale-95">
-                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-                  <Receipt className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap">La Cuota</h1>
-                  <p className="text-xs text-muted-foreground font-medium">Divide cuentas {getCurrencyFlag(currency)}</p>
-                </div>
+          <div 
+            onClick={() => setShareAppOpen(true)}
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity active:scale-95"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+              <Receipt className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <h1 className="font-extrabold text-2xl text-foreground tracking-tight whitespace-nowrap leading-none">La Cuota</h1>
+              <p className="text-xs text-muted-foreground font-semibold mt-1 leading-none">
+                Divide cuentas {getCurrencyFlag(currency)}
+              </p>
+              <div className="mt-1.5 flex">
+                <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full font-black animate-pulse whitespace-nowrap">
+                  Comparte 🔗
+                </span>
               </div>
-            </DialogTrigger>
-            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in overflow-hidden">
+            </div>
+          </div>
+
+          <Dialog open={shareAppOpen} onOpenChange={setShareAppOpen}>
+            <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[360px] max-h-[90vh] overflow-y-auto p-6 rounded-[2.5rem] gap-0 outline-none border-none shadow-2xl bg-card animate-scale-in">
               <DialogHeader className="mb-6">
                 <DialogTitle className="text-center font-bold text-xl text-foreground">¡Comparte la App!</DialogTitle>
               </DialogHeader>
@@ -238,17 +326,7 @@ export default function Index() {
                   <p className="text-[11px] text-muted-foreground text-center font-medium">Escanea este código para instalar o abrir la app 🇨🇱</p>
                 </div>
 
-                {canInstall && (
-                  <Button 
-                    onClick={install}
-                    className="w-full mb-4 rounded-2xl h-12 bg-primary text-primary-foreground font-bold gap-2 shadow-lg shadow-primary/20 animate-bounce-subtle"
-                  >
-                    <Download className="w-5 h-5" />
-                    Instalar con solo un click
-                  </Button>
-                )}
-
-                <div className="w-full flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden">
+                <div className="w-full flex items-center gap-2 p-3 bg-accent/50 rounded-2xl border border-border overflow-hidden mb-4">
                   <p className="text-[10px] font-mono text-muted-foreground truncate flex-1">https://la-cuota.vercel.app/</p>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Button 
@@ -269,10 +347,61 @@ export default function Index() {
                         window.open(`https://wa.me/?text=${encodeURIComponent("¡Mira esta app para dividir la cuenta!: https://la-cuota.vercel.app/")}`, '_blank');
                       }}
                       className="h-8 w-8 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-600"
+                      title="Compartir por WhatsApp"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
+                      <svg 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor" 
+                        className="w-4 h-4"
+                      >
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.067 2.877 1.215 3.076.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
                     </Button>
                   </div>
+                </div>
+
+                {/* Sección de Instalación y Chrome */}
+                <div className="w-full border-t border-border/60 pt-4 mt-2 space-y-4">
+                  <div className="bg-accent/40 rounded-2xl p-4 border border-border/40 space-y-3">
+                    <h4 className="text-[11px] font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                      📲 Pasos para instalar en tu celular:
+                    </h4>
+                    <ol className="text-[11px] text-muted-foreground space-y-2 list-decimal list-inside font-medium leading-relaxed">
+                      <li>Presiona el botón <strong>"Abrir en Google Chrome 🌐"</strong> de abajo.</li>
+                      <li>Una vez abierta la app en Chrome, vuelve a esta pestaña y presiona el botón de instalar.</li>
+                      <li>¡Listo! Revisa tu pantalla de inicio o cajón de aplicaciones y verás la app instalada con éxito 🇨🇱.</li>
+                    </ol>
+                  </div>
+                  
+                  <a 
+                    href={getChromeLink()} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 h-11 rounded-2xl bg-[#4285F4] hover:bg-[#357ae8] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer no-underline"
+                  >
+                    Abrir en Google Chrome 🌐
+                  </a>
+
+                  {canInstall && (
+                    <Button 
+                      onClick={install}
+                      className="w-full rounded-2xl h-11 bg-primary text-primary-foreground font-bold gap-2 shadow-lg shadow-primary/20 animate-bounce-subtle"
+                    >
+                      <Download className="w-4 h-4" />
+                      Instalar con solo un click
+                    </Button>
+                  )}
+                </div>
+
+                {/* Footer de contacto */}
+                <div className="w-full border-t border-border/60 mt-5 pt-4 flex flex-col items-center justify-center text-center">
+                  <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">¿Tienes una idea de app o proyecto?</p>
+                  <a 
+                    href="mailto:svalenzuela.dev@gmail.com" 
+                    className="text-xs text-primary font-extrabold hover:underline mt-1.5 flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                  >
+                    📩 Contáctame: svalenzuela.dev@gmail.com
+                  </a>
                 </div>
               </div>
             </DialogContent>
@@ -370,6 +499,7 @@ export default function Index() {
           onToggle={toggleAssignment}
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}
+          onClearProductAssignments={clearProductAssignments}
         />
 
         <TipSection
@@ -399,6 +529,27 @@ export default function Index() {
             setActiveTab('saldos');
           }}
         />
+
+        {/* Tarjeta de Promoción para compartir la App */}
+        <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/5 dark:from-blue-500/20 dark:to-indigo-500/10 border border-blue-500/20 rounded-2xl p-5 flex flex-col items-center text-center gap-3 animate-fade-in-up mt-2">
+          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+            <Share2 className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm text-foreground">¿Te sirvió La Cuota? ✨</h3>
+            <p className="text-xs text-muted-foreground max-w-xs font-medium leading-relaxed">
+              ¡Recomiéndanos con tus amigos para que en su próxima junta también dividan la cuenta en segundos!
+            </p>
+          </div>
+          <Button 
+            onClick={() => setShareAppOpen(true)}
+            size="sm"
+            className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 px-4 h-9 shadow-md shadow-blue-500/10 transition-all active:scale-95"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            Compartir App
+          </Button>
+        </div>
       </main>
       )}
       {/* Saldos Tab Panel */}

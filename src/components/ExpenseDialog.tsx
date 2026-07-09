@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { saldamosSupabase } from "@/integrations/supabase/saldamos-client";
 import {
   Dialog,
@@ -21,15 +21,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Wand2, User, HandCoins, ArrowRight, Plus, ChevronRight, Users, PartyPopper, Mic, Coins } from "lucide-react";
 import { formatMoney, type ExpenseWithContribs } from "@/lib/balances";
 import { CategoryPicker, type Category } from "@/components/CategoryPicker";
 import { parseLaCuotaMessage, findMemberMatch } from "@/lib/lacuota-parser";
-import { Textarea } from "@/components/ui/textarea";
 import confetti from "canvas-confetti";
+import { useSaldamosAuth } from "@/contexts/SaldamosAuthContext";
 
 type Member = { id: string; name: string; joined_at: string };
 type ExpenseWithCategory = ExpenseWithContribs & { category_id: string | null; is_personal?: boolean };
+
+function parseDescription(description: string) {
+  if (!description) {
+    return { originalDescription: "", paymentMethod: null as 'cash' | 'card' | null, cardName: null as string | null };
+  }
+  const cardMatch = description.match(/\[Tarjeta:\s*([^\]]+)\]/);
+  if (cardMatch) {
+    return {
+      originalDescription: description.replace(/\[Tarjeta:\s*([^\]]+)\]/, "").trim(),
+      paymentMethod: "card" as const,
+      cardName: cardMatch[1].trim()
+    };
+  }
+  if (description.includes("[Efectivo]")) {
+    return {
+      originalDescription: description.replace("[Efectivo]", "").trim(),
+      paymentMethod: "cash" as const,
+      cardName: null
+    };
+  }
+  return { originalDescription: description.trim(), paymentMethod: null, cardName: null };
+}
 
 type Props = {
   open: boolean;
@@ -45,11 +67,18 @@ type Props = {
   initialImportText?: string | null;
   mode?: 'balance' | 'tracker';
   myMemberId?: string | null;
+  groupType?: string;
 };
 
+const SpeechRecognition = typeof window !== 'undefined'
+  ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+  : null;
+const isSpeechSupported = !!SpeechRecognition;
+
 export function ExpenseDialog({ 
-  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId 
+  open, onOpenChange, groupId, members, currency, categories, existing, onSaved, onMembersChanged, onCategoriesChanged, initialImportText, mode, myMemberId, groupType 
 }: Props) {
+  const isPersonalGroup = groupType === 'personal';
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [total, setTotal] = useState<string>("");
@@ -58,9 +87,70 @@ export function ExpenseDialog({
   const [contribs, setContribs] = useState<Record<string, string>>({});
   const [owed, setOwed] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState("");
   const [isPersonal, setIsPersonal] = useState(false);
+
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startListening = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (isListening) return;
+
+    try {
+      const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognitionClass) return;
+
+      const recognition = new SpeechRecognitionClass();
+      recognition.lang = 'es-CL';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        if ('vibrate' in navigator) {
+          navigator.vibrate(40);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          toast.error('Permiso de micrófono denegado');
+        }
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          const formattedText = transcript.charAt(0).toUpperCase() + transcript.slice(1);
+          setDescription(formattedText);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | null>(null);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [savedCards, setSavedCards] = useState<string[]>([]);
   const [trackPayments, setTrackPayments] = useState(false);
   const [personalPayer, setPersonalPayer] = useState<string>("");
   const [unmappedPersons, setUnmatchedPersons] = useState<any[]>([]);
@@ -69,14 +159,36 @@ export function ExpenseDialog({
       return JSON.parse(localStorage.getItem(`saldamos_mappings_${groupId}`) || '{}');
     } catch { return {}; }
   });
-  const [frequentPeople] = useState<string[]>(() => {
-    const saved = localStorage.getItem('saldamos_frequent_people');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [peopleGroups] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('saldamos_people_groups');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const { user } = useSaldamosAuth();
+  
+  const frequentPeopleKey = user?.id ? `saldamos_frequent_people_${user.id}` : 'saldamos_frequent_people';
+  const peopleGroupsKey = user?.id ? `saldamos_people_groups_${user.id}` : 'saldamos_people_groups';
+
+  const [frequentPeople, setFrequentPeople] = useState<string[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const savedPeople = localStorage.getItem(frequentPeopleKey);
+      setFrequentPeople(savedPeople ? JSON.parse(savedPeople) : []);
+    } catch {
+      setFrequentPeople([]);
+    }
+    try {
+      const savedGroups = localStorage.getItem(peopleGroupsKey);
+      setPeopleGroups(savedGroups ? JSON.parse(savedGroups) : {});
+    } catch {
+      setPeopleGroups({});
+    }
+    const cardsKey = user?.id ? `saldamos_user_cards_${user.id}` : 'saldamos_user_cards';
+    try {
+      const stored = localStorage.getItem(cardsKey);
+      setSavedCards(stored ? JSON.parse(stored) : ['Banco Estado', 'Banco Itaú']);
+    } catch {
+      setSavedCards(['Banco Estado', 'Banco Itaú']);
+    }
+  }, [frequentPeopleKey, peopleGroupsKey, open]);
   const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
   const [addingFrequent, setAddingFrequent] = useState<string | null>(null);
   const [showFrequent, setShowFrequent] = useState(true);
@@ -117,7 +229,10 @@ export function ExpenseDialog({
     if (!open) return;
     const defaultCat = categories.find((c) => c.is_default) ?? null;
     if (existing) {
-      setDescription(existing.description);
+      const parsedDesc = parseDescription(existing.description);
+      setDescription(parsedDesc.originalDescription);
+      setPaymentMethod(parsedDesc.paymentMethod);
+      setSelectedCard(parsedDesc.cardName);
       setTotal(String(existing.total_amount));
       setDate(new Date(existing.expense_date).toISOString().slice(0, 10));
       setCategoryId(existing.category_id ?? defaultCat?.id ?? null);
@@ -141,6 +256,8 @@ export function ExpenseDialog({
     } else if (initialImportText) {
       const parsed = parseLaCuotaMessage(initialImportText);
       setDescription(""); // Leave empty as requested
+      setPaymentMethod(null);
+      setSelectedCard(null);
       const sum = parsed.reduce((s, p) => s + p.amount, 0);
       setTotal(sum.toString());
       setDate(new Date().toISOString().slice(0, 10));
@@ -179,13 +296,15 @@ export function ExpenseDialog({
       }
     } else {
       setDescription("");
+      setPaymentMethod(null);
+      setSelectedCard(null);
       setTotal("");
       setDate(new Date().toISOString().slice(0, 10));
       setCategoryId(defaultCat?.id ?? null);
       setTempMembers([]);
       const isFootball = description.toLowerCase().includes('fútbol') || description.toLowerCase().includes('futbol') || (groupId && localStorage.getItem(`group_emoji_${groupId}`) === '⚽');
       
-      setTrackPayments(isTrackerMode || isFootball);
+      setTrackPayments(isTrackerMode || isFootball || isPersonalGroup);
       setPersonalPayer("");
       
       if (isTrackerMode) {
@@ -241,11 +360,12 @@ export function ExpenseDialog({
       toast.success(`${name} agregado al grupo`);
       
       // Auto-save to frequent people (contacts)
-      const saved = localStorage.getItem('saldamos_frequent_people');
+      const saved = localStorage.getItem(frequentPeopleKey);
       const people: string[] = saved ? JSON.parse(saved) : [];
       if (!people.includes(name.trim())) {
         people.push(name.trim());
-        localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+        localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+        setFrequentPeople(people);
       }
 
       // Update local members immediately so they appear in the UI
@@ -304,6 +424,48 @@ export function ExpenseDialog({
     setContribs(next);
   };
 
+  const canCalculateRemainder = useMemo(() => {
+    const totalNum = Number(total) || 0;
+    if (totalNum <= 0) return false;
+    const selMembers = allAvailableMembers.filter(m => selected.has(m.id));
+    const emptyMembers = selMembers.filter(m => {
+      const val = owed[m.id];
+      return !val || Number(val) === 0;
+    });
+    return emptyMembers.length === 1;
+  }, [total, selected, owed, allAvailableMembers]);
+
+  const distributeRemainder = () => {
+    const totalNum = Number(total) || 0;
+    const selMembers = allAvailableMembers.filter(m => selected.has(m.id));
+    const emptyMembers = selMembers.filter(m => {
+      const val = owed[m.id];
+      return !val || Number(val) === 0;
+    });
+
+    if (emptyMembers.length !== 1) {
+      toast.error("Debe faltar exactamente 1 persona por asignar consumo.");
+      return;
+    }
+
+    const targetId = emptyMembers[0].id;
+    const sumOthers = selMembers
+      .filter(m => m.id !== targetId)
+      .reduce((sum, m) => sum + (Number(owed[m.id]) || 0), 0);
+
+    const remainder = totalNum - sumOthers;
+    if (remainder < 0) {
+      toast.error("La suma de los consumos asignados supera el total del gasto.");
+      return;
+    }
+
+    setOwed(prev => ({
+      ...prev,
+      [targetId]: remainder.toString()
+    }));
+    toast.success(`Se asignó el resto ($${remainder.toLocaleString('es-CL')}) a ${emptyMembers[0].name}`);
+  };
+
   const save = async () => {
     if (!description.trim() || !totalNum) {
       toast.error("Completá descripción y monto total.");
@@ -320,13 +482,21 @@ export function ExpenseDialog({
     setSaving(true);
     const isoDate = new Date(date + "T12:00:00").toISOString();
 
+    // Format description with payment method tags
+    let finalDescription = description.trim();
+    if (paymentMethod === 'cash') {
+      finalDescription = `${finalDescription} [Efectivo]`;
+    } else if (paymentMethod === 'card' && selectedCard) {
+      finalDescription = `${finalDescription} [Tarjeta: ${selectedCard}]`;
+    }
+
     let expenseId = existing?.id;
     const finalCategoryId = categoryId ?? categories.find((c) => c.is_default)?.id ?? null;
     if (existing) {
       const { error } = await saldamosSupabase
         .from("expenses")
         .update({
-          description: description.trim(),
+          description: finalDescription,
           total_amount: totalNum,
           expense_date: isoDate,
           category_id: finalCategoryId,
@@ -345,7 +515,7 @@ export function ExpenseDialog({
         .from("expenses")
         .insert({
           group_id: groupId,
-          description: description.trim(),
+          description: finalDescription,
           total_amount: totalNum,
           expense_date: isoDate,
           category_id: finalCategoryId,
@@ -368,6 +538,7 @@ export function ExpenseDialog({
           member_id: personalPayer,
           amount_paid: totalNum,
           amount_owed: totalNum,
+          is_settled: paymentMethod !== null,
         }]
       : Array.from(selected).map((mid) => ({
           expense_id: expenseId!,
@@ -404,43 +575,10 @@ export function ExpenseDialog({
 
     onSaved({
       id: expenseId,
-      description: description.trim(),
+      description: finalDescription,
       total_amount: totalNum
     });
     onOpenChange(false);
-  };
-
-  const handlePasteProcess = () => {
-    const parsed = parseLaCuotaMessage(pasteText);
-    if (parsed.length === 0) {
-      toast.error("No se detectaron personas en el texto.");
-      return;
-    }
-    const nextOwed = { ...owed };
-    const nextSelected = new Set(selected);
-    parsed.forEach(p => {
-      const matchId = findMemberMatch(p.name, members);
-      if (matchId) {
-        nextOwed[matchId] = p.amount.toString();
-        nextSelected.add(matchId);
-      }
-    });
-    setOwed(nextOwed);
-    setSelected(nextSelected);
-    
-    const sum = parsed.reduce((s, p) => s + p.amount, 0);
-    const finalTotal = (!total || Number(total) === 0) ? sum : Number(total);
-    if (!total || Number(total) === 0) setTotal(sum.toString());
-
-    if (isTrackerMode) {
-      const payerId = myMemberId || members[0]?.id;
-      if (payerId) {
-        setContribs(prev => ({ ...prev, [payerId]: finalTotal.toString() }));
-      }
-    }
-    
-    toast.success("Consumos importados");
-    setPasteOpen(false);
   };
 
   const saveMapping = (externalName: string, memberId: string) => {
@@ -510,13 +648,96 @@ export function ExpenseDialog({
                  />
                </div>
              </div>
-             <Input
-               id="desc"
-               value={description}
-               onChange={(e) => setDescription(e.target.value)}
-               placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
-               className="rounded-xl h-12 text-sm font-medium shadow-sm bg-background"
-             />
+              <div className="relative flex items-center">
+                <Input
+                  id="desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ej: Completos, Cervezas, Uber... 🍔🍻🚕"
+                  className="rounded-xl h-12 pr-12 text-sm font-medium shadow-sm bg-background flex-1"
+                />
+                {isSpeechSupported && (
+                  <button
+                    type="button"
+                    onMouseDown={startListening}
+                    onMouseUp={stopListening}
+                    onMouseLeave={stopListening}
+                    onTouchStart={startListening}
+                    onTouchEnd={stopListening}
+                    onTouchCancel={stopListening}
+                    className={`absolute right-1.5 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ease-out touch-none ${
+                      isListening 
+                        ? 'bg-red-600 text-white scale-[1.8] z-50 shadow-lg' 
+                        : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                    }`}
+                    title="Mantén presionado para hablar 🎙️"
+                  >
+                    <Mic className="w-4.5 h-4.5" />
+                  </button>
+                )}
+              </div>
+          </div>
+
+          {/* Método de Pago Selector */}
+          <div className="space-y-2 p-3 rounded-2xl border border-border/50 bg-muted/10">
+            <Label className="text-[10px] font-black text-foreground dark:text-white uppercase tracking-widest block mb-1">¿Cómo se pagó? 💳</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                className={`flex-1 rounded-xl h-9 text-xs font-bold gap-1.5 ${paymentMethod === 'cash' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''}`}
+                onClick={() => { setPaymentMethod('cash'); setSelectedCard(null); }}
+              >
+                💵 Efectivo
+              </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                className={`flex-1 rounded-xl h-9 text-xs font-bold gap-1.5 ${paymentMethod === 'card' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''}`}
+                onClick={() => {
+                  setPaymentMethod('card');
+                  if (savedCards.length > 0 && !selectedCard) {
+                    setSelectedCard(savedCards[0]);
+                  }
+                }}
+              >
+                💳 Tarjeta
+              </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === null ? 'default' : 'outline'}
+                className={`rounded-xl h-9 text-xs font-bold px-3 ${paymentMethod === null ? 'bg-muted-foreground text-white hover:bg-muted-foreground/90' : ''}`}
+                onClick={() => { setPaymentMethod(null); setSelectedCard(null); }}
+              >
+                Omitir
+              </Button>
+            </div>
+
+            {paymentMethod === 'card' && (
+              <div className="pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                <Label className="text-[9px] font-bold text-muted-foreground uppercase">Selecciona la Tarjeta:</Label>
+                {savedCards.length === 0 ? (
+                  <p className="text-[10px] text-amber-600 font-semibold italic">No tienes tarjetas guardadas. Agrégalas en "Mi Perfil".</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {savedCards.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSelectedCard(c)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          selectedCard === c
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-400'
+                            : 'bg-background hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {!isTrackerMode && (
@@ -590,8 +811,8 @@ export function ExpenseDialog({
           )}
 
 
-          {/* Gasto Personal Section - Hidden in Tracker Mode */}
-          {!isTrackerMode ? (
+          {/* Gasto Personal Section - Hidden in Tracker Mode and Personal Group */}
+          {!isTrackerMode && !isPersonalGroup ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/30 p-3">
               <div className="flex items-start gap-2">
                 <div className="flex items-center gap-2">
@@ -603,7 +824,7 @@ export function ExpenseDialog({
             </div>
           ) : null}
 
-          {!isPersonal && !isTrackerMode && (
+          {!isPersonal && !isTrackerMode && !isPersonalGroup && (
             <div className="flex items-start justify-between gap-3 rounded-xl border bg-amber-50/50 border-amber-100 p-3">
               <div className="flex items-start gap-2">
                 <HandCoins className="mt-0.5 h-4 w-4 text-amber-600" />
@@ -645,11 +866,12 @@ export function ExpenseDialog({
                             setOwed(prev => ({ ...prev, [newMember.id]: p.amount.toString() }));
 
                             // Auto-save to frequent people
-                            const saved = localStorage.getItem('saldamos_frequent_people');
+                            const saved = localStorage.getItem(frequentPeopleKey);
                             const people: string[] = saved ? JSON.parse(saved) : [];
                             if (!people.includes(p.name.trim())) {
                               people.push(p.name.trim());
-                              localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                              localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+                              setFrequentPeople(people);
                             }
                           }
                         }
@@ -693,11 +915,12 @@ export function ExpenseDialog({
                               setUnmatchedPersons(prev => prev.filter(item => item.name !== p.name));
                               
                               // Auto-save to frequent people
-                              const saved = localStorage.getItem('saldamos_frequent_people');
+                              const saved = localStorage.getItem(frequentPeopleKey);
                               const people: string[] = saved ? JSON.parse(saved) : [];
                               if (!people.includes(p.name.trim())) {
                                 people.push(p.name.trim());
-                                localStorage.setItem('saldamos_frequent_people', JSON.stringify(people));
+                                localStorage.setItem(frequentPeopleKey, JSON.stringify(people));
+                                setFrequentPeople(people);
                               }
 
                               if (onMembersChanged) onMembersChanged();
@@ -894,8 +1117,15 @@ export function ExpenseDialog({
                   <Label>Participantes ({selected.size})</Label>
                 </div>
                 <div className="flex gap-1">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] rounded-lg" onClick={() => setPasteOpen(true)}>
-                    <Wand2 className="h-3 w-3 mr-1" /> Pegar ticket
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-[10px] rounded-lg border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 transition-all" 
+                    onClick={distributeRemainder}
+                    disabled={!canCalculateRemainder}
+                  >
+                    <Coins className="h-3 w-3 mr-1 text-blue-500" /> Agregar el resto
                   </Button>
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={distributeEvenly}>Aportes =</Button>
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] rounded-lg" onClick={distributeOwedEvenly}>Consumos =</Button>
@@ -968,20 +1198,7 @@ export function ExpenseDialog({
         </DialogFooter>
       </DialogContent>
 
-      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader><DialogTitle>Pegar ticket</DialogTitle></DialogHeader>
-          <Textarea 
-            value={pasteText} 
-            onChange={e => setPasteText(e.target.value)} 
-            placeholder="Pega el mensaje de La Cuota aquí..." 
-            className="min-h-[150px] text-xs rounded-xl"
-          />
-          <DialogFooter>
-            <Button onClick={handlePasteProcess} className="rounded-xl">Procesar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </Dialog>
   );
 }
