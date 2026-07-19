@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Split, UserCheck, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Product, Person, Currency } from '@/lib/types';
-import { PERSON_COLORS, getInitials, formatCurrency, parseProductName } from '@/lib/bill-utils';
+import { PERSON_COLORS, getInitials, formatCurrency, parseProductName, roundValue } from '@/lib/bill-utils';
 import { toast } from 'sonner';
 
 interface Props {
