@@ -35,6 +35,7 @@ export default function Session() {
   const [tipValue, setTipValue] = useState(0);
   const [bankData, setBankData] = useState<Partial<BankData>>({});
   const [currency, setCurrency] = useState<Currency>('CLP');
+  const [individualMode, setIndividualMode] = useState(false);
 
   // Load Initial Data
   useEffect(() => {
@@ -152,8 +153,8 @@ export default function Session() {
   }, [subtotal, tipType, tipValue, currency]);
 
   const totals = useMemo(
-    () => calculatePersonTotals(products, assignments, people, tipType, tipValue, currency),
-    [products, assignments, people, tipType, tipValue, currency]
+    () => calculatePersonTotals(products, assignments, people, tipType, tipValue, currency, individualMode),
+    [products, assignments, people, tipType, tipValue, currency, individualMode]
   );
 
   const fmt = (n: number) => formatCurrency(n, currency);
@@ -526,6 +527,8 @@ export default function Session() {
           people={people}
           assignments={assignments}
           currency={currency}
+          individualMode={individualMode}
+          onToggleIndividualMode={() => setIndividualMode(prev => !prev)}
           onToggle={toggleAssignment}
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}

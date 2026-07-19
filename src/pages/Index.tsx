@@ -45,6 +45,7 @@ export default function Index() {
   const [tipValue, setTipValue] = useState(0);
   const [bankData, setBankData] = useState<Partial<BankData>>({});
   const [currency, setCurrency] = useState<Currency>('CLP');
+  const [individualMode, setIndividualMode] = useState(false);
 
   const subtotal = useMemo(() => products.reduce((s, p) => s + p.price * p.quantity, 0), [products]);
   const tipAmount = useMemo(() => {
@@ -53,8 +54,8 @@ export default function Index() {
   }, [subtotal, tipType, tipValue, currency]);
 
   const totals = useMemo(
-    () => calculatePersonTotals(products, assignments, people, tipType, tipValue, currency),
-    [products, assignments, people, tipType, tipValue, currency]
+    () => calculatePersonTotals(products, assignments, people, tipType, tipValue, currency, individualMode),
+    [products, assignments, people, tipType, tipValue, currency, individualMode]
   );
 
   const fmt = (n: number) => formatCurrency(n, currency);
@@ -496,6 +497,8 @@ export default function Index() {
           people={people}
           assignments={assignments}
           currency={currency}
+          individualMode={individualMode}
+          onToggleIndividualMode={() => setIndividualMode(prev => !prev)}
           onToggle={toggleAssignment}
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}

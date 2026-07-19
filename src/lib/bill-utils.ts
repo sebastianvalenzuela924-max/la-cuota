@@ -235,7 +235,8 @@ export function calculatePersonTotals(
   people: Person[],
   tipType: TipType,
   tipValue: number,
-  currency: Currency = 'CLP'
+  currency: Currency = 'CLP',
+  individualMode: boolean = false
 ): Record<string, PersonTotal> {
   const result: Record<string, PersonTotal> = {};
 
@@ -250,46 +251,88 @@ export function calculatePersonTotals(
     const productTotal = product.price * product.quantity;
 
     if (assigned.length > 0) {
-      const perPerson = roundValue(productTotal / assigned.length, currency);
+      if (individualMode && product.quantity > 1) {
+        // Individual mode: each assignment = 1 unit consumed
+        const unitPrice = roundValue(productTotal / product.quantity, currency);
 
-      let tipPerPerson = 0;
-      if (tipType === 'percent' && tipValue > 0) {
-        tipPerPerson = roundValue(perPerson * tipValue / 100, currency);
-      } else if (tipType === 'fixed' && tipValue > 0) {
-        const totalProducts = products.reduce((s, p) => s + p.price * p.quantity, 0);
-        if (totalProducts > 0) {
-          const productTipShare = roundValue(tipValue * productTotal / totalProducts, currency);
-          tipPerPerson = roundValue(productTipShare / assigned.length, currency);
+        let tipPerUnit = 0;
+        if (tipType === 'percent' && tipValue > 0) {
+          tipPerUnit = roundValue(unitPrice * tipValue / 100, currency);
+        } else if (tipType === 'fixed' && tipValue > 0) {
+          const totalProducts = products.reduce((s, p) => s + p.price * p.quantity, 0);
+          if (totalProducts > 0) {
+            const productTipShare = roundValue(tipValue * productTotal / totalProducts, currency);
+            tipPerUnit = roundValue(productTipShare / product.quantity, currency);
+          }
         }
-      }
 
-      for (const personId of assigned) {
-        const baseId = personId.split('_share')[0];
-        if (result[baseId]) {
-          const itemTotal = roundValue(perPerson + tipPerPerson, currency);
-          result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
-          
-          // Let's check if the base product item is already in the list to group it, or just push a separate line.
-          const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
-          if (existingItem) {
-            existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
-            existingItem.baseAmount = roundValue(existingItem.baseAmount + perPerson, currency);
-            existingItem.tipAmount = roundValue(existingItem.tipAmount + tipPerPerson, currency);
+        for (const personId of assigned) {
+          const baseId = personId.split('_share')[0];
+          if (result[baseId]) {
+            const itemTotal = roundValue(unitPrice + tipPerUnit, currency);
+            result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
+
+            const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
+            if (existingItem) {
+              existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
+              existingItem.baseAmount = roundValue(existingItem.baseAmount + unitPrice, currency);
+              existingItem.tipAmount = roundValue(existingItem.tipAmount + tipPerUnit, currency);
+
+              const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+              existingItem.name = `${product.name} (x${count} de ${product.quantity})`;
+            } else {
+              const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+              const displayName = `${product.name} (x${count} de ${product.quantity})`;
+              result[baseId].items.push({
+                name: displayName,
+                amount: itemTotal,
+                baseAmount: unitPrice,
+                tipAmount: tipPerUnit,
+              });
+            }
+          }
+        }
+      } else {
+        // Normal mode: split total equally among all assigned
+        const perPerson = roundValue(productTotal / assigned.length, currency);
+
+        let tipPerPerson = 0;
+        if (tipType === 'percent' && tipValue > 0) {
+          tipPerPerson = roundValue(perPerson * tipValue / 100, currency);
+        } else if (tipType === 'fixed' && tipValue > 0) {
+          const totalProducts = products.reduce((s, p) => s + p.price * p.quantity, 0);
+          if (totalProducts > 0) {
+            const productTipShare = roundValue(tipValue * productTotal / totalProducts, currency);
+            tipPerPerson = roundValue(productTipShare / assigned.length, currency);
+          }
+        }
+
+        for (const personId of assigned) {
+          const baseId = personId.split('_share')[0];
+          if (result[baseId]) {
+            const itemTotal = roundValue(perPerson + tipPerPerson, currency);
+            result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
             
-            // Recalculate display name with portion count
-            const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
-            const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
-            existingItem.name = `${product.name}${qtyText} (x${count})`;
-          } else {
-            const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
-            const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
-            const displayName = count > 1 ? `${product.name}${qtyText} (x${count})` : `${product.name}${qtyText}`;
-            result[baseId].items.push({
-              name: displayName,
-              amount: itemTotal,
-              baseAmount: perPerson,
-              tipAmount: tipPerPerson,
-            });
+            const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
+            if (existingItem) {
+              existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
+              existingItem.baseAmount = roundValue(existingItem.baseAmount + perPerson, currency);
+              existingItem.tipAmount = roundValue(existingItem.tipAmount + tipPerPerson, currency);
+              
+              const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+              const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
+              existingItem.name = `${product.name}${qtyText} (x${count})`;
+            } else {
+              const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
+              const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
+              const displayName = count > 1 ? `${product.name}${qtyText} (x${count})` : `${product.name}${qtyText}`;
+              result[baseId].items.push({
+                name: displayName,
+                amount: itemTotal,
+                baseAmount: perPerson,
+                tipAmount: tipPerPerson,
+              });
+            }
           }
         }
       }
