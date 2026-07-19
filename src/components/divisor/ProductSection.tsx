@@ -3,7 +3,7 @@ import { Plus, Trash2, ShoppingBag, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Product, Currency } from '@/lib/types';
-import { generateId, formatCurrency } from '@/lib/bill-utils';
+import { generateId, formatCurrency, parseProductName } from '@/lib/bill-utils';
 
 interface Props {
   products: Product[];
@@ -232,7 +232,7 @@ export default function ProductSection({ products, currency, onAdd, onRemove, on
             ) : (
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0" onClick={() => startEditing(p)}>
-                  <span className="text-sm font-semibold text-foreground truncate block">{p.name}</span>
+                  <span className="text-sm font-semibold text-foreground truncate block">{parseProductName(p.name).displayName}</span>
                   <span className="text-xs text-muted-foreground">
                     {p.quantity > 1 ? `${p.quantity}x ` : ''}{fmt(p.price)} {p.quantity > 1 ? `= ${fmt(p.price * p.quantity)}` : ''}
                   </span>

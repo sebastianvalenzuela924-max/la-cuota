@@ -229,6 +229,18 @@ export function parseBankText(text: string): Partial<BankData> {
   return data;
 }
 
+export function parseProductName(name: string): { displayName: string; customDivisor: number | null } {
+  if (!name) return { displayName: "", customDivisor: null };
+  const match = name.match(/\[div:\s*(\d+)\]/);
+  if (match) {
+    return {
+      displayName: name.replace(/\[div:\s*(\d+)\]/, "").trim(),
+      customDivisor: parseInt(match[1], 10)
+    };
+  }
+  return { displayName: name.trim(), customDivisor: null };
+}
+
 export function calculatePersonTotals(
   products: Product[],
   assignments: Record<string, string[]>,
@@ -249,11 +261,13 @@ export function calculatePersonTotals(
   for (const product of products) {
     const assigned = assignments[product.id] || [];
     const productTotal = product.price * product.quantity;
+    const { displayName, customDivisor } = parseProductName(product.name);
+    const divisor = customDivisor || product.quantity;
 
     if (assigned.length > 0) {
-      if (individualMode && product.quantity > 1) {
+      if (individualMode && divisor > 1) {
         // Individual mode: each assignment = 1 unit consumed
-        const unitPrice = roundValue(productTotal / product.quantity, currency);
+        const unitPrice = roundValue(productTotal / divisor, currency);
 
         let tipPerUnit = 0;
         if (tipType === 'percent' && tipValue > 0) {
@@ -262,7 +276,7 @@ export function calculatePersonTotals(
           const totalProducts = products.reduce((s, p) => s + p.price * p.quantity, 0);
           if (totalProducts > 0) {
             const productTipShare = roundValue(tipValue * productTotal / totalProducts, currency);
-            tipPerUnit = roundValue(productTipShare / product.quantity, currency);
+            tipPerUnit = roundValue(productTipShare / divisor, currency);
           }
         }
 
@@ -272,19 +286,19 @@ export function calculatePersonTotals(
             const itemTotal = roundValue(unitPrice + tipPerUnit, currency);
             result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
 
-            const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
+            const existingItem = result[baseId].items.find(item => item.name === displayName || item.name.startsWith(displayName + ' ('));
             if (existingItem) {
               existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
               existingItem.baseAmount = roundValue(existingItem.baseAmount + unitPrice, currency);
               existingItem.tipAmount = roundValue(existingItem.tipAmount + tipPerUnit, currency);
 
               const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
-              existingItem.name = `${product.name} (x${count} de ${product.quantity})`;
+              existingItem.name = `${displayName} (x${count} de ${divisor})`;
             } else {
               const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
-              const displayName = `${product.name} (x${count} de ${product.quantity})`;
+              const itemDisplayName = `${displayName} (x${count} de ${divisor})`;
               result[baseId].items.push({
-                name: displayName,
+                name: itemDisplayName,
                 amount: itemTotal,
                 baseAmount: unitPrice,
                 tipAmount: tipPerUnit,
@@ -313,7 +327,7 @@ export function calculatePersonTotals(
             const itemTotal = roundValue(perPerson + tipPerPerson, currency);
             result[baseId].total = roundValue(result[baseId].total + itemTotal, currency);
             
-            const existingItem = result[baseId].items.find(item => item.name === product.name || item.name.startsWith(product.name + ' ('));
+            const existingItem = result[baseId].items.find(item => item.name === displayName || item.name.startsWith(displayName + ' ('));
             if (existingItem) {
               existingItem.amount = roundValue(existingItem.amount + itemTotal, currency);
               existingItem.baseAmount = roundValue(existingItem.baseAmount + perPerson, currency);
@@ -321,13 +335,13 @@ export function calculatePersonTotals(
               
               const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
               const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
-              existingItem.name = `${product.name}${qtyText} (x${count})`;
+              existingItem.name = `${displayName}${qtyText} (x${count})`;
             } else {
               const count = assigned.filter(id => id.split('_share')[0] === baseId).length;
               const qtyText = product.quantity > 1 ? ` (${product.quantity}x)` : '';
-              const displayName = count > 1 ? `${product.name}${qtyText} (x${count})` : `${product.name}${qtyText}`;
+              const itemDisplayName = count > 1 ? `${displayName}${qtyText} (x${count})` : `${displayName}${qtyText}`;
               result[baseId].items.push({
-                name: displayName,
+                name: itemDisplayName,
                 amount: itemTotal,
                 baseAmount: perPerson,
                 tipAmount: tipPerPerson,

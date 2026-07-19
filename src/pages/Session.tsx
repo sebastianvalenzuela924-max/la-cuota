@@ -533,6 +533,7 @@ export default function Session() {
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}
           onClearProductAssignments={clearProductAssignments}
+          onUpdateProduct={updateProduct}
         />
 
         <TipSection

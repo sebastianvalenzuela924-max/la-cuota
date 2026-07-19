@@ -503,6 +503,7 @@ export default function Index() {
           onAssignAll={assignAllToProduct}
           onDivideAllAmongAll={divideAllAmongAll}
           onClearProductAssignments={clearProductAssignments}
+          onUpdateProduct={updateProduct}
         />
 
         <TipSection
