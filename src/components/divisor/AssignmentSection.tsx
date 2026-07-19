@@ -1,4 +1,4 @@
-import { Split, UserCheck, Hash } from 'lucide-react';
+import { Split, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Product, Person, Currency } from '@/lib/types';
 import { PERSON_COLORS, getInitials, formatCurrency } from '@/lib/bill-utils';
@@ -48,7 +48,7 @@ export default function AssignmentSection({
 
   return (
     <section className="rounded-2xl bg-card p-5 card-shadow animate-fade-in-up border border-border">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col gap-3 mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
             <UserCheck className="w-4 h-4 text-primary" />
@@ -65,7 +65,6 @@ export default function AssignmentSection({
             }`}
             title="En modo individual, cada clic = 1 unidad consumida del producto"
           >
-            <Hash className="w-3.5 h-3.5" />
             Individual
           </button>
           <Button variant="outline" size="sm" onClick={onDivideAllAmongAll} className="text-xs gap-1.5 rounded-xl font-semibold">
@@ -77,7 +76,6 @@ export default function AssignmentSection({
 
       {individualMode && (
         <div className="mb-4 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 font-medium flex items-start gap-2 animate-fade-in">
-          <Hash className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <span><strong>Modo Individual:</strong> Cada clic sobre una persona = 1 unidad consumida. Útil cuando la boleta dice "3 hamburguesas" y quieres asignar cuántas comió cada uno.</span>
         </div>
       )}
