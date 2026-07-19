@@ -133,47 +133,49 @@ export default function AssignmentSection({
                     )}
                     
                     {/* Divisor Action Button */}
-                    {editingDivisorProductId === product.id ? (
-                      <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-100 bg-background/80 px-2 py-0.5 rounded-lg border border-border">
-                        <span className="text-[9px] text-muted-foreground font-bold uppercase">Partes:</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={tempDivisorValue}
-                          onChange={e => setTempDivisorValue(e.target.value)}
-                          className="w-8 h-5 text-[10px] rounded border border-border bg-background text-center px-0.5 font-bold"
-                          autoFocus
-                        />
+                    {individualMode && (
+                      editingDivisorProductId === product.id ? (
+                        <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-100 bg-background/80 px-2 py-0.5 rounded-lg border border-border">
+                          <span className="text-[9px] text-muted-foreground font-bold uppercase">Partes:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={tempDivisorValue}
+                            onChange={e => setTempDivisorValue(e.target.value)}
+                            className="w-8 h-5 text-[10px] rounded border border-border bg-background text-center px-0.5 font-bold"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveDivisor(product)}
+                            className="w-5 h-5 bg-green-600 text-white rounded flex items-center justify-center"
+                            title="Confirmar"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => setEditingDivisorProductId(null)}
+                            className="w-5 h-5 bg-muted text-muted-foreground rounded flex items-center justify-center"
+                            title="Cancelar"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => handleSaveDivisor(product)}
-                          className="w-5 h-5 bg-green-600 text-white rounded flex items-center justify-center"
-                          title="Confirmar"
+                          onClick={() => {
+                            setEditingDivisorProductId(product.id);
+                            setTempDivisorValue(divisor.toString());
+                          }}
+                          className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded transition-all ${
+                            customDivisor 
+                              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30' 
+                              : 'bg-primary/10 text-primary hover:bg-primary/20'
+                          }`}
+                          title="Divide este producto en partes (por ejemplo, para 5 personas)"
                         >
-                          <Check className="w-3 h-3" />
+                          {customDivisor ? `÷ ${customDivisor} partes` : '÷ Dividir'}
                         </button>
-                        <button
-                          onClick={() => setEditingDivisorProductId(null)}
-                          className="w-5 h-5 bg-muted text-muted-foreground rounded flex items-center justify-center"
-                          title="Cancelar"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditingDivisorProductId(product.id);
-                          setTempDivisorValue(divisor.toString());
-                        }}
-                        className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded transition-all ${
-                          customDivisor 
-                            ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30' 
-                            : 'bg-primary/10 text-primary hover:bg-primary/20'
-                        }`}
-                        title="Divide este producto en partes (por ejemplo, para 5 personas)"
-                      >
-                        {customDivisor ? `÷ ${customDivisor} partes` : '÷ Dividir'}
-                      </button>
+                      )
                     )}
                   </div>
                 </div>
